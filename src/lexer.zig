@@ -95,5 +95,20 @@ pub const Lexer = struct {
         const c = self.peek();
 
         std.debug.print("{c}\n", c);
+
+        if (is_identifier(c)) {
+            // todo: read identifier
+        }
+        if (is_digit(c)) {
+            // todo: read number
+        }
+        if (c == '"') {
+            // todo: read string
+        }
+        if (c == '\'') {
+            // todo: read char
+        }
+
+        // read operators
     }
 };
