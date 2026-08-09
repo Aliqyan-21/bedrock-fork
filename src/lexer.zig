@@ -14,6 +14,7 @@ pub const Lexer = struct {
 
     fn peek(self: *Lexer) u8 {
         if (self.pos >= self.source.len) return 0;
+        return self.source[self.pos];
     }
 
     fn peek_at(self: *Lexer, offset: usize) u8 {
@@ -27,9 +28,9 @@ pub const Lexer = struct {
         self.pos += 1;
         if (c == '\n') {
             self.line += 1;
-            self.column = 1;
+            self.col = 1;
         } else {
-            self.column += 1;
+            self.col += 1;
         }
         return c;
     }
@@ -89,7 +90,7 @@ pub const Lexer = struct {
         const col = self.col;
 
         if (self.is_end()) {
-            return .{ .kind = .eof, .val = "", .line = line, .col = col };
+            return .{ .type = .eof, .val = "", .line = line, .col = col };
         }
 
         const c = self.peek();
@@ -97,7 +98,7 @@ pub const Lexer = struct {
         std.debug.print("{c}\n", c);
 
         if (is_identifier(c)) {
-            // todo: read identifier
+            return self.read_identifier_or_keyword(line, col);
         }
         if (is_digit(c)) {
             // todo: read number
@@ -109,6 +110,16 @@ pub const Lexer = struct {
             // todo: read char
         }
 
-        // read operators
+        // todo: read operators
+    }
+
+    fn read_identifier_or_keyword(self: *Lexer, line: usize, col: usize) t.Token {
+        const start = self.pos;
+        while (!self.is_end() and is_ident_cont(self.peek())) {
+            _ = self.advance();
+        }
+        const text = self.source[start..self.pos];
+        const kind = t.lookup_keyword(text) orelse .ident;
+        return .{ .kind = kind, .val = text, .line = line, .col = col };
     }
 };

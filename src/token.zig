@@ -127,3 +127,10 @@ pub const keywords = [_]struct { text: []const u8, kind: TokenType }{
     .{ .text = "true", .kind = .kw_true },
     .{ .text = "false", .kind = .kw_false },
 };
+
+pub fn lookup_keyword(text: []const u8) ?TokenType {
+    for (keywords) |kw| {
+        if (std.mem.eql(u8, kw.text, text)) return kw.kind;
+    }
+    return null;
+}
