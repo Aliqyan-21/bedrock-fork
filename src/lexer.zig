@@ -59,6 +59,30 @@ pub const Lexer = struct {
         }
     }
 
+    fn is_identifier(c: u8) bool {
+        return (std.ascii.isAlphabetic(c) or c == '_');
+    }
+
+    fn is_ident_cont(c: u8) bool {
+        return is_identifier(c) or (std.ascii.isDigit(c));
+    }
+
+    fn is_digit(c: u8) bool {
+        return std.ascii.isDigit(c);
+    }
+
+    fn is_hex_digit(c: u8) bool {
+        return is_digit(c) or (c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F');
+    }
+
+    fn is_oct_digit(c: u8) bool {
+        return c >= '0' and c <= '7';
+    }
+
+    fn is_bin_digit(c: u8) bool {
+        return c >= '0' and c <= '1';
+    }
+
     pub fn next(self: *Lexer) !t.Token {
         self.skip_whitespace_and_comment();
         const line = self.line;
