@@ -95,7 +95,7 @@ pub const Lexer = struct {
 
         const c = self.peek();
 
-        std.debug.print("{c}\n", c);
+        std.debug.print("{c}\n", .{c});
 
         if (is_identifier(c)) {
             return self.read_identifier_or_keyword(line, col);
@@ -110,7 +110,7 @@ pub const Lexer = struct {
             // todo: read char
         }
 
-        // todo: read operators
+        return self.read_operator(line, col);
     }
 
     fn read_identifier_or_keyword(self: *Lexer, line: usize, col: usize) t.Token {
@@ -120,6 +120,149 @@ pub const Lexer = struct {
         }
         const text = self.source[start..self.pos];
         const kind = t.lookup_keyword(text) orelse .ident;
-        return .{ .kind = kind, .val = text, .line = line, .col = col };
+        return .{ .type = kind, .val = text, .line = line, .col = col };
+    }
+
+    fn read_operator(self: *Lexer, line: usize, col: usize) !t.Token {
+        const start = self.pos;
+        const c = self.advance();
+
+        switch (c) {
+            '-' => {
+                if (self.peek() == '>') {
+                    _ = self.advance();
+                    return self.make(.arrow, start, line, col);
+                }
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.minus_eq, start, line, col);
+                }
+                return self.make(.minus, start, line, col);
+            },
+            '=' => {
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.eq_eq, start, line, col);
+                }
+                return self.make(.eq, start, line, col);
+            },
+            '!' => {
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.bang_eq, start, line, col);
+                }
+                return self.make(.bang, start, line, col);
+            },
+            '<' => {
+                if (self.peek() == '<') {
+                    _ = self.advance();
+                    if (self.peek() == '=') {
+                        _ = self.advance();
+                        return self.make(.shl_eq, start, line, col);
+                    }
+                    return self.make(.shl, start, line, col);
+                }
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.lt_eq, start, line, col);
+                }
+                return self.make(.lt, start, line, col);
+            },
+            '>' => {
+                if (self.peek() == '>') {
+                    _ = self.advance();
+                    if (self.peek() == '=') {
+                        _ = self.advance();
+                        return self.make(.shr_eq, start, line, col);
+                    }
+                    return self.make(.shr, start, line, col);
+                }
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.gt_eq, start, line, col);
+                }
+                return self.make(.gt, start, line, col);
+            },
+            '&' => {
+                if (self.peek() == '&') {
+                    _ = self.advance();
+                    return self.make(.amp_amp, start, line, col);
+                }
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.amp_eq, start, line, col);
+                }
+                return self.make(.amp, start, line, col);
+            },
+            '|' => {
+                if (self.peek() == '|') {
+                    _ = self.advance();
+                    return self.make(.pipe_pipe, start, line, col);
+                }
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.pipe_eq, start, line, col);
+                }
+                return self.make(.pipe, start, line, col);
+            },
+            '+' => {
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.plus_eq, start, line, col);
+                }
+                return self.make(.plus, start, line, col);
+            },
+            '*' => {
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.star_eq, start, line, col);
+                }
+                return self.make(.star, start, line, col);
+            },
+            '/' => {
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.slash_eq, start, line, col);
+                }
+                return self.make(.slash, start, line, col);
+            },
+            '%' => {
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.percent_eq, start, line, col);
+                }
+                return self.make(.percent, start, line, col);
+            },
+            '^' => {
+                if (self.peek() == '=') {
+                    _ = self.advance();
+                    return self.make(.caret_eq, start, line, col);
+                }
+                return self.make(.caret, start, line, col);
+            },
+            '.' => {
+                if (self.peek() == '.') {
+                    _ = self.advance();
+                    return self.make(.dot_dot, start, line, col);
+                }
+                return self.make(.dot, start, line, col);
+            },
+            '~' => return self.make(.tilde, start, line, col),
+            '?' => return self.make(.question, start, line, col),
+            '(' => return self.make(.l_paren, start, line, col),
+            ')' => return self.make(.r_paren, start, line, col),
+            '[' => return self.make(.l_bracket, start, line, col),
+            ']' => return self.make(.r_bracket, start, line, col),
+            '{' => return self.make(.l_brace, start, line, col),
+            '}' => return self.make(.r_brace, start, line, col),
+            ',' => return self.make(.comma, start, line, col),
+            ':' => return self.make(.colon, start, line, col),
+            ';' => return self.make(.semicolon, start, line, col),
+            else => return error.Unkown,
+        }
+    }
+
+    fn make(self: *Lexer, tt: t.TokenType, start: usize, line: usize, col: usize) t.Token {
+        return .{ .type = tt, .val = self.source[start..self.pos], .line = line, .col = col };
     }
 };
