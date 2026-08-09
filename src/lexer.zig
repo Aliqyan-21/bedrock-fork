@@ -58,4 +58,18 @@ pub const Lexer = struct {
             }
         }
     }
+
+    pub fn next(self: *Lexer) !t.Token {
+        self.skip_whitespace_and_comment();
+        const line = self.line;
+        const col = self.col;
+
+        if (self.is_end()) {
+            return .{ .kind = .eof, .val = "", .line = line, .col = col };
+        }
+
+        const c = self.peek();
+
+        std.debug.print("{c}\n", c);
+    }
 };
