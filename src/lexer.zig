@@ -133,7 +133,11 @@ pub const Lexer = struct {
                 '\\', '\'', 'n', 't', 'r', '0' => _ = self.advance(),
                 else => return error.InvalidEscape,
             }
-        } else if (self.peek() == '\'') return error.UnexpectedChar;
+        } else if (self.peek() == '\'') {
+            return error.UnexpectedChar;
+        } else {
+            _ = self.advance();
+        }
 
         if (self.is_end() or self.peek() != '\'') return error.UnterminatedChar;
         _ = self.advance();
