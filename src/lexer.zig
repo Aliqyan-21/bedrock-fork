@@ -349,7 +349,7 @@ pub const Lexer = struct {
                 return self.make(.dot, start, line, col);
             },
             '~' => return self.make(.tilde, start, line, col),
-            '?' => return self.make(.question, start, line, col),
+            '?' => return self.make(.optional, start, line, col),
             '(' => return self.make(.l_paren, start, line, col),
             ')' => return self.make(.r_paren, start, line, col),
             '[' => return self.make(.l_bracket, start, line, col),

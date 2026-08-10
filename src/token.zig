@@ -62,7 +62,7 @@ pub const TokenType = enum {
     bang, // !
     lt, // <
     gt, // >
-    question, // ?
+    optional, // ?
 
     // operators (multiple char)
     arrow, // ->
