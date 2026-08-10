@@ -42,7 +42,6 @@ pub const Compiler = struct {
                     std.debug.print("{d} | {s}", .{ l_count, l[0 .. e.token.col - 1] });
                     std.debug.print("{s}", .{l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]});
                     std.debug.print("{s}\n", .{l[e.token.col + e.token.val.len - 1 ..]});
-                    std.debug.print("\n", .{});
                     std.debug.print("    ", .{});
                     for (l[0 .. e.token.col - 1]) |_| {
                         std.debug.print(" ", .{});
@@ -50,8 +49,7 @@ pub const Compiler = struct {
                     for (l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]) |_| {
                         std.debug.print("^", .{});
                     }
-                    std.debug.print(" \x1b[31m{s}\x1b[0m\n", .{e.msg});
-                    std.debug.print("\n", .{});
+                    std.debug.print(" \x1b[31m{s}\x1b[0m\n\n", .{e.msg});
                 } else {
                     std.debug.print("{d} | {s}\n", .{ l_count, l });
                 }

@@ -11,8 +11,9 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     const source =
-        \\func proc main() void
-        \\  io.println("Hello, World");
+        \\import io
+        \\func proc add(x i32, y: i32) -> i32
+        \\  return x + y;
         \\end
         \\
     ;
@@ -22,17 +23,18 @@ pub fn main() !void {
     defer c.deinit();
     const err_tok = token.Token{
         .type = token.TokenType.ident,
-        .val = "void",
-        .line = 1,
-        .col = 18,
+        .val = "i32",
+        .line = 2,
+        .col = 17,
     };
-    try c.addError("expect -> here got void", err.Severity.Error, err_tok);
+    try c.addError("expect : here got i32", err.Severity.Error, err_tok);
     try c.emitErrors();
 
-    // var tokens = try lexer.tokenize(allocator, source);
-    // defer tokens.deinit(allocator);
+    var tokens = try lexer.tokenize(allocator, source);
+    defer tokens.deinit(allocator);
 
-    // for (tokens.items) |tok| {
-    //     std.debug.print("{d}:{d:<3} {s:<12} '{s}'\n", .{ tok.line, tok.col, @tagName(tok.type), tok.val });
-    // }
+    std.debug.print("\nTokens:\n", .{});
+    for (tokens.items) |tok| {
+        std.debug.print("{d}:{d:<3} {s:<12} '{s}'\n", .{ tok.line, tok.col, @tagName(tok.type), tok.val });
+    }
 }
