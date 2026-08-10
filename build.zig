@@ -50,4 +50,19 @@ pub fn build(b: *std.Build) void {
     const run_exe_tests = b.addRunArtifact(exe_tests);
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_exe_tests.step);
+
+    const bedrock_mod = b.addModule("bedrock", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const lexer_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/test_lexer.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    lexer_tests.root_module.addImport("bedrock", bedrock_mod);
+    test_step.dependOn(&b.addRunArtifact(lexer_tests).step);
 }

@@ -43,8 +43,6 @@ pub const TokenType = enum {
     r_paren, // )
     l_bracket, // [
     r_bracket, // ]
-    l_brace, // { (reserved, not currently used by any rule but kept for... why not?)
-    r_brace, // }
     dot, // .
     comma, // ,
     colon, // :
@@ -62,7 +60,7 @@ pub const TokenType = enum {
     bang, // !
     lt, // <
     gt, // >
-    question, // ?
+    optional, // ?
 
     // operators (multiple char)
     arrow, // ->
@@ -96,3 +94,41 @@ pub const Token = struct {
     line: usize,
     col: usize,
 };
+
+pub const keywords = [_]struct { text: []const u8, kind: TokenType }{
+    .{ .text = "import", .kind = .kw_import },
+    .{ .text = "pub", .kind = .kw_pub },
+    .{ .text = "inline", .kind = .kw_inline },
+    .{ .text = "func", .kind = .kw_func },
+    .{ .text = "proc", .kind = .kw_proc },
+    .{ .text = "extern", .kind = .kw_extern },
+    .{ .text = "type", .kind = .kw_type },
+    .{ .text = "struct", .kind = .kw_struct },
+    .{ .text = "enum", .kind = .kw_enum },
+    .{ .text = "static", .kind = .kw_static },
+    .{ .text = "const", .kind = .kw_const },
+    .{ .text = "var", .kind = .kw_var },
+    .{ .text = "defer", .kind = .kw_defer },
+    .{ .text = "unsafe", .kind = .kw_unsafe },
+    .{ .text = "if", .kind = .kw_if },
+    .{ .text = "elif", .kind = .kw_elif },
+    .{ .text = "else", .kind = .kw_else },
+    .{ .text = "for", .kind = .kw_for },
+    .{ .text = "in", .kind = .kw_in },
+    .{ .text = "while", .kind = .kw_while },
+    .{ .text = "match", .kind = .kw_match },
+    .{ .text = "case", .kind = .kw_case },
+    .{ .text = "return", .kind = .kw_return },
+    .{ .text = "orelse", .kind = .kw_orelse },
+    .{ .text = "comptime", .kind = .kw_comptime },
+    .{ .text = "end", .kind = .kw_end },
+    .{ .text = "true", .kind = .kw_true },
+    .{ .text = "false", .kind = .kw_false },
+};
+
+pub fn lookup_keyword(text: []const u8) ?TokenType {
+    for (keywords) |kw| {
+        if (std.mem.eql(u8, kw.text, text)) return kw.kind;
+    }
+    return null;
+}

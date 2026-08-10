@@ -1,10 +1,23 @@
 const std = @import("std");
 const llvm = @import("llvm");
+const lexer = @import("lexer.zig");
 
 pub fn main() !void {
-    const ctx: llvm.LLVMContextRef = llvm.LLVMContextCreate();
-    const mod: llvm.LLVMModuleRef = llvm.LLVMModuleCreateWithNameInContext("module", ctx);
-    const mod_str = llvm.LLVMPrintModuleToString(mod);
-    std.debug.print("Ed is coming to rule the world bok! bok!.\n", .{});
-    std.debug.print("{s}\n", .{mod_str});
+    var gpa = std.heap.DebugAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const source =
+        \\pub proc main()
+        \\  io.println("Hello, World");
+        \\end
+        \\
+    ;
+
+    var tokens = try lexer.tokenize(allocator, source);
+    defer tokens.deinit(allocator);
+
+    for (tokens.items) |tok| {
+        std.debug.print("{d}:{d:<3} {s:<12} '{s}'\n", .{ tok.line, tok.col, @tagName(tok.type), tok.val });
+    }
 }
