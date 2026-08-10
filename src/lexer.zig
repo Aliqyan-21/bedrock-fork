@@ -359,7 +359,7 @@ pub const Lexer = struct {
             ',' => return self.make(.comma, start, line, col),
             ':' => return self.make(.colon, start, line, col),
             ';' => return self.make(.semicolon, start, line, col),
-            else => return error.Unkown,
+            else => return error.Unknown,
         }
     }
 
