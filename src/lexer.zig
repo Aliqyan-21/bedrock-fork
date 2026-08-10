@@ -363,3 +363,16 @@ pub const Lexer = struct {
         return .{ .type = tt, .val = self.source[start..self.pos], .line = line, .col = col };
     }
 };
+
+// convenience function
+pub fn tokenize(allocator: std.mem.Allocator, source: []const u8) !std.ArrayList(t.Token) {
+    var lexer = Lexer.init(source);
+    var tokens: std.ArrayList(t.Token) = .empty;
+    errdefer tokens.deinit(allocator);
+    while (true) {
+        const tok = try lexer.next();
+        try tokens.append(allocator, tok);
+        if (tok.type == .eof) break;
+    }
+    return tokens;
+}

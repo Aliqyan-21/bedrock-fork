@@ -1,7 +1,6 @@
 const std = @import("std");
 const llvm = @import("llvm");
-const l = @import("lexer.zig");
-const t = @import("token.zig");
+const lexer = @import("lexer.zig");
 
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
@@ -15,15 +14,8 @@ pub fn main() !void {
         \\
     ;
 
-    var lexer = l.Lexer.init(source);
-    var tokens: std.ArrayList(t.Token) = .empty;
+    var tokens = try lexer.tokenize(allocator, source);
     defer tokens.deinit(allocator);
-
-    while (true) {
-        const tok = try lexer.next();
-        try tokens.append(allocator, tok);
-        if (tok.type == .eof) break;
-    }
 
     for (tokens.items) |tok| {
         std.debug.print("{d}:{d:<3} {s:<12} '{s}'\n", .{ tok.line, tok.col, @tagName(tok.type), tok.val });
