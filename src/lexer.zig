@@ -8,7 +8,6 @@ pub const Lexer = struct {
     col: usize = 1,
 
     pub fn init(source: []const u8) Lexer {
-        std.debug.print("{s}\n", .{source});
         return .{ .source = source };
     }
 
@@ -94,8 +93,6 @@ pub const Lexer = struct {
         }
 
         const c = self.peek();
-
-        std.debug.print("{c}\n", .{c});
 
         if (is_identifier(c)) {
             return self.read_identifier_or_keyword(line, col);
