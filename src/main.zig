@@ -12,7 +12,7 @@ pub fn main() !void {
 
     const source =
         \\import io
-        \\func proc add(x i32, y: i32) -> i32
+        \\func add(x i32, y: i32) -> i32
         \\  return x + y;
         \\end
         \\
