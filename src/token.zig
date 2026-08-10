@@ -43,8 +43,6 @@ pub const TokenType = enum {
     r_paren, // )
     l_bracket, // [
     r_bracket, // ]
-    l_brace, // { (reserved, not currently used by any rule but kept for... why not?)
-    r_brace, // }
     dot, // .
     comma, // ,
     colon, // :
