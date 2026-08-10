@@ -101,13 +101,13 @@ pub const Lexer = struct {
             return self.read_identifier_or_keyword(line, col);
         }
         if (is_digit(c)) {
-            // todo: read number
+            return self.read_number(line, col);
         }
         if (c == '"') {
-            // todo: read string
+            return self.read_string(line, col);
         }
         if (c == '\'') {
-            // todo: read char
+            return self.read_char(line, col);
         }
 
         return self.read_operator(line, col);
@@ -121,6 +121,106 @@ pub const Lexer = struct {
         const text = self.source[start..self.pos];
         const kind = t.lookup_keyword(text) orelse .ident;
         return .{ .type = kind, .val = text, .line = line, .col = col };
+    }
+
+    fn read_char(self: *Lexer, line: usize, col: usize) !t.Token {
+        const start = self.pos;
+        _ = self.advance();
+
+        if (self.is_end() or self.peek() == '\n') return error.UnterminatedChar;
+
+        if (self.peek() == '\\') {
+            _ = self.advance();
+            const e = self.peek();
+            switch (e) {
+                '\\', '\'', 'n', 't', 'r', '0' => _ = self.advance(),
+                else => return error.InvalidEscape,
+            }
+        } else if (self.peek() == '\'') return error.UnexpectedChar;
+
+        if (self.is_end() or self.peek() != '\'') return error.UnterminatedChar;
+        _ = self.advance();
+
+        return self.make(.char, start, line, col);
+    }
+
+    fn read_string(self: *Lexer, line: usize, col: usize) !t.Token {
+        const start = self.pos;
+        _ = self.advance();
+
+        while (true) {
+            if (self.is_end()) return error.UnterminatedString;
+            const c = self.peek();
+            if (c == '"') {
+                _ = self.advance();
+                break;
+            }
+            if (c == '\n') return error.UnterminatedString;
+            if (c == '\\') {
+                _ = self.advance();
+                const e = self.peek();
+                switch (e) {
+                    '\\', '"', 'n', 't', 'r', '0' => _ = self.advance(),
+                    else => return error.InvalidEscape,
+                }
+                continue;
+            }
+            _ = self.advance();
+        }
+
+        return self.make(.string, start, line, col);
+    }
+
+    fn read_number(self: *Lexer, line: usize, col: usize) !t.Token {
+        const start = self.pos;
+
+        if (self.peek() == '0' and (self.peek_at(1) == 'x' or self.peek_at(1) == 'X')) {
+            _ = self.advance();
+            _ = self.advance();
+            if (!is_hex_digit(self.peek()) and self.peek() != '_') {
+                return error.UnexpectedChar;
+            }
+            while (!self.is_end() and (is_hex_digit(self.peek()) or self.peek() == '_')) {
+                _ = self.advance();
+            }
+            return self.make(.integer, start, line, col);
+        } else if (self.peek() == '0' and (self.peek_at(1) == 'o' or self.peek_at(1) == 'O')) {
+            _ = self.advance();
+            _ = self.advance();
+            if (!is_oct_digit(self.peek()) and self.peek() != '_') {
+                return error.UnexpectedChar;
+            }
+            while (!self.is_end() and (is_oct_digit(self.peek()) or self.peek() == '_')) {
+                _ = self.advance();
+            }
+            return self.make(.integer, start, line, col);
+        } else if (self.peek() == '0' and (self.peek_at(1) == 'b' or self.peek_at(1) == 'B')) {
+            _ = self.advance();
+            _ = self.advance();
+            if (!is_bin_digit(self.peek()) and self.peek() != '_') {
+                return error.UnexpectedChar;
+            }
+            while (!self.is_end() and (is_bin_digit(self.peek()) or self.peek() == '_')) {
+                _ = self.advance();
+            }
+            return self.make(.integer, start, line, col);
+        }
+
+        // decimal
+        while (!self.is_end() and (is_digit(self.peek()) or self.peek() == '_')) {
+            _ = self.advance();
+        }
+
+        // float
+        if (self.peek() == '.' and self.peek_at(1) != '.' and is_digit(self.peek_at(1))) {
+            _ = self.advance();
+            while (!self.is_end() and (is_digit(self.peek()) or self.peek() == '_')) {
+                _ = self.advance();
+            }
+            return self.make(.float, start, line, col);
+        }
+
+        return self.make(.integer, start, line, col);
     }
 
     fn read_operator(self: *Lexer, line: usize, col: usize) !t.Token {
