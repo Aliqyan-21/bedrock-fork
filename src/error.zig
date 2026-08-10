@@ -2,7 +2,8 @@ const Token = @import("token.zig").Token;
 
 pub const Severity = enum {
     Error,
-    Note,
+    Info,
+    Warn,
 };
 
 pub const SourceError = struct {

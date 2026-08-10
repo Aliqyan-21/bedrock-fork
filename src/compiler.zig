@@ -49,7 +49,17 @@ pub const Compiler = struct {
                     for (l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]) |_| {
                         std.debug.print("^", .{});
                     }
-                    std.debug.print(" \x1b[31m{s}\x1b[0m\n\n", .{e.msg});
+                    switch (e.severity) {
+                        err.Severity.Error => {
+                            std.debug.print(" \x1b[31m{s}\x1b[0m\n\n", .{e.msg});
+                        },
+                        err.Severity.Warn => {
+                            std.debug.print(" \x1b[33m{s}\x1b[0m\n\n", .{e.msg});
+                        },
+                        err.Severity.Info => {
+                            std.debug.print(" \x1b[36m{s}\x1b[0m\n\n", .{e.msg});
+                        },
+                    }
                 } else {
                     std.debug.print("{d} | {s}\n", .{ l_count, l });
                 }
