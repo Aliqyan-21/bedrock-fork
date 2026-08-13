@@ -156,7 +156,37 @@ pub const Type = union(enum) {
     proc: ProcType,
 };
 
-pub const Expr = union(enum) {};
+pub const LiteralExpr = struct {};
+pub const IdentExpr = struct {};
+pub const BinaryExpr = struct {};
+pub const UnaryExpr = struct {};
+pub const FieldAccessExpr = struct {};
+pub const CallExpr = struct {};
+pub const IndexExpr = struct {};
+pub const OptionalUnwrapExpr = struct {};
+pub const ArrayLiteralExpr = struct {};
+pub const IfExpr = struct {};
+pub const MatchExpr = struct {};
+pub const WhileExpr = struct {};
+pub const ForExpr = struct {};
+pub const ComptimeExpr = struct {};
+
+pub const Expr = union(enum) {
+    literal: LiteralExpr,
+    ident: IdentExpr,
+    binary: BinaryExpr,
+    unary: UnaryExpr,
+    field_access: FieldAccessExpr,
+    call: CallExpr,
+    index: IndexExpr,
+    optional_unwrap: OptionalUnwrapExpr,
+    array_literal: ArrayLiteralExpr,
+    if_expr: IfExpr,
+    match_expr: MatchExpr,
+    while_expr: WhileExpr,
+    for_expr: ForExpr,
+    comptime_expr: ComptimeExpr,
+};
 
 // statement       = var_stmt | const_stmt | local_static_var_stmt | assign_stmt | defer_stmt
 //                 | unsafe_stmt | control_flow_stmt | return_stmt | expr_stmt
