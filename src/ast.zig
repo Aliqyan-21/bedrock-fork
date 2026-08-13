@@ -181,9 +181,20 @@ pub const VarStmt = struct {
 };
 
 // const_stmt = "const" IDENT [ ":" ["?"] type ] "=" expression ";"
-pub const ConstStmt = struct {};
+pub const ConstStmt = struct {
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
+
 // local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
-pub const LocalStaticVarStmt = struct {};
+pub const LocalStaticVarStmt = struct {
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
 // assign_stmt = place_expr ( "=" | compound_op ) expression ";"
 pub const AssignStmt = struct {};
 // defer_stmt = "defer" ( var_stmt | const_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
