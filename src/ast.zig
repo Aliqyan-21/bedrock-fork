@@ -43,6 +43,11 @@ pub const Result = union(enum) {
     error_union: *Type, // "!"
 };
 
+pub const TypeAnn = struct {
+    is_optional: bool,
+    type: *Type,
+};
+
 // function = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
 pub const FunctionDef = struct {
     is_pub: bool,
@@ -168,7 +173,13 @@ pub const Stmt = union(enum) {
 };
 
 // var_stmt = "var" IDENT [ ":" ["?"] type ] "=" expression ";"
-pub const VarStmt = struct {};
+pub const VarStmt = struct {
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
+
 // const_stmt = "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstStmt = struct {};
 // local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
