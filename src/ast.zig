@@ -1,9 +1,10 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
 
-pub const Item = struct {
+pub const Item = union(enum) {
     import_def: ImportDef,
     function: FunctionDef,
+    proc: ProcDef,
     struct_def: StructDef,
     enum_def: EnumDef,
     extern_def: ExternDef,
@@ -154,7 +155,7 @@ pub const StructField = struct {
 
 // method_def = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
 //            | [ "pub" ] [ "inline" ] "proc" IDENT [ type_params ] "(" [ params ] ")" block "end"
-pub const MethodDef = struct {
+pub const MethodDef = union(enum) {
     func: FunctionDef,
     proc: ProcDef,
 };
