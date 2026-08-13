@@ -1,5 +1,5 @@
 const std = @import("std");
-const t = @import("token.zig");
+const Token = @import("token.zig").Token;
 
 pub const Item = struct {
     import_def: ImportDef,
@@ -16,10 +16,38 @@ pub const Program = struct {
 };
 
 // import_def = "import" IDENT {"." IDENT} ";"
-pub const ImportDef = struct {};
+pub const ImportDef = struct {
+    path: [][]const u8,
+    token: Token,
+};
+
+pub const TypeParam = struct {//TODO};
+pub const Param = struct {//TODO};
+pub const Result = struct {//TODO};
 
 // function = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
-pub const FunctionDef = struct {};
+pub const FunctionDef = struct {
+    is_pub: bool,
+    is_inline: bool,
+    name: []const u8,
+    type_params: []TypeParam,
+    params: []Param,
+    result: Result,
+    body: []Stmt,
+    token: Token,
+};
+
+pub const ProcDef = struct {
+    is_pub: bool,
+    is_inline: bool,
+    name: []const u8,
+    type_params: []TypeParam,
+    params: []Param,
+    body: []Stmt,
+    token: Token,
+};
+
+pub const Stmt = struct{};
 
 // struct_def = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
 pub const StructDef = struct {};
