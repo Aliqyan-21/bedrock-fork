@@ -238,10 +238,27 @@ pub const CallExpr = struct {
     token: Token,
 };
 
-pub const IndexExpr = struct {};
-pub const OptionalUnwrapExpr = struct {};
-pub const ArrayLiteralExpr = struct {};
+// this support both, arr[i] and also
+// foo[Type] -> generic instantiations
+pub const IndexExpr = struct {
+    target: *Expr,
+    args: []*Expr,
+    token: Token,
+};
+
+// ?
+pub const OptionalUnwrapExpr = struct {
+    operand: *Expr,
+    token: Token,
+};
+
+pub const ArrayLiteralExpr = struct {
+    elements: []*Expr,
+    token: Token,
+};
+
 pub const IfExpr = struct {};
+
 pub const MatchExpr = struct {};
 pub const WhileExpr = struct {};
 pub const ForExpr = struct {};
