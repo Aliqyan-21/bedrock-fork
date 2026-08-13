@@ -156,9 +156,25 @@ pub const Type = union(enum) {
     proc: ProcType,
 };
 
-pub const LiteralExpr = struct {};
+pub const LiteralKind = enum {
+    integer,
+    float,
+    char,
+    string,
+    bool_true,
+    bool_false,
+};
+
+pub const LiteralExpr = struct {
+    kind: LiteralKind,
+    raw: []const u8,
+    token: Token,
+};
+
 pub const IdentExpr = struct {};
+
 pub const BinaryExpr = struct {};
+
 pub const UnaryExpr = struct {};
 pub const FieldAccessExpr = struct {};
 pub const CallExpr = struct {};
