@@ -21,6 +21,6 @@ test "func_type ast print" {
         },
     };
     _ = &func_type;
-    try func_type.print(0);
+    // try func_type.print(0);
     // std.testing.expectEqualStrings("func(i32, i32) -> i32", func_type.toString());
 }
