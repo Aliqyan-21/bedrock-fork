@@ -37,7 +37,7 @@ pub const Param = struct {
 };
 
 // result = "->" ( "?" type | type "!" | type )
-pub const Result = struct {
+pub const Result = union(enum) {
     plain: *Type,
     optional: *Type, // "?"
     error_union: *Type, // "!"
