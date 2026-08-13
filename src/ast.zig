@@ -1,13 +1,14 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
 
-pub const Item = struct {
+pub const Item = union(enum) {
     import_def: ImportDef,
     function: FunctionDef,
+    proc: ProcDef,
     struct_def: StructDef,
     enum_def: EnumDef,
     extern_def: ExternDef,
-    global_var_def: GlobalVarDef,
+    var_def: VarDef,
     const_def: ConstDef,
 };
 
@@ -123,11 +124,25 @@ pub const ExternDef = struct {
     token: Token,
 };
 
-// global_var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
-pub const GlobalVarDef = struct {};
+// var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+pub const VarDef = struct {
+    is_pub: bool,
+    is_global: bool,
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
 
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
-pub const ConstDef = struct {};
+pub const ConstDef = struct {
+    is_pub: bool,
+    is_global: bool,
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
 
 // struct_field = ["pub"] IDENT ":" ["?"] type
 pub const StructField = struct {
@@ -140,7 +155,7 @@ pub const StructField = struct {
 
 // method_def = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
 //            | [ "pub" ] [ "inline" ] "proc" IDENT [ type_params ] "(" [ params ] ")" block "end"
-pub const MethodDef = struct {
+pub const MethodDef = union(enum) {
     func: FunctionDef,
     proc: ProcDef,
 };
