@@ -110,7 +110,10 @@ pub const PrimitiveType = enum {
     str,
 };
 
-pub const ArraySize = struct {};
+pub const ArraySize = union(enum) {
+    fixed: []const u8, // INTEGER
+    inferred, // "_"
+};
 
 // array_type = "[" ( INTEGER | "_" ) "]" type
 pub const ArrayType = struct {
