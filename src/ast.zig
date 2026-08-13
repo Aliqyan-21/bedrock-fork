@@ -80,12 +80,48 @@ pub const StructDef = struct {
     token: Token,
 };
 
+// enum_variants   = enum_variant { "," enum_variant } [ "," ]
+// enum_variant    = IDENT
+pub const EnumVariant = struct {
+    name: []const u8,
+    token: Token,
+};
+
 // enum_def = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
-pub const EnumDef = struct {};
+pub const EnumDef = struct {
+    is_pub: bool,
+    name: []const u8,
+    type_params: []TypeParam,
+    variants: []EnumVariant,
+    token: Token,
+};
+
+// extern_params   = extern_param { "," extern_param } [ "," "..." ] | "..."
+// extern_param    = IDENT ":" type
+pub const ExternParam = struct {
+    name: []const u8,
+    type: *Type,
+    token: Token,
+};
 
 // extern_def = "extern" ( "func" IDENT "(" [ extern_params ] ")" "->" type
 //            | "proc" IDENT "(" [ extern_params ] ")" )
-pub const ExternDef = struct {};
+pub const ExternDef = struct {
+    kind: union(enum) {
+        func: struct {
+            name: []const u8,
+            params: []ExternParam,
+            is_variadic: bool,
+            result: *Type,
+        },
+        proc: struct {
+            name: []const u8,
+            params: []ExternParam,
+            is_variadic: bool,
+        },
+    },
+    token: Token,
+};
 
 // global_var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const GlobalVarDef = struct {};
