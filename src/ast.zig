@@ -257,9 +257,39 @@ pub const ArrayLiteralExpr = struct {
     token: Token,
 };
 
-pub const IfExpr = struct {};
+pub const ElifClause = struct {
+    cond: *Expr,
+    body: []Stmt,
+    token: Token,
+};
 
-pub const MatchExpr = struct {};
+pub const IfExpr = struct {
+    cond: *Expr,
+    then_body: []Stmt,
+    elifs: []ElifClause,
+    else_body: ?[]Stmt,
+    token: Token,
+};
+
+pub const Pattern = struct {
+    integer: []const u8,
+    boolean: bool,
+    ident: []const u8,
+};
+
+pub const MatchArm = struct {
+    pattern: Pattern,
+    body: []Stmt,
+    token: Token,
+};
+
+pub const MatchExpr = struct {
+    subject: *Expr,
+    arms: []MatchArm,
+    else_body: ?[]Stmt,
+    token: Token,
+};
+
 pub const WhileExpr = struct {};
 pub const ForExpr = struct {};
 pub const ComptimeExpr = struct {};
