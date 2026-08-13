@@ -99,7 +99,30 @@ pub const PrimitiveType = enum {
     str,
 };
 
-pub const Type = struct {};
+// type = "i8" | "i16" | "i32" | "i64" //
+//      | "u8" | "u16" | "u32" | "u64" //
+//      | "usize" | "isize"            //
+//      | "f32" | "f64"                //
+//      | "bool" | "char" | "str"      //
+//      | "*" type                     //
+//      | array_type                   //
+//      | named_type                   //
+//      | func_type                    //
+//      | proc_type                    //
+
+pub const ArrayType = struct {};
+pub const NamedType = struct {};
+pub const FuncType = struct {};
+pub const ProcType = struct {};
+
+pub const Type = struct {
+    primitive: PrimitiveType,
+    pointer: *Type,
+    array: ArrayType,
+    named: NamedType,
+    func: FuncType,
+    proc: ProcType,
+};
 
 pub const Stmt = struct {};
 
