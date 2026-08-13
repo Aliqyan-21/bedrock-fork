@@ -7,7 +7,7 @@ pub const Item = struct {
     struct_def: StructDef,
     enum_def: EnumDef,
     extern_def: ExternDef,
-    global_var_def: GlobalVarDef,
+    var_def: VarDef,
     const_def: ConstDef,
 };
 
@@ -124,10 +124,22 @@ pub const ExternDef = struct {
 };
 
 // global_var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
-pub const GlobalVarDef = struct {};
+pub const VarDef = struct {
+    is_pub: bool,
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
 
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
-pub const ConstDef = struct {};
+pub const ConstDef = struct {
+    is_pub: bool,
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
 
 // struct_field = ["pub"] IDENT ":" ["?"] type
 pub const StructField = struct {
