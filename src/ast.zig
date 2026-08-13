@@ -123,9 +123,10 @@ pub const ExternDef = struct {
     token: Token,
 };
 
-// global_var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+// var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const VarDef = struct {
     is_pub: bool,
+    is_global: bool,
     name: []const u8,
     type_ann: ?TypeAnn,
     value: *Expr,
@@ -135,6 +136,7 @@ pub const VarDef = struct {
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstDef = struct {
     is_pub: bool,
+    is_global: bool,
     name: []const u8,
     type_ann: ?TypeAnn,
     value: *Expr,
