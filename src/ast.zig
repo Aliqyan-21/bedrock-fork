@@ -195,10 +195,36 @@ pub const LocalStaticVarStmt = struct {
     value: *Expr,
     token: Token,
 };
+
+pub const CompoundOp = enum {
+    add,
+    sub,
+    mul,
+    div,
+    mod,
+    bit_and,
+    bit_or,
+    bit_xor,
+    shl,
+    shr,
+};
+
 // assign_stmt = place_expr ( "=" | compound_op ) expression ";"
-pub const AssignStmt = struct {};
+pub const AssignStmt = struct {
+    target: *Expr,
+    op: ?CompoundOp, // if null -> simple '='
+    value: *Expr,
+    token: Token,
+};
+
 // defer_stmt = "defer" ( var_stmt | const_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
-pub const DeferStmt = struct {};
+pub const DeferrableStmt = union(enum) {};
+
+pub const DeferStmt = struct {
+    inner: *DeferrableStmt,
+    token: Token,
+};
+
 // unsafe_stmt = "unsafe" block "end"
 pub const UnsafeStmt = struct {};
 // return_stmt = return_expr ";"
