@@ -176,6 +176,14 @@ pub const IdentExpr = struct {
     token: Token,
 };
 
+pub const UnaryOp = enum {
+    neg,
+    not,
+    bit_not,
+    addr_of,
+    deref,
+};
+
 pub const BinaryOp = enum {
     orelse_op,
     logical_or,
@@ -206,9 +214,30 @@ pub const BinaryExpr = struct {
     token: Token,
 };
 
-pub const UnaryExpr = struct {};
-pub const FieldAccessExpr = struct {};
-pub const CallExpr = struct {};
+pub const UnaryExpr = struct {
+    op: UnaryOp,
+    operand: *Expr,
+    token: Token,
+};
+
+// A "." Ident
+pub const FieldAccessExpr = struct {
+    target: *Expr,
+    field: []const u8,
+    token: Token,
+};
+
+pub const CallArg = struct {
+    name: ?[]const u8,
+    value: *Expr,
+};
+
+pub const CallExpr = struct {
+    callee: *Expr,
+    args: []CallArg,
+    token: Token,
+};
+
 pub const IndexExpr = struct {};
 pub const OptionalUnwrapExpr = struct {};
 pub const ArrayLiteralExpr = struct {};
