@@ -89,9 +89,32 @@ pub const EnumDef = struct {
     token: Token,
 };
 
+// extern_params   = extern_param { "," extern_param } [ "," "..." ] | "..."
+// extern_param    = IDENT ":" type
+pub const ExternParam = struct {
+    name: []const u8,
+    type: *Type,
+    token: Token,
+};
+
 // extern_def = "extern" ( "func" IDENT "(" [ extern_params ] ")" "->" type
 //            | "proc" IDENT "(" [ extern_params ] ")" )
-pub const ExternDef = struct {};
+pub const ExternDef = struct {
+    kind: union(enum) {
+        func: struct {
+            name: []const u8,
+            params: []ExternParam,
+            is_variadic: bool,
+            result: *Type,
+        },
+        proc: struct {
+            name: []const u8,
+            params: []ExternParam,
+            is_variadic: bool,
+        },
+    },
+    token: Token,
+};
 
 // global_var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const GlobalVarDef = struct {};
