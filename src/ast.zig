@@ -226,11 +226,21 @@ pub const DeferStmt = struct {
 };
 
 // unsafe_stmt = "unsafe" block "end"
-pub const UnsafeStmt = struct {};
+pub const UnsafeStmt = struct {
+    body: []Stmt,
+    token: Token,
+};
+
 // return_stmt = return_expr ";"
-pub const ReturnStmt = struct {};
+pub const ReturnStmt = struct {
+    value: ?*Expr,
+    token: Token,
+};
+
 // expr_stmt = expression ";"
-pub const ExprStmt = struct {};
+pub const ExprStmt = struct {
+    value: ?*Expr,
+};
 
 // ast have it's own allocator and deinit
 // and ofc it has internal arena, all nodes
