@@ -271,7 +271,7 @@ pub const IfExpr = struct {
     token: Token,
 };
 
-pub const Pattern = struct {
+pub const Pattern = union(enum) {
     integer: []const u8,
     boolean: bool,
     ident: []const u8,
