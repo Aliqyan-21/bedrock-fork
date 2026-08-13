@@ -71,7 +71,14 @@ pub const ProcDef = struct {
 };
 
 // struct_def = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
-pub const StructDef = struct {};
+pub const StructDef = struct {
+    is_pub: bool,
+    name: []const u8,
+    type_params: []TypeParam,
+    fields: []StructField,
+    methods: []Method,
+    token: Token,
+};
 
 // enum_def = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
 pub const EnumDef = struct {};
@@ -85,6 +92,9 @@ pub const GlobalVarDef = struct {};
 
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstDef = struct {};
+
+pub const StructField = struct {};
+pub const Method = struct {};
 
 // type = "i8" | "i16" | "i32" | "i64" //
 //      | "u8" | "u16" | "u32" | "u64" //
