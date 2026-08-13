@@ -81,6 +81,17 @@ pub const GlobalVarDef = struct {};
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstDef = struct {};
 
+// type = "i8" | "i16" | "i32" | "i64" //
+//      | "u8" | "u16" | "u32" | "u64" //
+//      | "usize" | "isize"            //
+//      | "f32" | "f64"                //
+//      | "bool" | "char" | "str"      //
+//      | "*" type                     //
+//      | array_type                   //
+//      | named_type                   //
+//      | func_type                    //
+//      | proc_type                    //
+
 pub const PrimitiveType = enum {
     i8,
     i16,
@@ -99,21 +110,34 @@ pub const PrimitiveType = enum {
     str,
 };
 
-// type = "i8" | "i16" | "i32" | "i64" //
-//      | "u8" | "u16" | "u32" | "u64" //
-//      | "usize" | "isize"            //
-//      | "f32" | "f64"                //
-//      | "bool" | "char" | "str"      //
-//      | "*" type                     //
-//      | array_type                   //
-//      | named_type                   //
-//      | func_type                    //
-//      | proc_type                    //
+pub const ArraySize = struct {};
 
-pub const ArrayType = struct {};
-pub const NamedType = struct {};
-pub const FuncType = struct {};
-pub const ProcType = struct {};
+// array_type = "[" ( INTEGER | "_" ) "]" type
+pub const ArrayType = struct {
+    size: ArraySize,
+    elem: *Type,
+    token: Token,
+};
+
+// named_type = IDENT [ "[" type { "," type } [ "," ] "]" ]
+pub const NamedType = struct {
+    name: []const u8,
+    args: []*Type,
+    token: Token,
+};
+
+// func_type  = "func" "(" [ type_list ] ")" result
+pub const FuncType = struct {
+    params: []*Type,
+    result: Result,
+    token: Token,
+};
+
+// proc_type  = "proc" "(" [ type_list ] ")"
+pub const ProcType = struct {
+    params: []*Type,
+    token: Token,
+};
 
 pub const Type = struct {
     primitive: PrimitiveType,
