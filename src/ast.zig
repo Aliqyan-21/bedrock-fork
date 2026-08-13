@@ -151,7 +151,38 @@ pub const Type = union(enum) {
     proc: ProcType,
 };
 
-pub const Stmt = struct {};
+pub const Expr = union(enum) {};
+
+// statement       = var_stmt | const_stmt | local_static_var_stmt | assign_stmt | defer_stmt
+//                 | unsafe_stmt | control_flow_stmt | return_stmt | expr_stmt
+pub const Stmt = union(enum) {
+    var_stmt: VarStmt,
+    const_stmt: ConstStmt,
+    assign_stmt: AssignStmt,
+    local_static_var_stmt: LocalStaticVarStmt,
+    defer_stmt: DeferStmt,
+    unsafe_stmt: UnsafeStmt,
+    control_flow_stmt: *Expr,
+    return_stmt: ReturnStmt,
+    expr_stmt: ExprStmt,
+};
+
+// var_stmt = "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+pub const VarStmt = struct {};
+// const_stmt = "const" IDENT [ ":" ["?"] type ] "=" expression ";"
+pub const ConstStmt = struct {};
+// local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+pub const LocalStaticVarStmt = struct {};
+// assign_stmt = place_expr ( "=" | compound_op ) expression ";"
+pub const AssignStmt = struct {};
+// defer_stmt = "defer" ( var_stmt | const_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
+pub const DeferStmt = struct {};
+// unsafe_stmt = "unsafe" block "end"
+pub const UnsafeStmt = struct {};
+// return_stmt = return_expr ";"
+pub const ReturnStmt = struct {};
+// expr_stmt = expression ";"
+pub const ExprStmt = struct {};
 
 // ast have it's own allocator and deinit
 // and ofc it has internal arena, all nodes
