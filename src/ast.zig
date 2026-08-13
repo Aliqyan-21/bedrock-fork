@@ -142,7 +142,7 @@ pub const ProcType = struct {
     token: Token,
 };
 
-pub const Type = struct {
+pub const Type = union(enum) {
     primitive: PrimitiveType,
     pointer: *Type,
     array: ArrayType,
