@@ -156,7 +156,185 @@ pub const Type = union(enum) {
     proc: ProcType,
 };
 
-pub const Expr = union(enum) {};
+// Expressions //
+
+pub const LiteralKind = enum {
+    integer,
+    float,
+    char,
+    string,
+    bool_true,
+    bool_false,
+};
+
+pub const LiteralExpr = struct {
+    kind: LiteralKind,
+    raw: []const u8,
+    token: Token,
+};
+
+pub const IdentExpr = struct {
+    name: []const u8,
+    token: Token,
+};
+
+pub const UnaryOp = enum {
+    neg,
+    not,
+    bit_not,
+    addr_of,
+    deref,
+};
+
+pub const BinaryOp = enum {
+    orelse_op,
+    logical_or,
+    logical_and,
+    eq,
+    ne,
+    lt,
+    gt,
+    le,
+    ge,
+    bit_or,
+    bit_xor,
+    bit_and,
+    shl,
+    shr,
+    range,
+    add,
+    sub,
+    mul,
+    div,
+    mod,
+};
+
+pub const BinaryExpr = struct {
+    op: BinaryOp,
+    lhs: *Expr,
+    rhs: *Expr,
+    token: Token,
+};
+
+pub const UnaryExpr = struct {
+    op: UnaryOp,
+    operand: *Expr,
+    token: Token,
+};
+
+// A "." Ident
+pub const FieldAccessExpr = struct {
+    target: *Expr,
+    field: []const u8,
+    token: Token,
+};
+
+pub const CallArg = struct {
+    name: ?[]const u8,
+    value: *Expr,
+};
+
+pub const CallExpr = struct {
+    callee: *Expr,
+    args: []CallArg,
+    token: Token,
+};
+
+// this support both, arr[i] and also
+// foo[Type] -> generic instantiations
+pub const IndexExpr = struct {
+    target: *Expr,
+    args: []*Expr,
+    token: Token,
+};
+
+// ?
+pub const OptionalUnwrapExpr = struct {
+    operand: *Expr,
+    token: Token,
+};
+
+// array_literal = "[" [ array_elems ] "]"
+pub const ArrayLiteralExpr = struct {
+    elements: []*Expr,
+    token: Token,
+};
+
+// elif_clause = "elif" expression block
+pub const ElifClause = struct {
+    cond: *Expr,
+    body: []Stmt,
+    token: Token,
+};
+
+// if_expr = "if" expression block { elif_clause } [ else_clause ] "end"
+pub const IfExpr = struct {
+    cond: *Expr,
+    then_body: []Stmt,
+    elifs: []ElifClause,
+    else_body: ?[]Stmt,
+    token: Token,
+};
+
+// pattern = INTEGER | BOOL | IDENT
+pub const Pattern = union(enum) {
+    integer: []const u8,
+    boolean: bool,
+    ident: []const u8,
+};
+
+// match_arm = "case" pattern block
+pub const MatchArm = struct {
+    pattern: Pattern,
+    body: []Stmt,
+    token: Token,
+};
+
+// match_expr = "match" expression [ match_arms ] "end"
+pub const MatchExpr = struct {
+    subject: *Expr,
+    arms: []MatchArm,
+    else_body: ?[]Stmt,
+    token: Token,
+};
+
+// while_expr = "while" expression block "end"
+pub const WhileExpr = struct {
+    cond: *Expr,
+    body: []Stmt,
+    token: Token,
+};
+
+// for_expr = "for" IDENT "in" expression block "end"
+pub const ForExpr = struct {
+    binding: []const u8,
+    iterable: *Expr,
+    body: []Stmt,
+    token: Token,
+};
+
+// comptime_expr = "comptime" block "end"
+pub const ComptimeExpr = struct {
+    body: []Stmt,
+    token: Token,
+};
+
+pub const Expr = union(enum) {
+    literal: LiteralExpr,
+    ident: IdentExpr,
+    binary: BinaryExpr,
+    unary: UnaryExpr,
+    field_access: FieldAccessExpr,
+    call: CallExpr,
+    index: IndexExpr,
+    optional_unwrap: OptionalUnwrapExpr,
+    array_literal: ArrayLiteralExpr,
+    if_expr: IfExpr,
+    match_expr: MatchExpr,
+    while_expr: WhileExpr,
+    for_expr: ForExpr,
+    comptime_expr: ComptimeExpr,
+};
 
 // statement       = var_stmt | const_stmt | local_static_var_stmt | assign_stmt | defer_stmt
 //                 | unsafe_stmt | control_flow_stmt | return_stmt | expr_stmt
@@ -218,7 +396,14 @@ pub const AssignStmt = struct {
 };
 
 // defer_stmt = "defer" ( var_stmt | const_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
-pub const DeferrableStmt = union(enum) {};
+pub const DeferrableStmt = union(enum) {
+    var_stmt: VarStmt,
+    const_stmt: ConstStmt,
+    assign_stmt: AssignStmt,
+    control_flow_stmt: *Expr,
+    return_stmt: ReturnStmt,
+    expr_stmt: ExprStmt,
+};
 
 pub const DeferStmt = struct {
     inner: *DeferrableStmt,
