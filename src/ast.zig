@@ -80,6 +80,13 @@ pub const StructDef = struct {
     token: Token,
 };
 
+// enum_variants   = enum_variant { "," enum_variant } [ "," ]
+// enum_variant    = IDENT
+pub const EnumVariant = struct {
+    name: []const u8,
+    token: Token,
+};
+
 // enum_def = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
 pub const EnumDef = struct {
     is_pub: bool,
@@ -121,13 +128,6 @@ pub const GlobalVarDef = struct {};
 
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstDef = struct {};
-
-// enum_variants   = enum_variant { "," enum_variant } [ "," ]
-// enum_variant    = IDENT
-pub const EnumVariant = struct {
-    name: []const u8,
-    token: Token,
-};
 
 // struct_field = ["pub"] IDENT ":" ["?"] type
 pub const StructField = struct {
