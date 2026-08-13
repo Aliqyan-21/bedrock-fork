@@ -76,7 +76,7 @@ pub const StructDef = struct {
     name: []const u8,
     type_params: []TypeParam,
     fields: []StructField,
-    methods: []Method,
+    methods: []MethodDef,
     token: Token,
 };
 
@@ -93,8 +93,21 @@ pub const GlobalVarDef = struct {};
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstDef = struct {};
 
-pub const StructField = struct {};
-pub const Method = struct {};
+// struct_field = ["pub"] IDENT ":" ["?"] type
+pub const StructField = struct {
+    is_pub: bool,
+    name: []const u8,
+    is_optional: bool,
+    type: *Type,
+    token: Token,
+};
+
+// method_def = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
+//            | [ "pub" ] [ "inline" ] "proc" IDENT [ type_params ] "(" [ params ] ")" block "end"
+pub const MethodDef = struct {
+    func: FunctionDef,
+    proc: ProcDef,
+};
 
 // type = "i8" | "i16" | "i32" | "i64" //
 //      | "u8" | "u16" | "u32" | "u64" //
