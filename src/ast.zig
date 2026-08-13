@@ -43,6 +43,11 @@ pub const Result = union(enum) {
     error_union: *Type, // "!"
 };
 
+pub const TypeAnn = struct {
+    is_optional: bool,
+    type: *Type,
+};
+
 // function = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
 pub const FunctionDef = struct {
     is_pub: bool,
@@ -151,7 +156,91 @@ pub const Type = union(enum) {
     proc: ProcType,
 };
 
-pub const Stmt = struct {};
+pub const Expr = union(enum) {};
+
+// statement       = var_stmt | const_stmt | local_static_var_stmt | assign_stmt | defer_stmt
+//                 | unsafe_stmt | control_flow_stmt | return_stmt | expr_stmt
+pub const Stmt = union(enum) {
+    var_stmt: VarStmt,
+    const_stmt: ConstStmt,
+    assign_stmt: AssignStmt,
+    local_static_var_stmt: LocalStaticVarStmt,
+    defer_stmt: DeferStmt,
+    unsafe_stmt: UnsafeStmt,
+    control_flow_stmt: *Expr,
+    return_stmt: ReturnStmt,
+    expr_stmt: ExprStmt,
+};
+
+// var_stmt = "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+pub const VarStmt = struct {
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
+
+// const_stmt = "const" IDENT [ ":" ["?"] type ] "=" expression ";"
+pub const ConstStmt = struct {
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
+
+// local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+pub const LocalStaticVarStmt = struct {
+    name: []const u8,
+    type_ann: ?TypeAnn,
+    value: *Expr,
+    token: Token,
+};
+
+pub const CompoundOp = enum {
+    add,
+    sub,
+    mul,
+    div,
+    mod,
+    bit_and,
+    bit_or,
+    bit_xor,
+    shl,
+    shr,
+};
+
+// assign_stmt = place_expr ( "=" | compound_op ) expression ";"
+pub const AssignStmt = struct {
+    target: *Expr,
+    op: ?CompoundOp, // if null -> simple '='
+    value: *Expr,
+    token: Token,
+};
+
+// defer_stmt = "defer" ( var_stmt | const_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
+pub const DeferrableStmt = union(enum) {};
+
+pub const DeferStmt = struct {
+    inner: *DeferrableStmt,
+    token: Token,
+};
+
+// unsafe_stmt = "unsafe" block "end"
+pub const UnsafeStmt = struct {
+    body: []Stmt,
+    token: Token,
+};
+
+// return_stmt = return_expr ";"
+pub const ReturnStmt = struct {
+    value: ?*Expr,
+    token: Token,
+};
+
+// expr_stmt = expression ";"
+pub const ExprStmt = struct {
+    value: ?*Expr,
+};
 
 // ast have it's own allocator and deinit
 // and ofc it has internal arena, all nodes
