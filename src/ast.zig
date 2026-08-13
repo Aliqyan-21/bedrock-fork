@@ -156,6 +156,8 @@ pub const Type = union(enum) {
     proc: ProcType,
 };
 
+// Expressions //
+
 pub const LiteralKind = enum {
     integer,
     float,
@@ -290,9 +292,26 @@ pub const MatchExpr = struct {
     token: Token,
 };
 
-pub const WhileExpr = struct {};
-pub const ForExpr = struct {};
-pub const ComptimeExpr = struct {};
+// while_expr = "while" expression block "end"
+pub const WhileExpr = struct {
+    cond: *Expr,
+    body: []Stmt,
+    token: Token,
+};
+
+// for_expr = "for" IDENT "in" expression block "end"
+pub const ForExpr = struct {
+    binding: []const u8,
+    iterable: *Expr,
+    body: []Stmt,
+    token: Token,
+};
+
+// comptime_expr = "comptime" block "end"
+pub const ComptimeExpr = struct {
+    body: []Stmt,
+    token: Token,
+};
 
 pub const Expr = union(enum) {
     literal: LiteralExpr,
