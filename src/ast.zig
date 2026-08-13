@@ -218,7 +218,14 @@ pub const AssignStmt = struct {
 };
 
 // defer_stmt = "defer" ( var_stmt | const_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
-pub const DeferrableStmt = union(enum) {};
+pub const DeferrableStmt = union(enum) {
+    var_stmt: VarStmt,
+    const_stmt: ConstStmt,
+    assign_stmt: AssignStmt,
+    control_flow_stmt: *Expr,
+    return_stmt: ReturnStmt,
+    expr_stmt: ExprStmt,
+};
 
 pub const DeferStmt = struct {
     inner: *DeferrableStmt,
