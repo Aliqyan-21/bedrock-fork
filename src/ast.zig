@@ -254,17 +254,20 @@ pub const OptionalUnwrapExpr = struct {
     token: Token,
 };
 
+// array_literal = "[" [ array_elems ] "]"
 pub const ArrayLiteralExpr = struct {
     elements: []*Expr,
     token: Token,
 };
 
+// elif_clause = "elif" expression block
 pub const ElifClause = struct {
     cond: *Expr,
     body: []Stmt,
     token: Token,
 };
 
+// if_expr = "if" expression block { elif_clause } [ else_clause ] "end"
 pub const IfExpr = struct {
     cond: *Expr,
     then_body: []Stmt,
@@ -273,18 +276,21 @@ pub const IfExpr = struct {
     token: Token,
 };
 
+// pattern = INTEGER | BOOL | IDENT
 pub const Pattern = union(enum) {
     integer: []const u8,
     boolean: bool,
     ident: []const u8,
 };
 
+// match_arm = "case" pattern block
 pub const MatchArm = struct {
     pattern: Pattern,
     body: []Stmt,
     token: Token,
 };
 
+// match_expr = "match" expression [ match_arms ] "end"
 pub const MatchExpr = struct {
     subject: *Expr,
     arms: []MatchArm,
