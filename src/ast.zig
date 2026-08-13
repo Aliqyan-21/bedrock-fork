@@ -171,9 +171,40 @@ pub const LiteralExpr = struct {
     token: Token,
 };
 
-pub const IdentExpr = struct {};
+pub const IdentExpr = struct {
+    name: []const u8,
+    token: Token,
+};
 
-pub const BinaryExpr = struct {};
+pub const BinaryOp = enum {
+    orelse_op,
+    logical_or,
+    logical_and,
+    eq,
+    ne,
+    lt,
+    gt,
+    le,
+    ge,
+    bit_or,
+    bit_xor,
+    bit_and,
+    shl,
+    shr,
+    range,
+    add,
+    sub,
+    mul,
+    div,
+    mod,
+};
+
+pub const BinaryExpr = struct {
+    op: BinaryOp,
+    lhs: *Expr,
+    rhs: *Expr,
+    token: Token,
+};
 
 pub const UnaryExpr = struct {};
 pub const FieldAccessExpr = struct {};
