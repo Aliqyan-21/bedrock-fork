@@ -21,9 +21,27 @@ pub const ImportDef = struct {
     token: Token,
 };
 
-pub const TypeParam = struct {//TODO};
-pub const Param = struct {//TODO};
-pub const Result = struct {//TODO};
+// type_param = IDENT
+pub const TypeParam = struct {
+    name: []const u8,
+    token: Token,
+};
+
+// param = IDENT ":" ["?"] ["const"] type
+pub const Param = struct {
+    name: []const u8,
+    is_optional: bool,
+    is_const: bool,
+    type: *Type,
+    token: Token,
+};
+
+// result = "->" ( "?" type | type "!" | type )
+pub const Result = struct {
+    plain: *Type,
+    optional: *Type, // "?"
+    error_union: *Type, // "!"
+};
 
 // function = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
 pub const FunctionDef = struct {
@@ -46,8 +64,6 @@ pub const ProcDef = struct {
     body: []Stmt,
     token: Token,
 };
-
-pub const Stmt = struct{};
 
 // struct_def = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
 pub const StructDef = struct {};
@@ -82,6 +98,10 @@ pub const PrimitiveType = enum {
     char,
     str,
 };
+
+pub const Type = struct {};
+
+pub const Stmt = struct {};
 
 // ast have it's own allocator and deinit
 // and ofc it has internal arena, all nodes
