@@ -81,7 +81,13 @@ pub const StructDef = struct {
 };
 
 // enum_def = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
-pub const EnumDef = struct {};
+pub const EnumDef = struct {
+    is_pub: bool,
+    name: []const u8,
+    type_params: []TypeParam,
+    variants: []EnumVariant,
+    token: Token,
+};
 
 // extern_def = "extern" ( "func" IDENT "(" [ extern_params ] ")" "->" type
 //            | "proc" IDENT "(" [ extern_params ] ")" )
@@ -92,6 +98,13 @@ pub const GlobalVarDef = struct {};
 
 // const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstDef = struct {};
+
+// enum_variants   = enum_variant { "," enum_variant } [ "," ]
+// enum_variant    = IDENT
+pub const EnumVariant = struct {
+    name: []const u8,
+    token: Token,
+};
 
 // struct_field = ["pub"] IDENT ":" ["?"] type
 pub const StructField = struct {
