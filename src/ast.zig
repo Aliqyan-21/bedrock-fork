@@ -26,7 +26,7 @@ pub const Item = union(enum) {
 };
 
 pub const Program = struct {
-    items: []Item,
+    items: std.ArrayList(Item),
 };
 
 // import_def = "import" IDENT {"." IDENT} ";"
@@ -113,9 +113,9 @@ pub const FunctionDef = struct {
     is_inline: bool,
     name: []const u8,
     type_params: []TypeParam,
-    params: []Param,
+    params: std.ArrayList(Param),
     result: Result,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *FunctionDef, indent: usize) anyerror!void {
@@ -1010,7 +1010,7 @@ pub const AST = struct {
     pub fn init(n_allocator: std.mem.Allocator) AST {
         return .{
             .arena = std.heap.ArenaAllocator.init(n_allocator),
-            .program = .{ .items = &.{} },
+            .program = .{ .items = .empty },
         };
     }
 
