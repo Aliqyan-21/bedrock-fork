@@ -12,6 +12,7 @@ pub fn main() !void {
 
     const source =
         \\import io
+        \\// Main function
         \\func proc add(x i32, y: i32) -> i32
         \\  return x + y;
         \\end
@@ -24,7 +25,7 @@ pub fn main() !void {
     const err_tok = token.Token{
         .type = token.TokenType.ident,
         .val = "i32",
-        .line = 2,
+        .line = 3,
         .col = 17,
     };
     try c.addError("expect : here got i32", err.Severity.Error, err_tok);

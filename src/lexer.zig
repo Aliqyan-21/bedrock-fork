@@ -38,25 +38,20 @@ pub const Lexer = struct {
         return self.pos >= self.source.len;
     }
 
-    fn skip_whitespace_and_comment(self: *Lexer) void {
+    fn skip_whitespace(self: *Lexer) void {
         while (!self.is_end()) {
             const c = self.peek();
             switch (c) {
                 ' ', '\t', '\r', '\n' => {
                     _ = self.advance();
                 },
-                '/' => {
-                    if (self.peek_at(1) == '/') {
-                        while (!self.is_end() and self.peek() != '\n') {
-                            _ = self.advance();
-                        }
-                    } else {
-                        return;
-                    }
-                },
                 else => return,
             }
         }
+    }
+
+    fn is_comment(c: u8) bool {
+        return c == '/';
     }
 
     fn is_identifier(c: u8) bool {
@@ -84,7 +79,7 @@ pub const Lexer = struct {
     }
 
     pub fn next(self: *Lexer) !t.Token {
-        self.skip_whitespace_and_comment();
+        self.skip_whitespace();
         const line = self.line;
         const col = self.col;
 
@@ -93,6 +88,9 @@ pub const Lexer = struct {
         }
 
         const c = self.peek();
+        if (is_comment(c)) {
+            return self.read_comment(line, col);
+        }
 
         if (is_identifier(c)) {
             return self.read_identifier_or_keyword(line, col);
@@ -108,6 +106,15 @@ pub const Lexer = struct {
         }
 
         return self.read_operator(line, col);
+    }
+
+    fn read_comment(self: *Lexer, line: usize, col: usize) t.Token {
+        const start = self.pos;
+        while (!self.is_end() and self.peek() != '\n') {
+            _ = self.advance();
+        }
+        const text = self.source[start..self.pos];
+        return .{ .type = .comment, .val = text, .line = line, .col = col };
     }
 
     fn read_identifier_or_keyword(self: *Lexer, line: usize, col: usize) t.Token {
