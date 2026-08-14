@@ -96,16 +96,22 @@ pub const Parser = struct {
 
     pub fn parseParams(self: *Parser) !std.ArrayList(ast.Param) {
         var params: std.ArrayList(ast.Param) = .empty;
-        var count: usize = 0;
+
         while (true) {
-            try params.append(self.allocator, try self.parseParam());
+            try params.append(
+                self.allocator,
+                try self.parseParam(),
+            );
+
             const tok = try self.lexer.next();
-            if (tok.type == token.TokenType.r_paren) {
-                break;
-            } else if (tok.type == token.TokenType.comma) {
-                // TODO:
+
+            switch (tok.type) {
+                .r_paren => break,
+                .comma => continue,
+                else => {
+                    // error: expected ',' or ')'
+                },
             }
-            count += 1;
         }
 
         return params;
@@ -120,22 +126,22 @@ pub const Parser = struct {
             .token = undefined,
         };
 
+        // name
         var tok = try self.lexer.next();
-        if (tok.type == token.TokenType.ident) {
-            // TODO: error handling
+        if (tok.type != token.TokenType.ident) {
+            // error
         }
         param.name = tok.val;
-        // expect ':'
+
+        // :
         tok = try self.lexer.next();
-        if (tok.type == token.TokenType.colon) {
-            // TODO: error handling
+        if (tok.type != token.TokenType.colon) {
+            // error
         }
 
-        // TODO: check for optional
+        // type
         tok = try self.lexer.next();
-        if (tok.type == token.TokenType.ident) {
-            // TODO: error handling
-        }
+        param.type = try self.parseType(tok.val);
 
         return param;
     }
@@ -145,6 +151,16 @@ pub const Parser = struct {
         var stmt: std.ArrayList(ast.Stmt) = .empty;
         _ = &stmt;
         return stmt;
+    }
+
+    pub fn parseType(self: *Parser, tok_val: []const u8) !*ast.Type {
+        const ty = try self.allocator.create(ast.Type);
+        if (std.mem.eql(u8, tok_val, "i32")) {
+            ty.* = .{ .primitive = .i32 };
+        } else {
+            // TODO
+        }
+        return ty;
     }
 
     pub fn parseResult(self: *Parser) !ast.Result {

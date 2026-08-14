@@ -35,6 +35,9 @@ pub fn main() !void {
     for (p_res.program.items.items) |*item| {
         switch (item.*) {
             .function => |*func| {
+                for (func.params.items) |param| {
+                    allocator.destroy(param.type);
+                }
                 func.params.deinit(allocator);
                 allocator.destroy(func.result.plain);
             },

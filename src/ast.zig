@@ -69,7 +69,8 @@ pub const Param = struct {
 
     pub fn print(self: *Param, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("param: {s}\n", .{self.name});
+        std.debug.print("param: {s} -> ", .{self.name});
+        try self.type.*.print(0);
     }
 };
 
