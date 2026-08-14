@@ -12,15 +12,15 @@ pub const Item = union(enum) {
     const_def: ConstDef,
 
     pub fn print(self: *Item, indent: usize) anyerror!void {
-        switch (self) {
-            .import_def => |i| try i.print(indent),
-            .function => |f| try f.print(indent),
-            .proc => |p| try p.print(indent),
-            .struct_def => |s| try s.print(indent),
-            .enum_def => |e| try e.print(indent),
-            .extern_def => |e| try e.print(indent),
-            .var_def => |v| try v.print(indent),
-            .const_def => |c| try c.print(indent),
+        switch (self.*) {
+            .import_def => |*i| try i.print(indent),
+            .function => |*f| try f.print(indent),
+            .proc => |*p| try p.print(indent),
+            .struct_def => |*s| try s.print(indent),
+            .enum_def => |*e| try e.print(indent),
+            .extern_def => |*e| try e.print(indent),
+            .var_def => |*v| try v.print(indent),
+            .const_def => |*c| try c.print(indent),
         }
     }
 };
@@ -37,7 +37,7 @@ pub const ImportDef = struct {
     pub fn print(self: *ImportDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("import ", .{});
-        for (0..self.path) |i| {
+        for (0..self.path.len) |i| {
             const p = self.path[i];
             std.debug.print("{s}", .{p});
             if (i + 1 < self.path.len) {
@@ -121,10 +121,10 @@ pub const FunctionDef = struct {
     pub fn print(self: *FunctionDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("function: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.params) |p| try p.print(indent + 4);
+        for (self.type_params) |*tp| try tp.print(indent + 4);
+        for (self.params.items) |*p| try p.print(indent + 4);
         try self.result.print(indent + 4);
-        for (self.body) |stmt| {
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -144,9 +144,9 @@ pub const ProcDef = struct {
     pub fn print(self: *ProcDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("proc: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.params) |p| try p.print(indent + 4);
-        for (self.body) |stmt| {
+        for (self.type_params) |*tp| try tp.print(indent + 4);
+        for (self.params) |*p| try p.print(indent + 4);
+        for (self.body) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -166,9 +166,9 @@ pub const StructDef = struct {
     pub fn print(self: *StructDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("struct: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.fields) |f| try f.print(indent + 4);
-        for (self.methods) |m| try m.print(indent + 4);
+        for (self.type_params) |*tp| try tp.print(indent + 4);
+        for (self.fields) |*f| try f.print(indent + 4);
+        for (self.methods) |*m| try m.print(indent + 4);
     }
 };
 
@@ -195,8 +195,8 @@ pub const EnumDef = struct {
     pub fn print(self: *EnumDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("enum: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.variants) |v| try v.print(indent + 4);
+        for (self.type_params) |*tp| try tp.print(indent + 4);
+        for (self.variants) |*v| try v.print(indent + 4);
     }
 };
 
@@ -236,12 +236,12 @@ pub const ExternDef = struct {
         switch (self.kind) {
             .func => |f| {
                 std.debug.print("extern func: {s}\n", .{f.name});
-                for (f.params) |p| try p.print(indent + 4);
+                for (f.params) |*p| try p.print(indent + 4);
                 try f.result.print(indent + 4);
             },
             .proc => |p| {
                 std.debug.print("extern proc: {s}\n", .{p.name});
-                for (p.params) |param| try param.print(indent + 4);
+                for (p.params) |*param| try param.print(indent + 4);
             },
         }
     }
@@ -298,9 +298,9 @@ pub const MethodDef = union(enum) {
     proc: ProcDef,
 
     pub fn print(self: *MethodDef, indent: usize) anyerror!void {
-        switch (self) {
-            .func => |f| try f.print(indent),
-            .proc => |p| try p.print(indent),
+        switch (self.*) {
+            .func => |*f| try f.print(indent),
+            .proc => |*p| try p.print(indent),
         }
     }
 };
@@ -443,7 +443,7 @@ pub const LiteralKind = enum {
 
     pub fn print(self: *LiteralKind, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("literal kind: {s}\n", .{@tagName(self)});
+        std.debug.print("literal kind: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -478,7 +478,7 @@ pub const UnaryOp = enum {
 
     pub fn print(self: *UnaryOp, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("unary op: {s}\n", .{@tagName(self)});
+        std.debug.print("unary op: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -506,7 +506,7 @@ pub const BinaryOp = enum {
 
     pub fn print(self: *BinaryOp, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("binary op: {s}\n", .{@tagName(self)});
+        std.debug.print("binary op: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -575,7 +575,7 @@ pub const CallExpr = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("call expr\n", .{});
         try self.callee.print(indent + 4);
-        for (self.args) |arg| try arg.print(indent + 4);
+        for (self.args) |*arg| try arg.print(indent + 4);
     }
 };
 
@@ -629,7 +629,7 @@ pub const ElifClause = struct {
         std.debug.print("elif clause\n", .{});
         try self.cond.print(indent + 4);
         for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+            var stmt = self.body[i];
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -650,17 +650,17 @@ pub const IfExpr = struct {
         std.debug.print("if expr\n", .{});
         try self.cond.print(indent + 4);
         for (0..self.then_body.len) |i| {
-            const stmt = self.then_body[i];
+            var stmt = self.then_body[i];
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
         }
-        for (self.elifs) |elif| try elif.print(indent + 4);
+        for (self.elifs) |*elif| try elif.print(indent + 4);
         if (self.else_body) |else_body| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("else clause\n", .{});
             for (0..else_body.len) |i| {
-                const stmt = else_body[i];
+                var stmt = else_body[i];
                 for (0..indent + 4) |_| std.debug.print(" ", .{});
                 std.debug.print("stmt\n", .{});
                 try stmt.print(indent + 6);
@@ -677,10 +677,10 @@ pub const Pattern = union(enum) {
 
     pub fn print(self: *Pattern, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        switch (self) {
-            .integer => |i| std.debug.print("pattern integer: {s}\n", .{i}),
-            .boolean => |b| std.debug.print("pattern boolean: {b}\n", .{b}),
-            .ident => |id| std.debug.print("pattern ident: {s}\n", .{id}),
+        switch (self.*) {
+            .integer => |*i| std.debug.print("pattern integer: {s}\n", .{i.*}),
+            .boolean => |*b| std.debug.print("pattern boolean: {}\n", .{b.*}),
+            .ident => |*id| std.debug.print("pattern ident: {s}\n", .{id.*}),
         }
     }
 };
@@ -696,7 +696,7 @@ pub const MatchArm = struct {
         std.debug.print("match arm\n", .{});
         try self.pattern.print(indent + 4);
         for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+            var stmt = self.body[i];
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -715,12 +715,12 @@ pub const MatchExpr = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("match expr\n", .{});
         try self.subject.print(indent + 4);
-        for (self.arms) |arm| try arm.print(indent + 4);
-        if (self.else_body) |else_body| {
+        for (self.arms) |*arm| try arm.print(indent + 4);
+        if (self.else_body) |*else_body| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("else clause\n", .{});
             for (0..else_body.len) |i| {
-                const stmt = else_body[i];
+                var stmt = else_body.*[i];
                 for (0..indent + 4) |_| std.debug.print(" ", .{});
                 std.debug.print("stmt\n", .{});
                 try stmt.print(indent + 6);
@@ -740,7 +740,7 @@ pub const WhileExpr = struct {
         std.debug.print("while expr\n", .{});
         try self.cond.print(indent + 4);
         for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+            var stmt = self.body[i];
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -760,7 +760,7 @@ pub const ForExpr = struct {
         std.debug.print("for expr: {s}\n", .{self.binding});
         try self.iterable.print(indent + 4);
         for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+            var stmt = self.body[i];
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -777,7 +777,7 @@ pub const ComptimeExpr = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("comptime expr\n", .{});
         for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+            var stmt = self.body[i];
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -802,21 +802,21 @@ pub const Expr = union(enum) {
     comptime_expr: ComptimeExpr,
 
     pub fn print(self: *Expr, indent: usize) anyerror!void {
-        switch (self) {
-            .literal => |l| try l.print(indent),
-            .ident => |i| try i.print(indent),
-            .binary => |b| try b.print(indent),
-            .unary => |u| try u.print(indent),
-            .field_access => |f| try f.print(indent),
-            .call => |c| try c.print(indent),
-            .index => |i| try i.print(indent),
-            .optional_unwrap => |o| try o.print(indent),
-            .array_literal => |a| try a.print(indent),
-            .if_expr => |i| try i.print(indent),
-            .match_expr => |m| try m.print(indent),
-            .while_expr => |w| try w.print(indent),
-            .for_expr => |f| try f.print(indent),
-            .comptime_expr => |c| try c.print(indent),
+        switch (self.*) {
+            .literal => |*l| try l.print(indent),
+            .ident => |*i| try i.print(indent),
+            .binary => |*b| try b.print(indent),
+            .unary => |*u| try u.print(indent),
+            .field_access => |*f| try f.print(indent),
+            .call => |*c| try c.print(indent),
+            .index => |*i| try i.print(indent),
+            .optional_unwrap => |*o| try o.print(indent),
+            .array_literal => |*a| try a.print(indent),
+            .if_expr => |*i| try i.print(indent),
+            .match_expr => |*m| try m.print(indent),
+            .while_expr => |*w| try w.print(indent),
+            .for_expr => |*f| try f.print(indent),
+            .comptime_expr => |*c| try c.print(indent),
         }
     }
 };
@@ -835,16 +835,16 @@ pub const Stmt = union(enum) {
     expr_stmt: ExprStmt,
 
     pub fn print(self: *Stmt, indent: usize) anyerror!void {
-        switch (self) {
-            .var_stmt => |v| try v.print(indent),
-            .const_stmt => |c| try c.print(indent),
-            .assign_stmt => |a| try a.print(indent),
-            .local_static_var_stmt => |l| try l.print(indent),
-            .defer_stmt => |d| try d.print(indent),
-            .unsafe_stmt => |u| try u.print(indent),
+        switch (self.*) {
+            .var_stmt => |*v| try v.print(indent),
+            .const_stmt => |*c| try c.print(indent),
+            .assign_stmt => |*a| try a.print(indent),
+            .local_static_var_stmt => |*l| try l.print(indent),
+            .defer_stmt => |*d| try d.print(indent),
+            .unsafe_stmt => |*u| try u.print(indent),
             .control_flow_stmt => |c| try c.print(indent),
-            .return_stmt => |r| try r.print(indent),
-            .expr_stmt => |e| try e.print(indent),
+            .return_stmt => |*r| try r.print(indent),
+            .expr_stmt => |*e| try e.print(indent),
         }
     }
 };
@@ -859,7 +859,7 @@ pub const VarStmt = struct {
     pub fn print(self: *VarStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("var stmt: {s}\n", .{self.name});
-        if (self.type_ann) |t| try t.print(indent + 4);
+        if (self.type_ann) |*t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
@@ -874,7 +874,7 @@ pub const ConstStmt = struct {
     pub fn print(self: *ConstStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("const stmt: {s}\n", .{self.name});
-        if (self.type_ann) |t| try t.print(indent + 4);
+        if (self.type_ann) |*t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
@@ -889,7 +889,7 @@ pub const LocalStaticVarStmt = struct {
     pub fn print(self: *LocalStaticVarStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("local static var stmt: {s}\n", .{self.name});
-        if (self.type_ann) |t| try t.print(indent + 4);
+        if (self.type_ann) |*t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
@@ -908,7 +908,7 @@ pub const CompoundOp = enum {
 
     pub fn print(self: *CompoundOp, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("compound op: {s}\n", .{@tagName(self)});
+        std.debug.print("compound op: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -923,7 +923,7 @@ pub const AssignStmt = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("assign stmt\n", .{});
         try self.target.print(indent + 4);
-        if (self.op) |op| try op.print(indent + 4);
+        if (self.op) |*op| try op.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
@@ -938,13 +938,13 @@ pub const DeferrableStmt = union(enum) {
     expr_stmt: ExprStmt,
 
     pub fn print(self: *DeferrableStmt, indent: usize) anyerror!void {
-        switch (self) {
-            .var_stmt => |v| try v.print(indent),
-            .const_stmt => |c| try c.print(indent),
-            .assign_stmt => |a| try a.print(indent),
+        switch (self.*) {
+            .var_stmt => |*v| try v.print(indent),
+            .const_stmt => |*c| try c.print(indent),
+            .assign_stmt => |*a| try a.print(indent),
             .control_flow_stmt => |c| try c.print(indent),
-            .return_stmt => |r| try r.print(indent),
-            .expr_stmt => |e| try e.print(indent),
+            .return_stmt => |*r| try r.print(indent),
+            .expr_stmt => |*e| try e.print(indent),
         }
     }
 };
@@ -969,7 +969,7 @@ pub const UnsafeStmt = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("unsafe stmt\n", .{});
         for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+            var stmt = self.body[i];
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -1024,7 +1024,7 @@ pub const AST = struct {
 
     pub fn print(self: *AST) anyerror!void {
         std.debug.print("AST:\n", .{});
-        for (self.program.items) |item| {
+        for (self.program.items.items) |*item| {
             try item.print(2);
         }
     }

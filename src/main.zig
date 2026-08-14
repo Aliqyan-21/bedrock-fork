@@ -31,10 +31,12 @@ pub fn main() !void {
 
     var p = parser.Parser.init(allocator, source);
     var p_res = try p.parse();
+    try p_res.print();
     for (p_res.program.items.items) |*item| {
         switch (item.*) {
             .function => |*func| {
                 func.params.deinit(allocator);
+                allocator.destroy(func.result.plain);
             },
 
             else => {},

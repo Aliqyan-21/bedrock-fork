@@ -80,6 +80,14 @@ pub const Parser = struct {
         // parse parameters
         func_def.params = try self.parseParams();
 
+        // expect '->'
+        const arrow = try self.lexer.next();
+        if (arrow.type != token.TokenType.arrow) {
+            // TODO: add error handling
+        }
+
+        func_def.result = try self.parseResult();
+
         // parse block statement
         func_def.body = try self.parseStatement();
 
@@ -137,5 +145,16 @@ pub const Parser = struct {
         var stmt: std.ArrayList(ast.Stmt) = .empty;
         _ = &stmt;
         return stmt;
+    }
+
+    pub fn parseResult(self: *Parser) !ast.Result {
+        const tok = try self.lexer.next();
+        var result: ast.Result = undefined;
+        if (std.mem.eql(u8, tok.val, "i32")) {
+            const ty = try self.allocator.create(ast.Type);
+            ty.* = .{ .primitive = .i32 };
+            result = .{ .plain = ty };
+        }
+        return result;
     }
 };
