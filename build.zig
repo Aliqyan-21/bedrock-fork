@@ -56,23 +56,15 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    const lexer_tests = b.addTest(.{
+    const all_tests = b.addTest(.{
         .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/test_lexer.zig"),
+            .root_source_file = b.path("tests/root.zig"),
             .target = target,
             .optimize = optimize,
+            .imports = &.{
+                .{ .name = "bedrock", .module = bedrock_mod },
+            },
         }),
     });
-    lexer_tests.root_module.addImport("bedrock", bedrock_mod);
-    test_step.dependOn(&b.addRunArtifact(lexer_tests).step);
-
-    const ast_tests = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/test_ast.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-    ast_tests.root_module.addImport("bedrock", bedrock_mod);
-    test_step.dependOn(&b.addRunArtifact(ast_tests).step);
+    test_step.dependOn(&b.addRunArtifact(all_tests).step);
 }
