@@ -78,34 +78,40 @@ pub const Lexer = struct {
         return c >= '0' and c <= '1';
     }
 
-    pub fn next(self: *Lexer) !t.Token {
+    pub fn next(self: *Lexer, bump: bool) !t.Token {
         self.skip_whitespace();
         const line = self.line;
         const col = self.col;
+        const pos = self.pos;
 
         if (self.is_end()) {
             return .{ .type = .eof, .val = "", .line = line, .col = col };
         }
 
         const c = self.peek();
+        var tok: t.Token = undefined;
         if (is_comment(c, self.peek_at(1))) {
-            return self.read_comment(line, col);
+            tok = self.read_comment(line, col);
         }
 
         if (is_identifier(c)) {
-            return self.read_identifier_or_keyword(line, col);
-        }
-        if (is_digit(c)) {
-            return self.read_number(line, col);
-        }
-        if (c == '"') {
-            return self.read_string(line, col);
-        }
-        if (c == '\'') {
-            return self.read_char(line, col);
+            tok = self.read_identifier_or_keyword(line, col);
+        } else if (is_digit(c)) {
+            tok = try self.read_number(line, col);
+        } else if (c == '"') {
+            tok = try self.read_string(line, col);
+        } else if (c == '\'') {
+            tok = try self.read_char(line, col);
+        } else {
+            tok = try self.read_operator(line, col);
         }
 
-        return self.read_operator(line, col);
+        if (!bump) {
+            self.line = line;
+            self.col = col;
+            self.pos = pos;
+        }
+        return tok;
     }
 
     fn read_comment(self: *Lexer, line: usize, col: usize) t.Token {
@@ -379,7 +385,7 @@ pub fn tokenize(allocator: std.mem.Allocator, source: []const u8) !std.ArrayList
     var tokens: std.ArrayList(t.Token) = .empty;
     errdefer tokens.deinit(allocator);
     while (true) {
-        const tok = try lexer.next();
+        const tok = try lexer.next(true);
         try tokens.append(allocator, tok);
         if (tok.type == .eof) break;
     }

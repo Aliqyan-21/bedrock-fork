@@ -34,7 +34,7 @@ pub const Parser = struct {
         var items: std.ArrayList(ast.Item) = .empty;
         var count: usize = 0;
         while (!self.lexer.is_end()) {
-            const tok = try self.lexer.next();
+            const tok = try self.lexer.next(true);
             // TODO: check for pub and inline keyword
             switch (tok.type) {
                 token.TokenType.kw_func => {
@@ -64,14 +64,14 @@ pub const Parser = struct {
         };
 
         // get the function name
-        const name_tok = try self.lexer.next();
+        const name_tok = try self.lexer.next(true);
         if (name_tok.type != token.TokenType.ident) {
             // TODO: add error handling
         }
         func_def.name = name_tok.val;
 
         // extect '('
-        const lparen_tok = try self.lexer.next();
+        const lparen_tok = try self.lexer.next(true);
         if (lparen_tok.type != token.TokenType.l_paren) {
             // TODO: add error handling
         }
@@ -81,7 +81,7 @@ pub const Parser = struct {
         func_def.params = try self.parseParams();
 
         // expect '->'
-        const arrow = try self.lexer.next();
+        const arrow = try self.lexer.next(true);
         if (arrow.type != token.TokenType.arrow) {
             // TODO: add error handling
         }
@@ -103,7 +103,7 @@ pub const Parser = struct {
                 try self.parseParam(),
             );
 
-            const tok = try self.lexer.next();
+            const tok = try self.lexer.next(true);
 
             switch (tok.type) {
                 .r_paren => break,
@@ -127,20 +127,20 @@ pub const Parser = struct {
         };
 
         // name
-        var tok = try self.lexer.next();
+        var tok = try self.lexer.next(true);
         if (tok.type != token.TokenType.ident) {
             // error
         }
         param.name = tok.val;
 
         // :
-        tok = try self.lexer.next();
+        tok = try self.lexer.next(true);
         if (tok.type != token.TokenType.colon) {
             // error
         }
 
         // type
-        tok = try self.lexer.next();
+        tok = try self.lexer.next(true);
         param.type = try self.parseType(tok.val);
 
         return param;
@@ -164,7 +164,7 @@ pub const Parser = struct {
     }
 
     pub fn parseResult(self: *Parser) !ast.Result {
-        const tok = try self.lexer.next();
+        const tok = try self.lexer.next(true);
         var result: ast.Result = undefined;
         if (std.mem.eql(u8, tok.val, "i32")) {
             const ty = try self.allocator.create(ast.Type);
