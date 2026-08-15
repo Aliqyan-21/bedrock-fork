@@ -6,12 +6,19 @@ const lexer = bedrock.lexer;
 const ast = bedrock.ast;
 
 test "func_type ast print" {
+    var gpa = std.heap.DebugAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
     // func(i32, i32) -> i32
     var ty = ast.Type{ .primitive = .i32 };
-    var params: [2]*ast.Type = .{ &ty, &ty };
+    var params: std.ArrayList(*ast.Type) = .empty;
+    defer params.deinit(allocator);
+
+    try params.append(allocator, &ty);
+    try params.append(allocator, &ty);
     const result = ast.Result{ .plain = &ty };
     var func_type = ast.FuncType{
-        .params = params[0..],
+        .params = params,
         .result = result,
         .token = token.Token{
             .type = token.TokenType.kw_func,
