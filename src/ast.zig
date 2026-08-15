@@ -47,7 +47,7 @@ pub const ImportDef = struct {
 
 // type_param = IDENT
 pub const TypeParam = struct {
-    name: []const u8,
+    name: []const u8 = "",
     token: Token,
 
     pub fn print(self: *TypeParam, indent: usize) anyerror!void {
@@ -58,7 +58,7 @@ pub const TypeParam = struct {
 
 // param = IDENT ":" ["?"] ["const"] type
 pub const Param = struct {
-    name: []const u8,
+    name: []const u8 = "",
     is_optional: bool,
     is_const: bool,
     type: *Type,
@@ -109,7 +109,7 @@ pub const TypeAnn = struct {
 pub const FunctionDef = struct {
     is_pub: bool,
     is_inline: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_params: std.ArrayList(TypeParam),
     params: std.ArrayList(Param),
     result: Result,
@@ -141,7 +141,7 @@ pub const FunctionDef = struct {
 pub const ProcDef = struct {
     is_pub: bool,
     is_inline: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_params: std.ArrayList(TypeParam),
     params: std.ArrayList(Param),
     body: std.ArrayList(Stmt),
@@ -163,7 +163,7 @@ pub const ProcDef = struct {
 // struct_def = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
 pub const StructDef = struct {
     is_pub: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_params: std.ArrayList(TypeParam),
     fields: std.ArrayList(StructField),
     methods: std.ArrayList(MethodDef),
@@ -181,7 +181,7 @@ pub const StructDef = struct {
 // enum_variants   = enum_variant { "," enum_variant } [ "," ]
 // enum_variant    = IDENT
 pub const EnumVariant = struct {
-    name: []const u8,
+    name: []const u8 = "",
     token: Token,
 
     pub fn print(self: *EnumVariant, indent: usize) anyerror!void {
@@ -193,7 +193,7 @@ pub const EnumVariant = struct {
 // enum_def = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
 pub const EnumDef = struct {
     is_pub: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_params: std.ArrayList(TypeParam),
     variants: std.ArrayList(EnumVariant),
     token: Token,
@@ -209,7 +209,7 @@ pub const EnumDef = struct {
 // extern_params   = extern_param { "," extern_param } [ "," "..." ] | "..."
 // extern_param    = IDENT ":" type
 pub const ExternParam = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type: *Type,
     token: Token,
 
@@ -224,13 +224,13 @@ pub const ExternParam = struct {
 pub const ExternDef = struct {
     kind: union(enum) {
         func: struct {
-            name: []const u8,
+            name: []const u8 = "",
             params: std.ArrayList(ExternParam),
             is_variadic: bool,
             result: *Type,
         },
         proc: struct {
-            name: []const u8,
+            name: []const u8 = "",
             params: std.ArrayList(ExternParam),
             is_variadic: bool,
         },
@@ -257,7 +257,7 @@ pub const ExternDef = struct {
 pub const VarDef = struct {
     is_pub: bool,
     is_global: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -272,7 +272,7 @@ pub const VarDef = struct {
 pub const ConstDef = struct {
     is_pub: bool,
     is_global: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -286,7 +286,7 @@ pub const ConstDef = struct {
 // struct_field = ["pub"] IDENT ":" ["?"] type
 pub const StructField = struct {
     is_pub: bool,
-    name: []const u8,
+    name: []const u8 = "",
     is_optional: bool,
     type: *Type,
     token: Token,
@@ -374,7 +374,7 @@ pub const ArrayType = struct {
 
 // named_type = IDENT [ "[" type { "," type } [ "," ] "]" ]
 pub const NamedType = struct {
-    name: []const u8,
+    name: []const u8 = "",
     args: []*Type,
     token: Token,
 
@@ -466,7 +466,7 @@ pub const LiteralExpr = struct {
 };
 
 pub const IdentExpr = struct {
-    name: []const u8,
+    name: []const u8 = "",
     token: Token,
 
     pub fn print(self: *IdentExpr, indent: usize) anyerror!void {
@@ -847,7 +847,7 @@ pub const Stmt = union(enum) {
 
 // var_stmt = "var" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const VarStmt = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -862,7 +862,7 @@ pub const VarStmt = struct {
 
 // const_stmt = "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstStmt = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -877,7 +877,7 @@ pub const ConstStmt = struct {
 
 // local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const LocalStaticVarStmt = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
