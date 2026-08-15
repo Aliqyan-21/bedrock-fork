@@ -12,37 +12,34 @@ pub const Item = union(enum) {
     const_def: ConstDef,
 
     pub fn print(self: *Item, indent: usize) anyerror!void {
-        switch (self) {
-            .import_def => |i| try i.print(indent),
-            .function => |f| try f.print(indent),
-            .proc => |p| try p.print(indent),
-            .struct_def => |s| try s.print(indent),
-            .enum_def => |e| try e.print(indent),
-            .extern_def => |e| try e.print(indent),
-            .var_def => |v| try v.print(indent),
-            .const_def => |c| try c.print(indent),
+        switch (self.*) {
+            .import_def => |*i| try i.print(indent),
+            .function => |*f| try f.print(indent),
+            .proc => |*p| try p.print(indent),
+            .struct_def => |*s| try s.print(indent),
+            .enum_def => |*e| try e.print(indent),
+            .extern_def => |*e| try e.print(indent),
+            .var_def => |*v| try v.print(indent),
+            .const_def => |*c| try c.print(indent),
         }
     }
 };
 
 pub const Program = struct {
-    items: []Item,
+    items: std.ArrayList(Item),
 };
 
 // import_def = "import" IDENT {"." IDENT} ";"
 pub const ImportDef = struct {
-    path: [][]const u8,
+    path: std.ArrayList([]const u8),
     token: Token,
 
     pub fn print(self: *ImportDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("import ", .{});
-        for (0..self.path) |i| {
-            const p = self.path[i];
+        for (self.path.items) |p| {
             std.debug.print("{s}", .{p});
-            if (i + 1 < self.path.len) {
-                std.debug.print(".", .{});
-            }
+            std.debug.print(".", .{});
         }
         std.debug.print("\n", .{});
     }
@@ -50,7 +47,7 @@ pub const ImportDef = struct {
 
 // type_param = IDENT
 pub const TypeParam = struct {
-    name: []const u8,
+    name: []const u8 = "",
     token: Token,
 
     pub fn print(self: *TypeParam, indent: usize) anyerror!void {
@@ -61,7 +58,7 @@ pub const TypeParam = struct {
 
 // param = IDENT ":" ["?"] ["const"] type
 pub const Param = struct {
-    name: []const u8,
+    name: []const u8 = "",
     is_optional: bool,
     is_const: bool,
     type: *Type,
@@ -69,7 +66,8 @@ pub const Param = struct {
 
     pub fn print(self: *Param, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("param: {s}\n", .{self.name});
+        std.debug.print("param: {s} -> ", .{self.name});
+        try self.type.*.print(0);
     }
 };
 
@@ -111,20 +109,28 @@ pub const TypeAnn = struct {
 pub const FunctionDef = struct {
     is_pub: bool,
     is_inline: bool,
-    name: []const u8,
-    type_params: []TypeParam,
-    params: []Param,
+    name: []const u8 = "",
+    type_params: std.ArrayList(TypeParam),
+    params: std.ArrayList(Param),
     result: Result,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
+
+    pub fn deinit(self: *FunctionDef, allocator: std.mem.Allocator) void {
+        for (self.params.items) |param| {
+            allocator.destroy(param.type);
+        }
+        self.params.deinit(allocator);
+        allocator.destroy(self.result.plain);
+    }
 
     pub fn print(self: *FunctionDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("function: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.params) |p| try p.print(indent + 4);
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
+        for (self.params.items) |*p| try p.print(indent + 4);
         try self.result.print(indent + 4);
-        for (self.body) |stmt| {
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -135,18 +141,18 @@ pub const FunctionDef = struct {
 pub const ProcDef = struct {
     is_pub: bool,
     is_inline: bool,
-    name: []const u8,
-    type_params: []TypeParam,
-    params: []Param,
-    body: []Stmt,
+    name: []const u8 = "",
+    type_params: std.ArrayList(TypeParam),
+    params: std.ArrayList(Param),
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ProcDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("proc: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.params) |p| try p.print(indent + 4);
-        for (self.body) |stmt| {
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
+        for (self.params.items) |*p| try p.print(indent + 4);
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -157,25 +163,25 @@ pub const ProcDef = struct {
 // struct_def = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
 pub const StructDef = struct {
     is_pub: bool,
-    name: []const u8,
-    type_params: []TypeParam,
-    fields: []StructField,
-    methods: []MethodDef,
+    name: []const u8 = "",
+    type_params: std.ArrayList(TypeParam),
+    fields: std.ArrayList(StructField),
+    methods: std.ArrayList(MethodDef),
     token: Token,
 
     pub fn print(self: *StructDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("struct: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.fields) |f| try f.print(indent + 4);
-        for (self.methods) |m| try m.print(indent + 4);
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
+        for (self.fields.items) |*f| try f.print(indent + 4);
+        for (self.methods.items) |*m| try m.print(indent + 4);
     }
 };
 
 // enum_variants   = enum_variant { "," enum_variant } [ "," ]
 // enum_variant    = IDENT
 pub const EnumVariant = struct {
-    name: []const u8,
+    name: []const u8 = "",
     token: Token,
 
     pub fn print(self: *EnumVariant, indent: usize) anyerror!void {
@@ -187,23 +193,23 @@ pub const EnumVariant = struct {
 // enum_def = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
 pub const EnumDef = struct {
     is_pub: bool,
-    name: []const u8,
-    type_params: []TypeParam,
-    variants: []EnumVariant,
+    name: []const u8 = "",
+    type_params: std.ArrayList(TypeParam),
+    variants: std.ArrayList(EnumVariant),
     token: Token,
 
     pub fn print(self: *EnumDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("enum: {s}\n", .{self.name});
-        for (self.type_params) |tp| try tp.print(indent + 4);
-        for (self.variants) |v| try v.print(indent + 4);
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
+        for (self.variants.items) |*v| try v.print(indent + 4);
     }
 };
 
 // extern_params   = extern_param { "," extern_param } [ "," "..." ] | "..."
 // extern_param    = IDENT ":" type
 pub const ExternParam = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type: *Type,
     token: Token,
 
@@ -218,14 +224,14 @@ pub const ExternParam = struct {
 pub const ExternDef = struct {
     kind: union(enum) {
         func: struct {
-            name: []const u8,
-            params: []ExternParam,
+            name: []const u8 = "",
+            params: std.ArrayList(ExternParam),
             is_variadic: bool,
             result: *Type,
         },
         proc: struct {
-            name: []const u8,
-            params: []ExternParam,
+            name: []const u8 = "",
+            params: std.ArrayList(ExternParam),
             is_variadic: bool,
         },
     },
@@ -236,12 +242,12 @@ pub const ExternDef = struct {
         switch (self.kind) {
             .func => |f| {
                 std.debug.print("extern func: {s}\n", .{f.name});
-                for (f.params) |p| try p.print(indent + 4);
+                for (f.params.items) |*p| try p.print(indent + 4);
                 try f.result.print(indent + 4);
             },
             .proc => |p| {
                 std.debug.print("extern proc: {s}\n", .{p.name});
-                for (p.params) |param| try param.print(indent + 4);
+                for (p.params.items) |*param| try param.print(indent + 4);
             },
         }
     }
@@ -251,7 +257,7 @@ pub const ExternDef = struct {
 pub const VarDef = struct {
     is_pub: bool,
     is_global: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -266,7 +272,7 @@ pub const VarDef = struct {
 pub const ConstDef = struct {
     is_pub: bool,
     is_global: bool,
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -280,7 +286,7 @@ pub const ConstDef = struct {
 // struct_field = ["pub"] IDENT ":" ["?"] type
 pub const StructField = struct {
     is_pub: bool,
-    name: []const u8,
+    name: []const u8 = "",
     is_optional: bool,
     type: *Type,
     token: Token,
@@ -298,9 +304,9 @@ pub const MethodDef = union(enum) {
     proc: ProcDef,
 
     pub fn print(self: *MethodDef, indent: usize) anyerror!void {
-        switch (self) {
-            .func => |f| try f.print(indent),
-            .proc => |p| try p.print(indent),
+        switch (self.*) {
+            .func => |*f| try f.print(indent),
+            .proc => |*p| try p.print(indent),
         }
     }
 };
@@ -368,7 +374,7 @@ pub const ArrayType = struct {
 
 // named_type = IDENT [ "[" type { "," type } [ "," ] "]" ]
 pub const NamedType = struct {
-    name: []const u8,
+    name: []const u8 = "",
     args: []*Type,
     token: Token,
 
@@ -381,7 +387,7 @@ pub const NamedType = struct {
 
 // func_type  = "func" "(" [ type_list ] ")" result
 pub const FuncType = struct {
-    params: []*Type,
+    params: std.ArrayList(*Type),
     result: Result,
     token: Token,
 
@@ -389,7 +395,7 @@ pub const FuncType = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("func type\n", .{});
         std.debug.print("params:\n", .{});
-        for (self.params) |param| try param.print(indent + 4);
+        for (self.params.items) |param| try param.print(indent + 4);
         std.debug.print("result:\n", .{});
         try self.result.print(indent + 4);
     }
@@ -397,13 +403,13 @@ pub const FuncType = struct {
 
 // proc_type  = "proc" "(" [ type_list ] ")"
 pub const ProcType = struct {
-    params: []*Type,
+    params: std.ArrayList(*Type),
     token: Token,
 
     pub fn print(self: *ProcType, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("proc type\n", .{});
-        for (self.params) |param| try param.print(indent + 4);
+        for (self.params.items) |param| try param.print(indent + 4);
     }
 };
 
@@ -443,7 +449,7 @@ pub const LiteralKind = enum {
 
     pub fn print(self: *LiteralKind, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("literal kind: {s}\n", .{@tagName(self)});
+        std.debug.print("literal kind: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -460,7 +466,7 @@ pub const LiteralExpr = struct {
 };
 
 pub const IdentExpr = struct {
-    name: []const u8,
+    name: []const u8 = "",
     token: Token,
 
     pub fn print(self: *IdentExpr, indent: usize) anyerror!void {
@@ -478,7 +484,7 @@ pub const UnaryOp = enum {
 
     pub fn print(self: *UnaryOp, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("unary op: {s}\n", .{@tagName(self)});
+        std.debug.print("unary op: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -506,7 +512,7 @@ pub const BinaryOp = enum {
 
     pub fn print(self: *BinaryOp, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("binary op: {s}\n", .{@tagName(self)});
+        std.debug.print("binary op: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -568,14 +574,14 @@ pub const CallArg = struct {
 
 pub const CallExpr = struct {
     callee: *Expr,
-    args: []CallArg,
+    args: std.ArrayList(CallArg),
     token: Token,
 
     pub fn print(self: *CallExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("call expr\n", .{});
         try self.callee.print(indent + 4);
-        for (self.args) |arg| try arg.print(indent + 4);
+        for (self.args.items) |*arg| try arg.print(indent + 4);
     }
 };
 
@@ -583,14 +589,14 @@ pub const CallExpr = struct {
 // foo[Type] -> generic instantiations
 pub const IndexExpr = struct {
     target: *Expr,
-    args: []*Expr,
+    args: std.ArrayList(*Expr),
     token: Token,
 
     pub fn print(self: *IndexExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("index expr\n", .{});
         try self.target.print(indent + 4);
-        for (self.args) |arg| try arg.print(indent + 4);
+        for (self.args.items) |arg| try arg.print(indent + 4);
     }
 };
 
@@ -608,28 +614,27 @@ pub const OptionalUnwrapExpr = struct {
 
 // array_literal = "[" [ array_elems ] "]"
 pub const ArrayLiteralExpr = struct {
-    elements: []*Expr,
+    elements: std.ArrayList(*Expr),
     token: Token,
 
     pub fn print(self: *ArrayLiteralExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("array literal\n", .{});
-        for (self.elements) |elem| try elem.print(indent + 4);
+        for (self.elements.items) |elem| try elem.print(indent + 4);
     }
 };
 
 // elif_clause = "elif" expression block
 pub const ElifClause = struct {
     cond: *Expr,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ElifClause, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("elif clause\n", .{});
         try self.cond.print(indent + 4);
-        for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -640,30 +645,27 @@ pub const ElifClause = struct {
 // if_expr = "if" expression block { elif_clause } [ else_clause ] "end"
 pub const IfExpr = struct {
     cond: *Expr,
-    then_body: []Stmt,
-    elifs: []ElifClause,
-    else_body: ?[]Stmt,
+    then_body: std.ArrayList(Stmt),
+    elifs: std.ArrayList(ElifClause),
+    else_body: ?std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *IfExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("if expr\n", .{});
         try self.cond.print(indent + 4);
-        for (0..self.then_body.len) |i| {
-            const stmt = self.then_body[i];
+        for (self.then_body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
         }
-        for (self.elifs) |elif| try elif.print(indent + 4);
-        if (self.else_body) |else_body| {
-            for (0..indent + 4) |_| std.debug.print(" ", .{});
-            std.debug.print("else clause\n", .{});
-            for (0..else_body.len) |i| {
-                const stmt = else_body[i];
-                for (0..indent + 4) |_| std.debug.print(" ", .{});
-                std.debug.print("stmt\n", .{});
-                try stmt.print(indent + 6);
+        for (self.elifs.items) |*elif| try elif.print(indent + 4);
+        if (self.else_body) |*else_body| {
+            for (else_body.items) |*stmt| {
+                for (0..indent + 4) |_|
+                    std.debug.print(" ", .{});
+                std.debug.print("else clause\n", .{});
+                try stmt.print(indent + 4);
             }
         }
     }
@@ -677,10 +679,10 @@ pub const Pattern = union(enum) {
 
     pub fn print(self: *Pattern, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        switch (self) {
-            .integer => |i| std.debug.print("pattern integer: {s}\n", .{i}),
-            .boolean => |b| std.debug.print("pattern boolean: {b}\n", .{b}),
-            .ident => |id| std.debug.print("pattern ident: {s}\n", .{id}),
+        switch (self.*) {
+            .integer => |*i| std.debug.print("pattern integer: {s}\n", .{i.*}),
+            .boolean => |*b| std.debug.print("pattern boolean: {}\n", .{b.*}),
+            .ident => |*id| std.debug.print("pattern ident: {s}\n", .{id.*}),
         }
     }
 };
@@ -688,15 +690,14 @@ pub const Pattern = union(enum) {
 // match_arm = "case" pattern block
 pub const MatchArm = struct {
     pattern: Pattern,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *MatchArm, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("match arm\n", .{});
         try self.pattern.print(indent + 4);
-        for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -707,23 +708,21 @@ pub const MatchArm = struct {
 // match_expr = "match" expression [ match_arms ] "end"
 pub const MatchExpr = struct {
     subject: *Expr,
-    arms: []MatchArm,
-    else_body: ?[]Stmt,
+    arms: std.ArrayList(MatchArm),
+    else_body: ?std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *MatchExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("match expr\n", .{});
         try self.subject.print(indent + 4);
-        for (self.arms) |arm| try arm.print(indent + 4);
-        if (self.else_body) |else_body| {
-            for (0..indent + 4) |_| std.debug.print(" ", .{});
-            std.debug.print("else clause\n", .{});
-            for (0..else_body.len) |i| {
-                const stmt = else_body[i];
-                for (0..indent + 4) |_| std.debug.print(" ", .{});
-                std.debug.print("stmt\n", .{});
-                try stmt.print(indent + 6);
+        for (self.arms.items) |*arm| try arm.print(indent + 4);
+        if (self.else_body) |*else_body| {
+            for (else_body.items) |*stmt| {
+                for (0..indent + 4) |_|
+                    std.debug.print(" ", .{});
+                std.debug.print("else clause\n", .{});
+                try stmt.print(indent + 4);
             }
         }
     }
@@ -732,15 +731,14 @@ pub const MatchExpr = struct {
 // while_expr = "while" expression block "end"
 pub const WhileExpr = struct {
     cond: *Expr,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *WhileExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("while expr\n", .{});
         try self.cond.print(indent + 4);
-        for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -752,15 +750,14 @@ pub const WhileExpr = struct {
 pub const ForExpr = struct {
     binding: []const u8,
     iterable: *Expr,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ForExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("for expr: {s}\n", .{self.binding});
         try self.iterable.print(indent + 4);
-        for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -770,14 +767,13 @@ pub const ForExpr = struct {
 
 // comptime_expr = "comptime" block "end"
 pub const ComptimeExpr = struct {
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ComptimeExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("comptime expr\n", .{});
-        for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -802,21 +798,21 @@ pub const Expr = union(enum) {
     comptime_expr: ComptimeExpr,
 
     pub fn print(self: *Expr, indent: usize) anyerror!void {
-        switch (self) {
-            .literal => |l| try l.print(indent),
-            .ident => |i| try i.print(indent),
-            .binary => |b| try b.print(indent),
-            .unary => |u| try u.print(indent),
-            .field_access => |f| try f.print(indent),
-            .call => |c| try c.print(indent),
-            .index => |i| try i.print(indent),
-            .optional_unwrap => |o| try o.print(indent),
-            .array_literal => |a| try a.print(indent),
-            .if_expr => |i| try i.print(indent),
-            .match_expr => |m| try m.print(indent),
-            .while_expr => |w| try w.print(indent),
-            .for_expr => |f| try f.print(indent),
-            .comptime_expr => |c| try c.print(indent),
+        switch (self.*) {
+            .literal => |*l| try l.print(indent),
+            .ident => |*i| try i.print(indent),
+            .binary => |*b| try b.print(indent),
+            .unary => |*u| try u.print(indent),
+            .field_access => |*f| try f.print(indent),
+            .call => |*c| try c.print(indent),
+            .index => |*i| try i.print(indent),
+            .optional_unwrap => |*o| try o.print(indent),
+            .array_literal => |*a| try a.print(indent),
+            .if_expr => |*i| try i.print(indent),
+            .match_expr => |*m| try m.print(indent),
+            .while_expr => |*w| try w.print(indent),
+            .for_expr => |*f| try f.print(indent),
+            .comptime_expr => |*c| try c.print(indent),
         }
     }
 };
@@ -835,23 +831,23 @@ pub const Stmt = union(enum) {
     expr_stmt: ExprStmt,
 
     pub fn print(self: *Stmt, indent: usize) anyerror!void {
-        switch (self) {
-            .var_stmt => |v| try v.print(indent),
-            .const_stmt => |c| try c.print(indent),
-            .assign_stmt => |a| try a.print(indent),
-            .local_static_var_stmt => |l| try l.print(indent),
-            .defer_stmt => |d| try d.print(indent),
-            .unsafe_stmt => |u| try u.print(indent),
+        switch (self.*) {
+            .var_stmt => |*v| try v.print(indent),
+            .const_stmt => |*c| try c.print(indent),
+            .assign_stmt => |*a| try a.print(indent),
+            .local_static_var_stmt => |*l| try l.print(indent),
+            .defer_stmt => |*d| try d.print(indent),
+            .unsafe_stmt => |*u| try u.print(indent),
             .control_flow_stmt => |c| try c.print(indent),
-            .return_stmt => |r| try r.print(indent),
-            .expr_stmt => |e| try e.print(indent),
+            .return_stmt => |*r| try r.print(indent),
+            .expr_stmt => |*e| try e.print(indent),
         }
     }
 };
 
 // var_stmt = "var" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const VarStmt = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -859,14 +855,14 @@ pub const VarStmt = struct {
     pub fn print(self: *VarStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("var stmt: {s}\n", .{self.name});
-        if (self.type_ann) |t| try t.print(indent + 4);
+        if (self.type_ann) |*t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
 
 // const_stmt = "const" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const ConstStmt = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -874,14 +870,14 @@ pub const ConstStmt = struct {
     pub fn print(self: *ConstStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("const stmt: {s}\n", .{self.name});
-        if (self.type_ann) |t| try t.print(indent + 4);
+        if (self.type_ann) |*t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
 
 // local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
 pub const LocalStaticVarStmt = struct {
-    name: []const u8,
+    name: []const u8 = "",
     type_ann: ?TypeAnn,
     value: *Expr,
     token: Token,
@@ -889,7 +885,7 @@ pub const LocalStaticVarStmt = struct {
     pub fn print(self: *LocalStaticVarStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("local static var stmt: {s}\n", .{self.name});
-        if (self.type_ann) |t| try t.print(indent + 4);
+        if (self.type_ann) |*t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
@@ -908,7 +904,7 @@ pub const CompoundOp = enum {
 
     pub fn print(self: *CompoundOp, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("compound op: {s}\n", .{@tagName(self)});
+        std.debug.print("compound op: {s}\n", .{@tagName(self.*)});
     }
 };
 
@@ -923,7 +919,7 @@ pub const AssignStmt = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("assign stmt\n", .{});
         try self.target.print(indent + 4);
-        if (self.op) |op| try op.print(indent + 4);
+        if (self.op) |*op| try op.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
@@ -938,13 +934,13 @@ pub const DeferrableStmt = union(enum) {
     expr_stmt: ExprStmt,
 
     pub fn print(self: *DeferrableStmt, indent: usize) anyerror!void {
-        switch (self) {
-            .var_stmt => |v| try v.print(indent),
-            .const_stmt => |c| try c.print(indent),
-            .assign_stmt => |a| try a.print(indent),
+        switch (self.*) {
+            .var_stmt => |*v| try v.print(indent),
+            .const_stmt => |*c| try c.print(indent),
+            .assign_stmt => |*a| try a.print(indent),
             .control_flow_stmt => |c| try c.print(indent),
-            .return_stmt => |r| try r.print(indent),
-            .expr_stmt => |e| try e.print(indent),
+            .return_stmt => |*r| try r.print(indent),
+            .expr_stmt => |*e| try e.print(indent),
         }
     }
 };
@@ -962,14 +958,13 @@ pub const DeferStmt = struct {
 
 // unsafe_stmt = "unsafe" block "end"
 pub const UnsafeStmt = struct {
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *UnsafeStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("unsafe stmt\n", .{});
-        for (0..self.body.len) |i| {
-            const stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -1004,27 +999,29 @@ pub const ExprStmt = struct {
 // and ofc it has internal arena, all nodes
 // get freed in one shot by deinit, not individually freed
 pub const AST = struct {
-    arena: std.heap.ArenaAllocator,
     program: Program,
 
-    pub fn init(n_allocator: std.mem.Allocator) AST {
+    pub fn init() AST {
         return .{
-            .arena = std.heap.ArenaAllocator.init(n_allocator),
-            .program = .{ .items = &.{} },
+            .program = .{ .items = .empty },
         };
     }
 
-    pub fn allocator(self: *AST) std.mem.Allocator {
-        return self.arena.allocator();
-    }
-
-    pub fn deinit(self: *AST) void {
-        self.arena.deinit();
+    pub fn deinit(self: *AST, allocator: std.mem.Allocator) void {
+        for (self.program.items.items) |*item| {
+            switch (item.*) {
+                .function => |*func| func.deinit(allocator),
+                else => {
+                    // TODO:
+                },
+            }
+        }
+        self.program.items.deinit(allocator);
     }
 
     pub fn print(self: *AST) anyerror!void {
         std.debug.print("AST:\n", .{});
-        for (self.program.items) |item| {
+        for (self.program.items.items) |*item| {
             try item.print(2);
         }
     }

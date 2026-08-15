@@ -34,7 +34,7 @@ pub const Lexer = struct {
         return c;
     }
 
-    fn is_end(self: *Lexer) bool {
+    pub fn is_end(self: *Lexer) bool {
         return self.pos >= self.source.len;
     }
 
