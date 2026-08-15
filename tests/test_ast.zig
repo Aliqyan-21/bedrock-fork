@@ -10,16 +10,23 @@ test "func_type ast print" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
     // func(i32, i32) -> i32
-    var ty = ast.Type{ .primitive = .i32 };
+    var ty = ast.Type{
+        .base = .{ .primitive = .i32 },
+        .token = token.Token{
+            .type = token.TokenType.ident,
+            .val = "i32",
+            .line = 1,
+            .col = 1,
+        },
+    };
     var params: std.ArrayList(*ast.Type) = .empty;
     defer params.deinit(allocator);
 
     try params.append(allocator, &ty);
     try params.append(allocator, &ty);
-    const result = ast.Result{ .plain = &ty };
     var func_type = ast.FuncType{
         .params = params,
-        .result = result,
+        .result = &ty,
         .token = token.Token{
             .type = token.TokenType.kw_func,
             .val = "func",

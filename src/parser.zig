@@ -120,7 +120,6 @@ pub const Parser = struct {
     pub fn parseParam(self: *Parser) !ast.Param {
         var param = ast.Param{
             .name = "",
-            .is_optional = false,
             .is_const = false,
             .type = undefined,
             .token = undefined,
@@ -131,7 +130,7 @@ pub const Parser = struct {
         if (tok.type != token.TokenType.ident) {
             // error
         }
-        param.name = tok.val;
+        param.token = tok;
 
         // :
         tok = try self.lexer.next();
@@ -141,7 +140,7 @@ pub const Parser = struct {
 
         // type
         tok = try self.lexer.next();
-        param.type = try self.parseType(tok.val);
+        param.type = try self.parseType(tok);
 
         return param;
     }
@@ -153,24 +152,21 @@ pub const Parser = struct {
         return stmt;
     }
 
-    pub fn parseType(self: *Parser, tok_val: []const u8) !*ast.Type {
+    pub fn parseType(self: *Parser, tok: token.Token) !*ast.Type {
         const ty = try self.allocator.create(ast.Type);
-        if (std.mem.eql(u8, tok_val, "i32")) {
-            ty.* = .{ .primitive = .i32 };
+        if (std.mem.eql(u8, tok.val, "i32")) {
+            ty.* = .{
+                .base = .{ .primitive = .i32 },
+                .token = tok,
+            };
         } else {
             // TODO
         }
         return ty;
     }
 
-    pub fn parseResult(self: *Parser) !ast.Result {
+    pub fn parseResult(self: *Parser) !*ast.Type {
         const tok = try self.lexer.next();
-        var result: ast.Result = undefined;
-        if (std.mem.eql(u8, tok.val, "i32")) {
-            const ty = try self.allocator.create(ast.Type);
-            ty.* = .{ .primitive = .i32 };
-            result = .{ .plain = ty };
-        }
-        return result;
+        return self.parseType(tok);
     }
 };
