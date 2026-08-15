@@ -12,14 +12,14 @@ type_param      = IDENT
 # Functions and Procedures
 function        = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
 proc_def        = [ "pub" ] [ "inline" ] "proc" IDENT [ type_params ] "(" [ params ] ")" block "end"
-result          = "->" ( "?" type | type "!" | type )
+result          = "->" type
 params          = param { "," param } [ "," ]
-param           = IDENT ":" ["?"] ["const"] type
+param           = IDENT ":" [ "const" ] type
 block           = { statement }
 
 # Foreign Function Interface
 extern_def      = "extern" ( "func" IDENT "(" [ extern_params ] ")" "->" type
-                            | "proc" IDENT "(" [ extern_params ] ")" )
+                | "proc" IDENT "(" [ extern_params ] ")" ) ";"
 extern_params   = extern_param { "," extern_param } [ "," "..." ]
                 | "..."
 extern_param    = IDENT ":" type
@@ -29,29 +29,29 @@ struct_def      = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_m
 struct_members  = struct_member { struct_member }
 struct_member   = struct_field ","
                 | method_def
-struct_field    = ["pub"] IDENT ":" ["?"] type
+struct_field    = [ "pub" ] IDENT ":" type
 
 method_def      = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
                 | [ "pub" ] [ "inline" ] "proc" IDENT [ type_params ] "(" [ params ] ")" block "end"
 
-enum_def        = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
-enum_variants   = enum_variant { "," enum_variant } [ "," ]
-enum_variant    = IDENT
+enum_def       = [ "pub" ] "type" IDENT [ type_params ] "=" "enum" [ enum_variants ] "end"
+enum_variants  = enum_variant { "," enum_variant } [ "," ]
+enum_variant   = IDENT [ "(" type_list ")" ]
 
 # Statements
 statement       = var_stmt | local_static_var_stmt | assign_stmt | defer_stmt
                 | unsafe_stmt | control_flow_stmt | return_stmt | expr_stmt
 
-var_stmt        = "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+var_stmt        = "var" IDENT [ ":" type ] "=" expression ";"
 assign_stmt     = place_expr ( "=" | compound_op ) expression ";"
 
 # module scope only — plain mutable global, "pub" is meaningful here
-global_var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+global_var_def  = [ "pub" ] "var" IDENT [ ":" type ] "=" expression ";"
 
 # function scope only — no "pub" here, a local static can't be exposed outside its function
-local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+local_static_var_stmt = "static" "var" IDENT [ ":" type ] "=" expression ";"
 
-const_def       = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
+const_def       = [ "pub" ] "const" IDENT [ ":" type ] "=" expression ";"
 
 place_expr      = "*" "(" expression ")"
                 | "*" IDENT
@@ -83,7 +83,11 @@ match_expr      = "match" expression [ match_arms ] "end"
 match_arms      = match_arm { match_arm } [ else_arm ]
 match_arm       = "case" pattern block
 else_arm        = "else" block
-pattern         = INTEGER | BOOL | IDENT
+
+pattern         = literal_pattern | variant_pattern
+literal_pattern = INTEGER | FLOAT | CHAR | STRING | BOOL
+variant_pattern = IDENT [ "(" [ pattern_params ] ")" ]
+pattern_params  = pattern { "," pattern } [ "," ]
 
 expression      = orelse_expr
 orelse_expr     = or_expr [ "orelse" expression ]
@@ -97,7 +101,7 @@ shift_expr      = range_expr { ( "<<" | ">>" ) range_expr }
 range_expr      = additive [ ".." additive ]
 additive        = multiplicative { ( "+" | "-" ) multiplicative }
 multiplicative  = unary { ( "*" | "/" | "%" ) unary }
-unary           = ( "-" | "!" | "~" | "&" | "*" ) unary | postfix
+unary           = ( "-" | "!" | "~" | "&" | "*" | "try" ) unary | postfix
 postfix         = primary { suffix }
 suffix          = "." IDENT
                 | "(" [ call_args ] ")"
@@ -116,7 +120,9 @@ array_elems = expression { "," expression } [ "," ]
 call_args       = call_arg { "," call_arg } [ "," ]
 call_arg        = [ IDENT "=" ] expression
 
-type            = "i8" | "i16" | "i32" | "i64"
+type            = [ "?" ] base_type [ "!" ]
+
+base_type       = "i8" | "i16" | "i32" | "i64"
                 | "u8" | "u16" | "u32" | "u64"
                 | "usize" | "isize"
                 | "f32" | "f64"
