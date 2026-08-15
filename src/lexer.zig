@@ -112,7 +112,7 @@ pub const Lexer = struct {
         }
     }
 
-    pub fn peekToken(self: *Lexer) !t.Token {
+    pub fn peek_token(self: *Lexer) !t.Token {
         return self.scan(false);
     }
 
