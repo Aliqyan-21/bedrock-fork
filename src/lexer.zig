@@ -50,8 +50,8 @@ pub const Lexer = struct {
         }
     }
 
-    fn is_comment(c: u8) bool {
-        return c == '/';
+    fn is_comment(a: u8, b: u8) bool {
+        return a == '/' and b == '/';
     }
 
     fn is_identifier(c: u8) bool {
@@ -88,7 +88,7 @@ pub const Lexer = struct {
         }
 
         const c = self.peek();
-        if (is_comment(c)) {
+        if (is_comment(c, self.peek_at(1))) {
             return self.read_comment(line, col);
         }
 
