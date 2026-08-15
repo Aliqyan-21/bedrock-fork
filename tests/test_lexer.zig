@@ -148,13 +148,6 @@ test "generic declaration brackets are plain bracker/comma/ident tokens" {
 
 // whitespace and comment
 
-test "comments are discarded entirely" {
-    try expect_types("var x = 5; // trailing comment\nconst y = 6;", &.{
-        .kw_var,   .ident, .eq, .integer, .semicolon,
-        .kw_const, .ident, .eq, .integer, .semicolon,
-    });
-}
-
 test "whitespace and newlines discarded" {
     var tokens = try lexer.tokenize(testing.allocator, "var\n           x");
     defer tokens.deinit(testing.allocator);

@@ -84,7 +84,9 @@ pub const TokenType = enum {
     caret_eq, // ^=
     dot_dot, // .. (range)
 
+    // others
     eof,
+    comment,
     unkown,
 };
 
