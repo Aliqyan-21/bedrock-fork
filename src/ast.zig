@@ -56,10 +56,9 @@ pub const TypeParam = struct {
     }
 };
 
-// param = IDENT ":" ["?"] ["const"] type
+// param = IDENT ":" [ "const" ] type
 pub const Param = struct {
     name: []const u8 = "",
-    is_optional: bool,
     is_const: bool,
     type: *Type,
     token: Token,
@@ -71,40 +70,6 @@ pub const Param = struct {
     }
 };
 
-// result = "->" ( "?" type | type "!" | type )
-pub const Result = union(enum) {
-    plain: *Type,
-    optional: *Type, // "?"
-    error_union: *Type, // "!"
-
-    pub fn print(self: *Result, indent: usize) anyerror!void {
-        switch (self.*) {
-            .plain => |t| try t.print(indent),
-            .optional => |t| {
-                std.debug.print("optional\n", .{});
-                try t.print(indent + 4);
-            },
-            .error_union => |t| {
-                std.debug.print("error union\n", .{});
-                try t.print(indent + 4);
-            },
-        }
-    }
-};
-
-pub const TypeAnn = struct {
-    is_optional: bool,
-    type: *Type,
-
-    pub fn print(self: *TypeAnn, indent: usize) anyerror!void {
-        for (0..indent) |_| std.debug.print(" ", .{});
-        if (self.is_optional) {
-            std.debug.print("optional type\n", .{});
-        }
-        try self.type.print(indent + 4);
-    }
-};
-
 // function = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
 pub const FunctionDef = struct {
     is_pub: bool,
@@ -112,7 +77,7 @@ pub const FunctionDef = struct {
     name: []const u8 = "",
     type_params: std.ArrayList(TypeParam),
     params: std.ArrayList(Param),
-    result: Result,
+    result: *Type,
     body: std.ArrayList(Stmt),
     token: Token,
 
@@ -121,7 +86,7 @@ pub const FunctionDef = struct {
             allocator.destroy(param.type);
         }
         self.params.deinit(allocator);
-        allocator.destroy(self.result.plain);
+        allocator.destroy(self.result);
     }
 
     pub fn print(self: *FunctionDef, indent: usize) anyerror!void {
@@ -253,12 +218,12 @@ pub const ExternDef = struct {
     }
 };
 
-// var_def  = [ "pub" ] "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+// var_def  = [ "pub" ] "var" IDENT [ ":" type ] "=" expression ";"
 pub const VarDef = struct {
     is_pub: bool,
     is_global: bool,
     name: []const u8 = "",
-    type_ann: ?TypeAnn,
+    type_ann: ?*Type,
     value: *Expr,
     token: Token,
 
@@ -268,12 +233,12 @@ pub const VarDef = struct {
     }
 };
 
-// const_def = [ "pub" ] "const" IDENT [ ":" ["?"] type ] "=" expression ";"
+// const_def = [ "pub" ] "const" IDENT [ ":" type ] "=" expression ";"
 pub const ConstDef = struct {
     is_pub: bool,
     is_global: bool,
     name: []const u8 = "",
-    type_ann: ?TypeAnn,
+    type_ann: ?*Type,
     value: *Expr,
     token: Token,
 
@@ -283,11 +248,10 @@ pub const ConstDef = struct {
     }
 };
 
-// struct_field = ["pub"] IDENT ":" ["?"] type
+// struct_field = ["pub"] IDENT ":" type
 pub const StructField = struct {
     is_pub: bool,
     name: []const u8 = "",
-    is_optional: bool,
     type: *Type,
     token: Token,
 
@@ -388,7 +352,7 @@ pub const NamedType = struct {
 // func_type  = "func" "(" [ type_list ] ")" result
 pub const FuncType = struct {
     params: std.ArrayList(*Type),
-    result: Result,
+    result: *Type,
     token: Token,
 
     pub fn print(self: *FuncType, indent: usize) anyerror!void {
@@ -413,7 +377,7 @@ pub const ProcType = struct {
     }
 };
 
-pub const Type = union(enum) {
+pub const BaseType = union(enum) {
     primitive: PrimitiveType,
     pointer: *Type,
     array: ArrayType,
@@ -421,7 +385,7 @@ pub const Type = union(enum) {
     func: FuncType,
     proc: ProcType,
 
-    pub fn print(self: *Type, indent: usize) anyerror!void {
+    pub fn print(self: *BaseType, indent: usize) anyerror!void {
         switch (self.*) {
             .primitive => |*p| try p.print(indent),
             .pointer => |p| {
@@ -433,6 +397,24 @@ pub const Type = union(enum) {
             .named => |*n| try n.print(indent),
             .func => |*f| try f.print(indent),
             .proc => |*p| try p.print(indent),
+        }
+    }
+};
+
+// type = [ "?" ] base_type [ "!" ]
+pub const Type = struct {
+    is_optional: bool = false,
+    is_error_union: bool = false,
+    base: BaseType,
+    token: Token,
+    pub fn print(self: *Type, indent: usize) anyerror!void {
+        for (0..indent) |_| std.debug.print(" ", .{});
+        if (self.is_optional) std.debug.print("optional ", .{});
+        std.debug.print("type:\n", .{});
+        try self.base.print(indent + 4);
+        if (self.is_error_union) {
+            for (0..indent + 4) |_| std.debug.print(" ", .{});
+            std.debug.print("(error union)\n", .{});
         }
     }
 };
@@ -845,47 +827,47 @@ pub const Stmt = union(enum) {
     }
 };
 
-// var_stmt = "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+// var_stmt = "var" IDENT [ ":" type ] "=" expression ";"
 pub const VarStmt = struct {
     name: []const u8 = "",
-    type_ann: ?TypeAnn,
+    type_ann: ?*Type,
     value: *Expr,
     token: Token,
 
     pub fn print(self: *VarStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("var stmt: {s}\n", .{self.name});
-        if (self.type_ann) |*t| try t.print(indent + 4);
+        if (self.type_ann) |t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
 
-// const_stmt = "const" IDENT [ ":" ["?"] type ] "=" expression ";"
+// const_stmt = "const" IDENT [ ":" type ] "=" expression ";"
 pub const ConstStmt = struct {
     name: []const u8 = "",
-    type_ann: ?TypeAnn,
+    type_ann: ?*Type,
     value: *Expr,
     token: Token,
 
     pub fn print(self: *ConstStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("const stmt: {s}\n", .{self.name});
-        if (self.type_ann) |*t| try t.print(indent + 4);
+        if (self.type_ann) |t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
 
-// local_static_var_stmt = "static" "var" IDENT [ ":" ["?"] type ] "=" expression ";"
+// local_static_var_stmt = "static" "var" IDENT [ ":" type ] "=" expression ";"
 pub const LocalStaticVarStmt = struct {
     name: []const u8 = "",
-    type_ann: ?TypeAnn,
+    type_ann: ?*Type,
     value: *Expr,
     token: Token,
 
     pub fn print(self: *LocalStaticVarStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("local static var stmt: {s}\n", .{self.name});
-        if (self.type_ann) |*t| try t.print(indent + 4);
+        if (self.type_ann) |t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
 };
