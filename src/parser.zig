@@ -19,17 +19,17 @@ pub const Parser = struct {
 
     pub fn parse(self: *Parser) !ast.AST {
         var ast_res = ast.AST.init();
-        ast_res.program = try self.parseProgram();
+        ast_res.program = try self.parse_program();
         return ast_res;
     }
 
-    pub fn parseProgram(self: *Parser) !ast.Program {
+    pub fn parse_program(self: *Parser) !ast.Program {
         var program = ast.Program{ .items = undefined };
-        program.items = try self.parseItems();
+        program.items = try self.parse_items();
         return program;
     }
 
-    pub fn parseItems(self: *Parser) !std.ArrayList(ast.Item) {
+    pub fn parse_items(self: *Parser) !std.ArrayList(ast.Item) {
         // TODO: replace the [] fields with arrayList
         var items: std.ArrayList(ast.Item) = .empty;
         var count: usize = 0;
@@ -38,7 +38,7 @@ pub const Parser = struct {
             // TODO: check for pub and inline keyword
             switch (tok.type) {
                 token.TokenType.kw_func => {
-                    const func_def = try self.parseFuncDef();
+                    const func_def = try self.parse_func_def();
                     try items.append(self.allocator, ast.Item{ .function = func_def });
                 },
                 else => {
@@ -51,7 +51,7 @@ pub const Parser = struct {
         return items;
     }
 
-    pub fn parseFuncDef(self: *Parser) !ast.FunctionDef {
+    pub fn parse_func_def(self: *Parser) !ast.FunctionDef {
         var func_def = ast.FunctionDef{
             .is_pub = false,
             .is_inline = false,
@@ -78,7 +78,7 @@ pub const Parser = struct {
 
         // TODO: type params
         // parse parameters
-        func_def.params = try self.parseParams();
+        func_def.params = try self.parse_params();
 
         // expect '->'
         const arrow = try self.lexer.next();
@@ -86,21 +86,21 @@ pub const Parser = struct {
             // TODO: add error handling
         }
 
-        func_def.result = try self.parseResult();
+        func_def.result = try self.parse_result();
 
         // parse block statement
-        func_def.body = try self.parseStatement();
+        func_def.body = try self.parse_statement();
 
         return func_def;
     }
 
-    pub fn parseParams(self: *Parser) !std.ArrayList(ast.Param) {
+    pub fn parse_params(self: *Parser) !std.ArrayList(ast.Param) {
         var params: std.ArrayList(ast.Param) = .empty;
 
         while (true) {
             try params.append(
                 self.allocator,
-                try self.parseParam(),
+                try self.parse_param(),
             );
 
             const tok = try self.lexer.next();
@@ -117,7 +117,7 @@ pub const Parser = struct {
         return params;
     }
 
-    pub fn parseParam(self: *Parser) !ast.Param {
+    pub fn parse_param(self: *Parser) !ast.Param {
         var param = ast.Param{
             .name = "",
             .is_const = false,
@@ -140,19 +140,19 @@ pub const Parser = struct {
 
         // type
         tok = try self.lexer.next();
-        param.type = try self.parseType(tok);
+        param.type = try self.parse_type(tok);
 
         return param;
     }
 
-    pub fn parseStatement(self: *Parser) !std.ArrayList(ast.Stmt) {
+    pub fn parse_statement(self: *Parser) !std.ArrayList(ast.Stmt) {
         _ = self;
         var stmt: std.ArrayList(ast.Stmt) = .empty;
         _ = &stmt;
         return stmt;
     }
 
-    pub fn parseType(self: *Parser, tok: token.Token) !*ast.Type {
+    pub fn parse_type(self: *Parser, tok: token.Token) !*ast.Type {
         const ty = try self.allocator.create(ast.Type);
         if (std.mem.eql(u8, tok.val, "i32")) {
             ty.* = .{
@@ -165,8 +165,8 @@ pub const Parser = struct {
         return ty;
     }
 
-    pub fn parseResult(self: *Parser) !*ast.Type {
+    pub fn parse_result(self: *Parser) !*ast.Type {
         const tok = try self.lexer.next();
-        return self.parseType(tok);
+        return self.parse_type(tok);
     }
 };
