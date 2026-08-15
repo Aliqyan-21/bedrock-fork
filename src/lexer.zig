@@ -92,9 +92,7 @@ pub const Lexer = struct {
         var tok: t.Token = undefined;
         if (is_comment(c, self.peek_at(1))) {
             tok = self.read_comment(line, col);
-        }
-
-        if (is_identifier(c)) {
+        } else if (is_identifier(c)) {
             tok = self.read_identifier_or_keyword(line, col);
         } else if (is_digit(c)) {
             tok = try self.read_number(line, col);
