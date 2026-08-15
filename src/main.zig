@@ -7,45 +7,29 @@ const token = @import("token.zig");
 const parser = @import("parser.zig");
 const ast = @import("ast.zig");
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const source =
-        \\func add(x: i32, y: i32) -> i32
-        \\end
-    ;
+    var args = std.process.Args.iterate(init.minimal.args);
+    defer args.deinit();
+    _ = args.next();
 
-    var c = compiler.Compiler.init(allocator, source);
-    try c.run();
-    defer c.deinit();
-    // const err_tok = token.Token{
-    //     .type = token.TokenType.ident,
-    //     .val = "i32",
-    //     .line = 2,
-    //     .col = 17,
-    // };
-    // try c.addError("expect : here got i32", err.Severity.Error, err_tok);
-    try c.emitErrors();
+    var file_name: []const u8 = "";
+    if (args.next()) |f| {
+        file_name = f;
+    } else {
+        @panic("not receive any file name");
+    }
+
+    const source = try std.Io.Dir.cwd().readFileAlloc(init.io, file_name, allocator, .limited(1 << 22));
+    defer allocator.free(source);
 
     var p = parser.Parser.init(allocator, source);
     var p_res = try p.parse();
     try p_res.print();
-    for (p_res.program.items.items) |*item| {
-        switch (item.*) {
-            .function => |*func| {
-                for (func.params.items) |param| {
-                    allocator.destroy(param.type);
-                }
-                func.params.deinit(allocator);
-                allocator.destroy(func.result.plain);
-            },
-
-            else => {},
-        }
-    }
-    p_res.program.items.deinit(allocator);
+    p_res.deinit(allocator);
 
     var tokens = try lexer.tokenize(allocator, source);
     defer tokens.deinit(allocator);

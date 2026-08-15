@@ -31,18 +31,15 @@ pub const Program = struct {
 
 // import_def = "import" IDENT {"." IDENT} ";"
 pub const ImportDef = struct {
-    path: [][]const u8,
+    path: std.ArrayList([]const u8),
     token: Token,
 
     pub fn print(self: *ImportDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("import ", .{});
-        for (0..self.path.len) |i| {
-            const p = self.path[i];
+        for (self.path.items) |p| {
             std.debug.print("{s}", .{p});
-            if (i + 1 < self.path.len) {
-                std.debug.print(".", .{});
-            }
+            std.debug.print(".", .{});
         }
         std.debug.print("\n", .{});
     }
@@ -113,16 +110,24 @@ pub const FunctionDef = struct {
     is_pub: bool,
     is_inline: bool,
     name: []const u8,
-    type_params: []TypeParam,
+    type_params: std.ArrayList(TypeParam),
     params: std.ArrayList(Param),
     result: Result,
     body: std.ArrayList(Stmt),
     token: Token,
 
+    pub fn deinit(self: *FunctionDef, allocator: std.mem.Allocator) void {
+        for (self.params.items) |param| {
+            allocator.destroy(param.type);
+        }
+        self.params.deinit(allocator);
+        allocator.destroy(self.result.plain);
+    }
+
     pub fn print(self: *FunctionDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("function: {s}\n", .{self.name});
-        for (self.type_params) |*tp| try tp.print(indent + 4);
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
         for (self.params.items) |*p| try p.print(indent + 4);
         try self.result.print(indent + 4);
         for (self.body.items) |*stmt| {
@@ -137,17 +142,17 @@ pub const ProcDef = struct {
     is_pub: bool,
     is_inline: bool,
     name: []const u8,
-    type_params: []TypeParam,
-    params: []Param,
-    body: []Stmt,
+    type_params: std.ArrayList(TypeParam),
+    params: std.ArrayList(Param),
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ProcDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("proc: {s}\n", .{self.name});
-        for (self.type_params) |*tp| try tp.print(indent + 4);
-        for (self.params) |*p| try p.print(indent + 4);
-        for (self.body) |*stmt| {
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
+        for (self.params.items) |*p| try p.print(indent + 4);
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -159,17 +164,17 @@ pub const ProcDef = struct {
 pub const StructDef = struct {
     is_pub: bool,
     name: []const u8,
-    type_params: []TypeParam,
-    fields: []StructField,
-    methods: []MethodDef,
+    type_params: std.ArrayList(TypeParam),
+    fields: std.ArrayList(StructField),
+    methods: std.ArrayList(MethodDef),
     token: Token,
 
     pub fn print(self: *StructDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("struct: {s}\n", .{self.name});
-        for (self.type_params) |*tp| try tp.print(indent + 4);
-        for (self.fields) |*f| try f.print(indent + 4);
-        for (self.methods) |*m| try m.print(indent + 4);
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
+        for (self.fields.items) |*f| try f.print(indent + 4);
+        for (self.methods.items) |*m| try m.print(indent + 4);
     }
 };
 
@@ -189,15 +194,15 @@ pub const EnumVariant = struct {
 pub const EnumDef = struct {
     is_pub: bool,
     name: []const u8,
-    type_params: []TypeParam,
-    variants: []EnumVariant,
+    type_params: std.ArrayList(TypeParam),
+    variants: std.ArrayList(EnumVariant),
     token: Token,
 
     pub fn print(self: *EnumDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("enum: {s}\n", .{self.name});
-        for (self.type_params) |*tp| try tp.print(indent + 4);
-        for (self.variants) |*v| try v.print(indent + 4);
+        for (self.type_params.items) |*tp| try tp.print(indent + 4);
+        for (self.variants.items) |*v| try v.print(indent + 4);
     }
 };
 
@@ -220,13 +225,13 @@ pub const ExternDef = struct {
     kind: union(enum) {
         func: struct {
             name: []const u8,
-            params: []ExternParam,
+            params: std.ArrayList(ExternParam),
             is_variadic: bool,
             result: *Type,
         },
         proc: struct {
             name: []const u8,
-            params: []ExternParam,
+            params: std.ArrayList(ExternParam),
             is_variadic: bool,
         },
     },
@@ -237,12 +242,12 @@ pub const ExternDef = struct {
         switch (self.kind) {
             .func => |f| {
                 std.debug.print("extern func: {s}\n", .{f.name});
-                for (f.params) |*p| try p.print(indent + 4);
+                for (f.params.items) |*p| try p.print(indent + 4);
                 try f.result.print(indent + 4);
             },
             .proc => |p| {
                 std.debug.print("extern proc: {s}\n", .{p.name});
-                for (p.params) |*param| try param.print(indent + 4);
+                for (p.params.items) |*param| try param.print(indent + 4);
             },
         }
     }
@@ -382,7 +387,7 @@ pub const NamedType = struct {
 
 // func_type  = "func" "(" [ type_list ] ")" result
 pub const FuncType = struct {
-    params: []*Type,
+    params: std.ArrayList(*Type),
     result: Result,
     token: Token,
 
@@ -390,7 +395,7 @@ pub const FuncType = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("func type\n", .{});
         std.debug.print("params:\n", .{});
-        for (self.params) |param| try param.print(indent + 4);
+        for (self.params.items) |param| try param.print(indent + 4);
         std.debug.print("result:\n", .{});
         try self.result.print(indent + 4);
     }
@@ -398,13 +403,13 @@ pub const FuncType = struct {
 
 // proc_type  = "proc" "(" [ type_list ] ")"
 pub const ProcType = struct {
-    params: []*Type,
+    params: std.ArrayList(*Type),
     token: Token,
 
     pub fn print(self: *ProcType, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("proc type\n", .{});
-        for (self.params) |param| try param.print(indent + 4);
+        for (self.params.items) |param| try param.print(indent + 4);
     }
 };
 
@@ -569,14 +574,14 @@ pub const CallArg = struct {
 
 pub const CallExpr = struct {
     callee: *Expr,
-    args: []CallArg,
+    args: std.ArrayList(CallArg),
     token: Token,
 
     pub fn print(self: *CallExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("call expr\n", .{});
         try self.callee.print(indent + 4);
-        for (self.args) |*arg| try arg.print(indent + 4);
+        for (self.args.items) |*arg| try arg.print(indent + 4);
     }
 };
 
@@ -584,14 +589,14 @@ pub const CallExpr = struct {
 // foo[Type] -> generic instantiations
 pub const IndexExpr = struct {
     target: *Expr,
-    args: []*Expr,
+    args: std.ArrayList(*Expr),
     token: Token,
 
     pub fn print(self: *IndexExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("index expr\n", .{});
         try self.target.print(indent + 4);
-        for (self.args) |arg| try arg.print(indent + 4);
+        for (self.args.items) |arg| try arg.print(indent + 4);
     }
 };
 
@@ -609,28 +614,27 @@ pub const OptionalUnwrapExpr = struct {
 
 // array_literal = "[" [ array_elems ] "]"
 pub const ArrayLiteralExpr = struct {
-    elements: []*Expr,
+    elements: std.ArrayList(*Expr),
     token: Token,
 
     pub fn print(self: *ArrayLiteralExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("array literal\n", .{});
-        for (self.elements) |elem| try elem.print(indent + 4);
+        for (self.elements.items) |elem| try elem.print(indent + 4);
     }
 };
 
 // elif_clause = "elif" expression block
 pub const ElifClause = struct {
     cond: *Expr,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ElifClause, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("elif clause\n", .{});
         try self.cond.print(indent + 4);
-        for (0..self.body.len) |i| {
-            var stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -641,30 +645,27 @@ pub const ElifClause = struct {
 // if_expr = "if" expression block { elif_clause } [ else_clause ] "end"
 pub const IfExpr = struct {
     cond: *Expr,
-    then_body: []Stmt,
-    elifs: []ElifClause,
-    else_body: ?[]Stmt,
+    then_body: std.ArrayList(Stmt),
+    elifs: std.ArrayList(ElifClause),
+    else_body: ?std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *IfExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("if expr\n", .{});
         try self.cond.print(indent + 4);
-        for (0..self.then_body.len) |i| {
-            var stmt = self.then_body[i];
+        for (self.then_body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
         }
-        for (self.elifs) |*elif| try elif.print(indent + 4);
-        if (self.else_body) |else_body| {
-            for (0..indent + 4) |_| std.debug.print(" ", .{});
-            std.debug.print("else clause\n", .{});
-            for (0..else_body.len) |i| {
-                var stmt = else_body[i];
-                for (0..indent + 4) |_| std.debug.print(" ", .{});
-                std.debug.print("stmt\n", .{});
-                try stmt.print(indent + 6);
+        for (self.elifs.items) |*elif| try elif.print(indent + 4);
+        if (self.else_body) |*else_body| {
+            for (else_body.items) |*stmt| {
+                for (0..indent + 4) |_|
+                    std.debug.print(" ", .{});
+                std.debug.print("else clause\n", .{});
+                try stmt.print(indent + 4);
             }
         }
     }
@@ -689,15 +690,14 @@ pub const Pattern = union(enum) {
 // match_arm = "case" pattern block
 pub const MatchArm = struct {
     pattern: Pattern,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *MatchArm, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("match arm\n", .{});
         try self.pattern.print(indent + 4);
-        for (0..self.body.len) |i| {
-            var stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -708,23 +708,21 @@ pub const MatchArm = struct {
 // match_expr = "match" expression [ match_arms ] "end"
 pub const MatchExpr = struct {
     subject: *Expr,
-    arms: []MatchArm,
-    else_body: ?[]Stmt,
+    arms: std.ArrayList(MatchArm),
+    else_body: ?std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *MatchExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("match expr\n", .{});
         try self.subject.print(indent + 4);
-        for (self.arms) |*arm| try arm.print(indent + 4);
+        for (self.arms.items) |*arm| try arm.print(indent + 4);
         if (self.else_body) |*else_body| {
-            for (0..indent + 4) |_| std.debug.print(" ", .{});
-            std.debug.print("else clause\n", .{});
-            for (0..else_body.len) |i| {
-                var stmt = else_body.*[i];
-                for (0..indent + 4) |_| std.debug.print(" ", .{});
-                std.debug.print("stmt\n", .{});
-                try stmt.print(indent + 6);
+            for (else_body.items) |*stmt| {
+                for (0..indent + 4) |_|
+                    std.debug.print(" ", .{});
+                std.debug.print("else clause\n", .{});
+                try stmt.print(indent + 4);
             }
         }
     }
@@ -733,15 +731,14 @@ pub const MatchExpr = struct {
 // while_expr = "while" expression block "end"
 pub const WhileExpr = struct {
     cond: *Expr,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *WhileExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("while expr\n", .{});
         try self.cond.print(indent + 4);
-        for (0..self.body.len) |i| {
-            var stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -753,15 +750,14 @@ pub const WhileExpr = struct {
 pub const ForExpr = struct {
     binding: []const u8,
     iterable: *Expr,
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ForExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("for expr: {s}\n", .{self.binding});
         try self.iterable.print(indent + 4);
-        for (0..self.body.len) |i| {
-            var stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -771,14 +767,13 @@ pub const ForExpr = struct {
 
 // comptime_expr = "comptime" block "end"
 pub const ComptimeExpr = struct {
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ComptimeExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("comptime expr\n", .{});
-        for (0..self.body.len) |i| {
-            var stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -963,14 +958,13 @@ pub const DeferStmt = struct {
 
 // unsafe_stmt = "unsafe" block "end"
 pub const UnsafeStmt = struct {
-    body: []Stmt,
+    body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *UnsafeStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("unsafe stmt\n", .{});
-        for (0..self.body.len) |i| {
-            var stmt = self.body[i];
+        for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
@@ -1005,22 +999,24 @@ pub const ExprStmt = struct {
 // and ofc it has internal arena, all nodes
 // get freed in one shot by deinit, not individually freed
 pub const AST = struct {
-    arena: std.heap.ArenaAllocator,
     program: Program,
 
-    pub fn init(n_allocator: std.mem.Allocator) AST {
+    pub fn init() AST {
         return .{
-            .arena = std.heap.ArenaAllocator.init(n_allocator),
             .program = .{ .items = .empty },
         };
     }
 
-    pub fn allocator(self: *AST) std.mem.Allocator {
-        return self.arena.allocator();
-    }
-
-    pub fn deinit(self: *AST) void {
-        self.arena.deinit();
+    pub fn deinit(self: *AST, allocator: std.mem.Allocator) void {
+        for (self.program.items.items) |*item| {
+            switch (item.*) {
+                .function => |*func| func.deinit(allocator),
+                else => {
+                    // TODO:
+                },
+            }
+        }
+        self.program.items.deinit(allocator);
     }
 
     pub fn print(self: *AST) anyerror!void {

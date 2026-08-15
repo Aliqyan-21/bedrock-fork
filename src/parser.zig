@@ -18,7 +18,7 @@ pub const Parser = struct {
     }
 
     pub fn parse(self: *Parser) !ast.AST {
-        var ast_res = ast.AST.init(self.allocator);
+        var ast_res = ast.AST.init();
         ast_res.program = try self.parseProgram();
         return ast_res;
     }
