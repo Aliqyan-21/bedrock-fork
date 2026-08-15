@@ -78,10 +78,19 @@ pub const Lexer = struct {
         return c >= '0' and c <= '1';
     }
 
-    pub fn next(self: *Lexer) !t.Token {
+    pub fn scan(self: *Lexer, bump: bool) !t.Token {
         self.skip_whitespace();
         const line = self.line;
         const col = self.col;
+        const pos = self.pos;
+
+        if (!bump) {
+            defer {
+                self.line = line;
+                self.col = col;
+                self.pos = pos;
+            }
+        }
 
         if (self.is_end()) {
             return .{ .type = .eof, .val = "", .line = line, .col = col };
@@ -90,22 +99,25 @@ pub const Lexer = struct {
         const c = self.peek();
         if (is_comment(c, self.peek_at(1))) {
             return self.read_comment(line, col);
-        }
-
-        if (is_identifier(c)) {
+        } else if (is_identifier(c)) {
             return self.read_identifier_or_keyword(line, col);
+        } else if (is_digit(c)) {
+            return try self.read_number(line, col);
+        } else if (c == '"') {
+            return try self.read_string(line, col);
+        } else if (c == '\'') {
+            return try self.read_char(line, col);
+        } else {
+            return try self.read_operator(line, col);
         }
-        if (is_digit(c)) {
-            return self.read_number(line, col);
-        }
-        if (c == '"') {
-            return self.read_string(line, col);
-        }
-        if (c == '\'') {
-            return self.read_char(line, col);
-        }
+    }
 
-        return self.read_operator(line, col);
+    pub fn peek_token(self: *Lexer) !t.Token {
+        return self.scan(false);
+    }
+
+    pub fn next(self: *Lexer) !t.Token {
+        return self.scan(true);
     }
 
     fn read_comment(self: *Lexer, line: usize, col: usize) t.Token {
