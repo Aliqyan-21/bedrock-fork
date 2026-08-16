@@ -32,36 +32,76 @@ pub const Parser = struct {
     pub fn parse_items(self: *Parser) !std.ArrayList(ast.Item) {
         // TODO: replace the [] fields with arrayList
         var items: std.ArrayList(ast.Item) = .empty;
-        var count: usize = 0;
         while (!self.lexer.is_end()) {
-            const tok = try self.lexer.next();
-            // TODO: check for pub and inline keyword
+            var tok = try self.lexer.peek_token();
+            if (tok.type == token.TokenType.eof) break;
+
+            var is_pub = false;
+            var is_inline = false;
+
+            if (tok.type == token.TokenType.kw_pub) {
+                _ = try self.lexer.next();
+                is_pub = true;
+                tok = try self.lexer.peek_token();
+            }
+            if (tok.type == token.TokenType.kw_inline) {
+                _ = try self.lexer.next();
+                is_inline = true;
+                tok = try self.lexer.peek_token();
+            }
+
             switch (tok.type) {
-                token.TokenType.kw_func => {
-                    const func_def = try self.parse_func_def();
+                .kw_import => {
+                    //todo: error if is_pub or is_inline set (import takes no modifiers)
+                    //todo: implement parse_import_def
+                },
+                .kw_func => {
+                    const func_def = try self.parse_func_def(is_pub, is_inline);
                     try items.append(self.allocator, ast.Item{ .function = func_def });
                 },
+                .kw_proc => {
+                    //todo: implement parse_proc_def
+                },
+                .kw_type => {
+                    //todo: error if is_inline set (struct/enum defs take no "inline")
+                    //todo:implement parse_type_item
+                },
+                .kw_extern => {
+                    //todo: error if is_pub or is_inline set (extern takes no modifiers)
+                    //todo: parse_extern_def();
+                },
+                .kw_var => {
+                    //todo: error if inline set
+                    //todo: implement parse_var_def
+                },
+                .kw_const => {
+                    //todo: error if inline set
+                    //todo: implement parse_const_def
+                },
                 else => {
-                    // TODO:
+                    // TODO:: error handling
+                    _ = try self.lexer.next();
                     break;
                 },
             }
-            count += 1;
         }
         return items;
     }
 
-    pub fn parse_func_def(self: *Parser) !ast.FunctionDef {
+    pub fn parse_func_def(self: *Parser, is_pub: bool, is_inline: bool) !ast.FunctionDef {
+        const func_tok = try self.lexer.next();
         var func_def = ast.FunctionDef{
-            .is_pub = false,
-            .is_inline = false,
+            .is_pub = is_pub,
+            .is_inline = is_inline,
             .name = "",
             .type_params = .empty,
             .params = undefined,
             .result = undefined,
             .body = undefined,
-            .token = undefined,
+            .token = func_tok,
         };
+
+        // todo: parse_type_params for the .type_params
 
         // get the function name
         const name_tok = try self.lexer.next();
