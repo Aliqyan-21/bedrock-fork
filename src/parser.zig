@@ -179,7 +179,6 @@ pub const Parser = struct {
         }
 
         // type
-        tok = try self.lexer.next();
         param.type = try self.parse_type();
 
         return param;
@@ -220,8 +219,41 @@ pub const Parser = struct {
         return ty;
     }
 
+    fn parse_base_type(self: *Parser) !ast.BaseType {
+        const tok = try self.lexer.next();
+
+        switch (tok.type) {
+            .star => {
+                const pointee = try self.parse_type();
+                return ast.BaseType{ .pointer = pointee };
+            },
+            .l_bracket => return try self.parse_array_type(tok),
+            .kw_func => return try self.parse_func_type(tok),
+            .ident => {
+                if (std.meta.stringToEnum(ast.PrimitiveType, tok.val)) |prim| {
+                    return ast.BaseType{ .primitive = prim };
+                }
+                return ast.BaseType{ .named = try self.parse_named_type(tok) };
+            },
+            else => {
+                return ast.BaseType{ .named = .{ .name = tok.val, .args = &[_]*ast.Type{}, .token = tok } };
+            },
+        }
+    }
+
+    fn parse_array_type() !ast.BaseType {
+        //todo: implement
+    }
+
+    fn parse_func_type() !ast.BaseType {
+        //todo: implement
+    }
+
+    fn parse_named_type() !ast.BaseType {
+        //todo: implement
+    }
+
     pub fn parse_result(self: *Parser) !*ast.Type {
-        // const tok = try self.lexer.next();
         return self.parse_type();
     }
 };
