@@ -43,6 +43,10 @@ pub const ImportDef = struct {
         }
         std.debug.print("\n", .{});
     }
+
+    pub fn deinit(self: *ImportDef, allocator: std.mem.Allocator) void {
+        self.path.deinit(allocator);
+    }
 };
 
 // type_param = IDENT
@@ -993,6 +997,7 @@ pub const AST = struct {
         for (self.program.items.items) |*item| {
             switch (item.*) {
                 .function => |*func| func.deinit(allocator),
+                .import_def => |*i_def| i_def.deinit(allocator),
                 else => {
                     // TODO:
                 },

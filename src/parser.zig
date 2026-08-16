@@ -52,8 +52,8 @@ pub const Parser = struct {
 
             switch (tok.type) {
                 .kw_import => {
-                    //todo: error if is_pub or is_inline set (import takes no modifiers)
-                    //todo: implement parse_import_def
+                    const import_def = try self.parse_import_def();
+                    try items.append(self.allocator, ast.Item{ .import_def = import_def });
                 },
                 .kw_func => {
                     const func_def = try self.parse_func_def(is_pub, is_inline);
@@ -208,5 +208,30 @@ pub const Parser = struct {
     pub fn parse_result(self: *Parser) !*ast.Type {
         const tok = try self.lexer.next();
         return self.parse_type(tok);
+    }
+
+    pub fn parse_import_def(self: *Parser) !ast.ImportDef {
+        var tok = try self.lexer.next();
+        var import_def = ast.ImportDef{ .path = .empty, .token = tok };
+        var count: usize = 0;
+        while (tok.type != token.TokenType.semicolon) {
+            count += 1;
+            if (count == 10) break;
+            // expect an ident
+            tok = try self.lexer.next();
+            if (tok.type != token.TokenType.ident) {
+                // error handling
+            }
+
+            try import_def.path.append(self.allocator, tok.val);
+            // can be a '.'
+            tok = try self.lexer.next();
+            if (tok.type != token.TokenType.semicolon) {
+                if (tok.type != token.TokenType.dot) {
+                    // error handling
+                }
+            }
+        }
+        return import_def;
     }
 };

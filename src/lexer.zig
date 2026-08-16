@@ -84,8 +84,8 @@ pub const Lexer = struct {
         const col = self.col;
         const pos = self.pos;
 
-        if (!bump) {
-            defer {
+        defer {
+            if (!bump) {
                 self.line = line;
                 self.col = col;
                 self.pos = pos;
