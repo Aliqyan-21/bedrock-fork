@@ -226,6 +226,11 @@ pub const Parser = struct {
             try import_def.path.append(self.allocator, tok.val);
             // can be a '.'
             tok = try self.lexer.next();
+            if (tok.type != token.TokenType.semicolon) {
+                if (tok.type != token.TokenType.dot) {
+                    // error handling
+                }
+            }
         }
         return import_def;
     }
