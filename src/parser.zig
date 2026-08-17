@@ -402,9 +402,12 @@ pub const Parser = struct {
             try import_def.path.append(self.allocator, tok.val);
             // can be a '.'
             tok = try self.lexer.next();
-            if (tok.type != token.TokenType.semicolon) {
+            if (tok.type == token.TokenType.semicolon) break;
+            if (tok.type != token.TokenType.dot) {
                 if (tok.type != token.TokenType.dot) {
                     try self.compiler.addError("expected . or ; ", err.Severity.Error, tok);
+                    try self.sync(&.{ .semicolon, .kw_import, .kw_func, .kw_const, .kw_var, .kw_type, .kw_extern, .kw_pub, .kw_proc });
+                    break;
                 }
             }
         }
