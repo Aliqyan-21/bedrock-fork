@@ -87,9 +87,11 @@ pub const FunctionDef = struct {
 
     pub fn deinit(self: *FunctionDef, allocator: std.mem.Allocator) void {
         for (self.params.items) |param| {
+            param.type.deinit(allocator);
             allocator.destroy(param.type);
         }
         self.params.deinit(allocator);
+        self.result.deinit(allocator);
         allocator.destroy(self.result);
     }
 
@@ -403,6 +405,18 @@ pub const BaseType = union(enum) {
             .proc => |*p| try p.print(indent),
         }
     }
+
+    pub fn deinit(self: *BaseType, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .primitive => {},
+            .array => |*a| {
+                a.elem.deinit(allocator);
+                allocator.destroy(a.elem);
+            },
+            //todo: implement other deinits
+            else => {},
+        }
+    }
 };
 
 // type = [ "?" ] base_type [ "!" ]
@@ -420,6 +434,9 @@ pub const Type = struct {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("(error union)\n", .{});
         }
+    }
+    pub fn deinit(self: *Type, allocator: std.mem.Allocator) void {
+        self.base.deinit(allocator);
     }
 };
 

@@ -1,0 +1,2 @@
+func arrayfication(arr: [10i32) -> []u8
+end
