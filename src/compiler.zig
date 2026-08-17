@@ -3,6 +3,7 @@ const llvm = @import("llvm");
 const lexer = @import("lexer.zig");
 const err = @import("error.zig");
 const token = @import("token.zig");
+const parser = @import("parser.zig");
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
@@ -18,12 +19,16 @@ pub const Compiler = struct {
     }
 
     pub fn run(self: *Compiler) !void {
-        _ = self;
+        var p = parser.Parser.init(self.allocator, self.source, self);
+        var p_res = try p.parse();
+        try p_res.print();
+        p_res.deinit(self.allocator);
     }
 
     pub fn addError(self: *Compiler, msg: []const u8, severity: err.Severity, tok: token.Token) !void {
+        const err_msg = try std.fmt.allocPrint(self.allocator, "{s} here but found {s}\n", .{ msg, tok.val });
         try self.errors.append(self.allocator, err.SourceError{
-            .msg = msg,
+            .msg = err_msg,
             .severity = severity,
             .token = tok,
         });
@@ -69,6 +74,9 @@ pub const Compiler = struct {
     }
 
     pub fn deinit(self: *Compiler) void {
+        for (self.errors.items) |e| {
+            self.allocator.free(e.msg);
+        }
         self.errors.deinit(self.allocator);
     }
 };
