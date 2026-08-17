@@ -1,0 +1,2 @@
+func abc(f: func(i32) i32) -> i32
+end

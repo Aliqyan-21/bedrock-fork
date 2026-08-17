@@ -109,14 +109,14 @@ pub const Parser = struct {
         // get the function name
         const name_tok = try self.lexer.next();
         if (name_tok.type != token.TokenType.ident) {
-            // TODO: add error handling
+            try self.compiler.addError("expected function name", err.Severity.Error, name_tok);
         }
         func_def.name = name_tok.val;
 
         // extect '('
         const lparen_tok = try self.lexer.next();
         if (lparen_tok.type != token.TokenType.l_paren) {
-            // TODO: add error handling
+            try self.compiler.addError("expected '('", err.Severity.Error, lparen_tok);
         }
 
         // TODO: type params
@@ -126,7 +126,7 @@ pub const Parser = struct {
         // expect '->'
         const arrow = try self.lexer.next();
         if (arrow.type != token.TokenType.arrow) {
-            // TODO: add error handling
+            try self.compiler.addError("expected '->'", err.Severity.Error, arrow);
         }
 
         func_def.result = try self.parse_result();
@@ -180,14 +180,14 @@ pub const Parser = struct {
         // name
         var tok = try self.lexer.next();
         if (tok.type != token.TokenType.ident) {
-            // error
+            try self.compiler.addError("expected identifier", err.Severity.Error, tok);
         }
         param.token = tok;
 
         // :
         tok = try self.lexer.next();
         if (tok.type != token.TokenType.colon) {
-            // error
+            try self.compiler.addError("expected ':'", err.Severity.Error, tok);
         }
 
         // type
@@ -252,7 +252,7 @@ pub const Parser = struct {
                 return ast.BaseType{ .named = .{ .name = tok.val, .args = &[_]*ast.Type{}, .token = tok } };
             },
             else => {
-                // todo: error (expected type)
+                try self.compiler.addError("expected a type", err.Severity.Error, tok);
                 return ast.BaseType{ .named = .{ .name = tok.val, .args = &[_]*ast.Type{}, .token = tok } };
             },
         }
