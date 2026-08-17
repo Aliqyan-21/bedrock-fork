@@ -456,7 +456,6 @@ pub const Type = struct {
     }
     pub fn deinit(self: *Type, allocator: std.mem.Allocator) void {
         self.base.deinit(allocator);
-        allocator.destroy(self);
     }
 };
 
