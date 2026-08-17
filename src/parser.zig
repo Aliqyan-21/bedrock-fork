@@ -385,8 +385,8 @@ pub const Parser = struct {
         // if ':' parse type
         tok = try self.lexer.peek_token();
         if (tok.type == token.TokenType.colon) {
-            const_def.type_ann = try self.parse_type();
             _ = try self.lexer.next();
+            const_def.type_ann = try self.parse_type();
         }
 
         // expect '='
