@@ -437,15 +437,8 @@ pub const Parser = struct {
         }
 
         // expect '='
-        if (try self.expect(.eq, "expected '=' ") == null) {
-            try self.sync(&.{.semicolon});
-
-            const d = try self.allocator.create(ast.Expr);
-            d.* = .{ .literal = .{ .kind = .integer, .raw = "0", .token = tok } };
-            const_def.value = d;
-        } else {
-            const_def.value = try self.parse_expression();
-        }
+        _ = try self.expect(.eq, "expected '='");
+        const_def.value = try self.parse_expression();
 
         // extect ';'
         _ = try self.expect(.semicolon, "expected ';'");
