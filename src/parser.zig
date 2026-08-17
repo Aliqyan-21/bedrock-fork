@@ -152,7 +152,8 @@ pub const Parser = struct {
                 .r_paren => break,
                 .comma => continue,
                 else => {
-                    // error: expected ',' or ')'
+                    try self.compiler.addError("expected ',' or ')'", err.Severity.Error, tok);
+                    break;
                 },
             }
         }
@@ -250,21 +251,21 @@ pub const Parser = struct {
     }
 
     fn parse_array_type(self: *Parser, tok: token.Token) !ast.BaseType {
-        const size_tok = try self.lexer.next();
-        var size: ast.ArraySize = undefined;
+        const size_tok = try self.lexer.peek_token();
+        var size: ast.ArraySize = .inferred;
 
         if (size_tok.type == token.TokenType.integer) {
+            _ = try self.lexer.next();
             size = .{ .fixed = size_tok.val };
         } else if (size_tok.type == token.TokenType.ident and std.mem.eql(u8, size_tok.val, "_")) {
             size = .inferred;
         } else {
-            //todo: error -> expected INTEGER or "_"
-            size = .inferred;
+            try self.compiler.addError("expected an INTEGER or '_'", err.Severity.Error, tok);
         }
 
         const rbtok = try self.lexer.next();
         if (rbtok.type != token.TokenType.r_bracket) {
-            // todo: error handling
+            try self.compiler.addError("expected ']'", err.Severity.Error, rbtok);
         }
 
         const elem = try self.parse_type();

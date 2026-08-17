@@ -1,2 +1,2 @@
-func arrayfication(arr: [10]i32) -> [5]u8
+func arrayfication(arr: [10] i32) -> [5]u8
 end
