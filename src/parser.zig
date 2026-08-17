@@ -108,7 +108,8 @@ pub const Parser = struct {
                     try items.append(self.allocator, ast.Item{ .function = func_def });
                 },
                 .kw_proc => {
-                    //todo: implement parse_proc_def
+                    const proc_def = try self.parse_proc_def(is_pub, is_inline);
+                    try items.append(self.allocator, ast.Item{ .proc = proc_def });
                 },
                 .kw_type => {
                     //todo: error if is_inline set (struct/enum defs take no "inline")
@@ -173,6 +174,34 @@ pub const Parser = struct {
         func_def.body = try self.parse_statement();
 
         return func_def;
+    }
+
+    pub fn parse_proc_def(self: *Parser, is_pub: bool, is_inline: bool) !ast.ProcDef {
+        const proc_tok = try self.lexer.next();
+        var proc_def = ast.ProcDef{
+            .is_pub = is_pub,
+            .is_inline = is_inline,
+            .name = "",
+            .type_params = .empty,
+            .params = .empty,
+            .body = undefined,
+            .token = proc_tok,
+        };
+
+        const tok = try self.expect(.ident, "expected proc name") orelse token.Token{ .type = .ident, .val = "<error>", .line = proc_tok.line, .col = proc_tok.col };
+        proc_def.name = tok.val;
+
+        //todo: parse_type_params
+
+        if (try self.expect(.l_paren, "expected '('") == null) {
+            try self.sync(&.{ .r_paren, .kw_end });
+        } else {
+            proc_def.params = try self.parse_params();
+        }
+
+        proc_def.body = try self.parse_statement();
+
+        return proc_def;
     }
 
     pub fn parse_params(self: *Parser) !std.ArrayList(ast.Param) {
@@ -287,6 +316,7 @@ pub const Parser = struct {
             .l_bracket => return try self.parse_array_type(tok),
             // fixme: uncomment this for impl
             .kw_func => return try self.parse_func_type(tok),
+            .kw_proc => return try self.parse_proc_type(tok),
             .ident => {
                 if (std.meta.stringToEnum(ast.PrimitiveType, tok.val)) |prim| {
                     return ast.BaseType{ .primitive = prim };
@@ -338,6 +368,15 @@ pub const Parser = struct {
         const result = try self.parse_type();
 
         return ast.BaseType{ .func = ast.FuncType{ .params = params, .result = result, .token = tok } };
+    }
+
+    fn parse_proc_type(self: *Parser, tok: token.Token) !ast.BaseType {
+        if (try self.expect(.l_paren, "expected '('") == null) {
+            try self.sync(&.{ .r_paren, .comma });
+            return ast.BaseType{ .proc = ast.ProcType{ .params = .empty, .token = tok } };
+        }
+        const params = try self.parse_type_list();
+        return ast.BaseType{ .proc = ast.ProcType{ .params = params, .token = tok } };
     }
 
     fn parse_type_list(self: *Parser) !std.ArrayList(*ast.Type) {
