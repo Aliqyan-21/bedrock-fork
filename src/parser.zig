@@ -279,14 +279,47 @@ pub const Parser = struct {
             try self.compiler.addError("expected '('", err.Severity.Error, lptok);
         }
 
-        //todo: parse type_list
+        const params = try self.parse_type_list();
 
         const artok = try self.lexer.next(); // ->
         if (artok.type != token.TokenType.arrow) {
             try self.compiler.addError("expected '->'", err.Severity.Error, artok);
         }
+        const result = try self.parse_type();
 
-        return ast.BaseType{ .func = ast.FuncType{ .params = undefined, .result = undefined, .token = tok } };
+        return ast.BaseType{ .func = ast.FuncType{ .params = params, .result = result, .token = tok } };
+    }
+
+    fn parse_type_list(self: *Parser) !std.ArrayList(*ast.Type) {
+        var types: std.ArrayList(*ast.Type) = .empty;
+
+        const first = try self.lexer.peek_token();
+        if (first.type == token.TokenType.r_paren) {
+            _ = try self.lexer.next();
+            return types;
+        }
+
+        while (true) {
+            try types.append(self.allocator, try self.parse_type());
+
+            const sep = try self.lexer.next();
+            switch (sep.type) {
+                .r_paren => break,
+                .comma => {
+                    const nxt = try self.lexer.peek_token();
+                    if (nxt.type == token.TokenType.r_paren) {
+                        _ = try self.lexer.next();
+                        break;
+                    }
+                    continue;
+                },
+                else => {
+                    try self.compiler.addError("expected ',' or ')'", err.Severity.Error, sep);
+                    break;
+                },
+            }
+        }
+        return types;
     }
 
     fn parse_named_type(self: *Parser, tok: token.Token) !ast.BaseType {
