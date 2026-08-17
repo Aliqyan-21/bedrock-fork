@@ -231,7 +231,7 @@ pub const Parser = struct {
             tok = try self.lexer.next();
             if (tok.type != token.TokenType.semicolon) {
                 if (tok.type != token.TokenType.dot) {
-                    try self.compiler.addError("expected . ", err.Severity.Error, tok);
+                    try self.compiler.addError("expected . or ; ", err.Severity.Error, tok);
                 }
             }
         }
