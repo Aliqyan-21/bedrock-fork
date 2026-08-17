@@ -120,8 +120,10 @@ pub const Parser = struct {
                     //todo: parse_extern_def();
                 },
                 .kw_var => {
-                    //todo: error if inline set
-                    //todo: implement parse_var_def
+                    var var_def = try self.parse_var_def();
+                    var_def.is_pub = is_pub;
+                    var_def.is_global = true;
+                    try items.append(self.allocator, ast.Item{ .var_def = var_def });
                 },
                 .kw_const => {
                     var const_def = try self.parse_const_def();
@@ -483,6 +485,38 @@ pub const Parser = struct {
         _ = try self.expect(.semicolon, "expected ';'");
 
         return const_def;
+    }
+
+    pub fn parse_var_def(self: *Parser) !ast.VarDef {
+        var tok = try self.lexer.next();
+        var var_def = ast.VarDef{
+            .is_pub = false,
+            .is_global = false,
+            .name = "",
+            .type_ann = null,
+            .value = undefined,
+            .token = tok,
+        };
+
+        // expect name ident
+        tok = try self.expect(.ident, "expected name ident ") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+        var_def.name = tok.val;
+
+        // if ':' parse type
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.colon) {
+            _ = try self.lexer.next();
+            var_def.type_ann = try self.parse_type();
+        }
+
+        // expect '='
+        _ = try self.expect(.eq, "expected '='");
+        var_def.value = try self.parse_expression();
+
+        // extect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+
+        return var_def;
     }
 
     pub fn parse_expression(self: *Parser) !*ast.Expr {
