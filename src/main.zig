@@ -26,10 +26,10 @@ pub fn main(init: std.process.Init) !void {
     const source = try std.Io.Dir.cwd().readFileAlloc(init.io, file_name, allocator, .limited(1 << 22));
     defer allocator.free(source);
 
-    var p = parser.Parser.init(allocator, source);
-    var p_res = try p.parse();
-    try p_res.print();
-    p_res.deinit(allocator);
+    var c = compiler.Compiler.init(allocator, source);
+    try c.run();
+    try c.emitErrors();
+    defer c.deinit();
 
     var tokens = try lexer.tokenize(allocator, source);
     defer tokens.deinit(allocator);

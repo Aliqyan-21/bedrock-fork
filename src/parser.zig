@@ -3,17 +3,20 @@ const token = @import("token.zig");
 const lexer = @import("lexer.zig");
 const ast = @import("ast.zig");
 const err = @import("error.zig");
+const compiler = @import("compiler.zig");
 
 pub const Parser = struct {
     allocator: std.mem.Allocator,
     lexer: lexer.Lexer,
     source: []const u8,
+    compiler: *compiler.Compiler,
 
-    pub fn init(allocator: std.mem.Allocator, source: []const u8) Parser {
+    pub fn init(allocator: std.mem.Allocator, source: []const u8, c: *compiler.Compiler) Parser {
         return Parser{
             .allocator = allocator,
             .lexer = lexer.Lexer.init(source),
             .source = source,
+            .compiler = c,
         };
     }
 
@@ -220,7 +223,7 @@ pub const Parser = struct {
             // expect an ident
             tok = try self.lexer.next();
             if (tok.type != token.TokenType.ident) {
-                // error handling
+                try self.compiler.addError("expected ident ", err.Severity.Error, tok);
             }
 
             try import_def.path.append(self.allocator, tok.val);
@@ -228,7 +231,7 @@ pub const Parser = struct {
             tok = try self.lexer.next();
             if (tok.type != token.TokenType.semicolon) {
                 if (tok.type != token.TokenType.dot) {
-                    // error handling
+                    try self.compiler.addError("expected . ", err.Severity.Error, tok);
                 }
             }
         }
