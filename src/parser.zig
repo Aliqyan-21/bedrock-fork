@@ -20,6 +20,51 @@ pub const Parser = struct {
         };
     }
 
+    fn expect(self: *Parser, ty: token.TokenType, msg: []const u8) !?token.Token {
+        const tok = try self.lexer.peek_token();
+        if (tok.type != ty) {
+            try self.compiler.addError(msg, err.Severity.Error, tok);
+            return null;
+        }
+        return try self.lexer.next();
+    }
+
+    // when error occurs and when a production can't sensibly continue
+    // (e.g. -> missing in a func type) then call this to reach a good
+    // point where u can continue parsing.
+    fn sync(self: *Parser, stop_set: []const token.TokenType) !void {
+        var depth: usize = 0;
+        while (true) {
+            const t = try self.lexer.peek_token();
+            if (t.type == .eof) return;
+            if (depth == 0) {
+                for (stop_set) |s| {
+                    if (t.type == s) return; // not consume it, as code after this needs this token
+                }
+            }
+            _ = try self.lexer.next();
+            switch (t.type) {
+                .l_paren, .l_bracket => depth += 1,
+                .r_paren, .r_bracket => if (depth > 0) {
+                    depth -= 1;
+                },
+                else => {},
+            }
+        }
+    }
+
+    // error type token
+    fn error_type(self: *Parser, tok: token.Token) !*ast.Type {
+        const ty = try self.allocator.create(ast.Type);
+        ty.* = .{
+            .is_optional = false,
+            .is_error_union = false,
+            .base = .{ .named = .{ .name = "<error>", .args = &[_]*ast.Type{}, .token = tok } },
+            .token = tok,
+        };
+        return ty;
+    }
+
     pub fn parse(self: *Parser) !ast.AST {
         var ast_res = ast.AST.init();
         ast_res.program = try self.parse_program();
