@@ -233,7 +233,7 @@ pub const Parser = struct {
             },
             .l_bracket => return try self.parse_array_type(tok),
             // fixme: uncomment this for impl
-            // .kw_func => return try self.parse_func_type(tok),
+            .kw_func => return try self.parse_func_type(tok),
             .ident => {
                 if (std.meta.stringToEnum(ast.PrimitiveType, tok.val)) |prim| {
                     return ast.BaseType{ .primitive = prim };
@@ -274,9 +274,19 @@ pub const Parser = struct {
     }
 
     fn parse_func_type(self: *Parser, tok: token.Token) !ast.BaseType {
-        _ = self;
-        _ = tok;
-        //todo: implement
+        const lptok = try self.lexer.next();
+        if (lptok.type != token.TokenType.l_paren) {
+            try self.compiler.addError("expected '('", err.Severity.Error, lptok);
+        }
+
+        //todo: parse type_list
+
+        const artok = try self.lexer.next(); // ->
+        if (artok.type != token.TokenType.arrow) {
+            try self.compiler.addError("expected '->'", err.Severity.Error, artok);
+        }
+
+        return ast.BaseType{ .func = ast.FuncType{ .params = undefined, .result = undefined, .token = tok } };
     }
 
     fn parse_named_type(self: *Parser, tok: token.Token) !ast.BaseType {
