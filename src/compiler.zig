@@ -26,7 +26,7 @@ pub const Compiler = struct {
     }
 
     pub fn addError(self: *Compiler, msg: []const u8, severity: err.Severity, tok: token.Token) !void {
-        const err_msg = try std.fmt.allocPrint(self.allocator, "{s} here but got {s}\n", .{ msg, tok.val });
+        const err_msg = try std.fmt.allocPrint(self.allocator, "{s} here but found {s}\n", .{ msg, tok.val });
         try self.errors.append(self.allocator, err.SourceError{
             .msg = err_msg,
             .severity = severity,
