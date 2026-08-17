@@ -250,7 +250,19 @@ pub const ConstDef = struct {
 
     pub fn print(self: *ConstDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("const: {s}\n", .{self.name});
+        std.debug.print("const {s} ", .{self.name});
+        if (self.type_ann) |ty| {
+            try ty.print(0);
+        }
+        std.debug.print(" = ", .{});
+        try self.value.print(0);
+    }
+
+    pub fn deinit(self: *ConstDef, allocator: std.mem.Allocator) void {
+        if (self.type_ann) |ty| {
+            ty.deinit(allocator);
+        }
+        self.value.deinit(allocator);
     }
 };
 
@@ -349,8 +361,8 @@ pub const NamedType = struct {
     token: Token,
 
     pub fn print(self: *NamedType, indent: usize) anyerror!void {
-        for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("named type: {s}\n", .{self.name});
+        // for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print(" {s} ", .{self.name});
         for (self.args) |arg| try arg.print(indent + 4);
     }
 };
@@ -428,7 +440,6 @@ pub const Type = struct {
     pub fn print(self: *Type, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         if (self.is_optional) std.debug.print("optional ", .{});
-        std.debug.print("type:\n", .{});
         try self.base.print(indent + 4);
         if (self.is_error_union) {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
@@ -437,6 +448,7 @@ pub const Type = struct {
     }
     pub fn deinit(self: *Type, allocator: std.mem.Allocator) void {
         self.base.deinit(allocator);
+        allocator.destroy(self);
     }
 };
 
@@ -463,7 +475,7 @@ pub const LiteralExpr = struct {
 
     pub fn print(self: *LiteralExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("literal: {s}\n", .{self.raw});
+        std.debug.print("{s}\n", .{self.raw});
         try self.kind.print(indent + 4);
     }
 };
@@ -818,6 +830,15 @@ pub const Expr = union(enum) {
             .comptime_expr => |*c| try c.print(indent),
         }
     }
+
+    pub fn deinit(self: *Expr, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .literal => allocator.destroy(self),
+            else => {
+                // TODO:
+            },
+        }
+    }
 };
 
 // statement       = var_stmt | const_stmt | local_static_var_stmt | assign_stmt | defer_stmt
@@ -1015,6 +1036,7 @@ pub const AST = struct {
             switch (item.*) {
                 .function => |*func| func.deinit(allocator),
                 .import_def => |*i_def| i_def.deinit(allocator),
+                .const_def => |*c_def| c_def.deinit(allocator),
                 else => {
                     // TODO:
                 },

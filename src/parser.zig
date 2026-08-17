@@ -78,8 +78,10 @@ pub const Parser = struct {
                     //todo: implement parse_var_def
                 },
                 .kw_const => {
-                    //todo: error if inline set
-                    //todo: implement parse_const_def
+                    var const_def = try self.parse_const_def();
+                    const_def.is_pub = is_pub;
+                    const_def.is_global = true;
+                    try items.append(self.allocator, ast.Item{ .const_def = const_def });
                 },
                 else => {
                     // TODO:: error handling
@@ -292,10 +294,7 @@ pub const Parser = struct {
     pub fn parse_import_def(self: *Parser) !ast.ImportDef {
         var tok = try self.lexer.next();
         var import_def = ast.ImportDef{ .path = .empty, .token = tok };
-        var count: usize = 0;
         while (tok.type != token.TokenType.semicolon) {
-            count += 1;
-            if (count == 10) break;
             // expect an ident
             tok = try self.lexer.next();
             if (tok.type != token.TokenType.ident) {
@@ -312,5 +311,68 @@ pub const Parser = struct {
             }
         }
         return import_def;
+    }
+
+    pub fn parse_const_def(self: *Parser) !ast.ConstDef {
+        var tok = try self.lexer.next();
+        var const_def = ast.ConstDef{
+            .is_pub = false,
+            .is_global = false,
+            .name = "",
+            .type_ann = null,
+            .value = undefined,
+            .token = tok,
+        };
+
+        // expect name ident
+        tok = try self.lexer.next();
+        if (tok.type != token.TokenType.ident) {
+            try self.compiler.addError("expected name ident ", err.Severity.Error, tok);
+        }
+
+        const_def.name = tok.val;
+        // if ':' parse type
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.colon) {
+            const_def.type_ann = try self.parse_type();
+            _ = try self.lexer.next();
+        }
+
+        // expect '='
+        tok = try self.lexer.next();
+        if (tok.type != token.TokenType.eq) {
+            try self.compiler.addError("expected '=' ", err.Severity.Error, tok);
+        }
+
+        const_def.value = try self.parse_expression();
+
+        // extect ';'
+        tok = try self.lexer.next();
+        if (tok.type != token.TokenType.semicolon) {
+            try self.compiler.addError("expected ';' ", err.Severity.Error, tok);
+        }
+
+        return const_def;
+    }
+
+    pub fn parse_expression(self: *Parser) !*ast.Expr {
+        const exp = try self.allocator.create(ast.Expr);
+        const tok = try self.lexer.peek_token();
+        switch (tok.type) {
+            token.TokenType.integer => {
+                exp.* = .{ .literal = .{
+                    .kind = ast.LiteralKind.integer,
+                    .raw = tok.val,
+                    .token = tok,
+                } };
+            },
+            else => {
+                // TODO
+            },
+        }
+
+        _ = try self.lexer.next();
+
+        return exp;
     }
 };
