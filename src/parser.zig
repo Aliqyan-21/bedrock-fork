@@ -20,6 +20,51 @@ pub const Parser = struct {
         };
     }
 
+    fn expect(self: *Parser, ty: token.TokenType, msg: []const u8) !?token.Token {
+        const tok = try self.lexer.peek_token();
+        if (tok.type != ty) {
+            try self.compiler.addError(msg, err.Severity.Error, tok);
+            return null;
+        }
+        return try self.lexer.next();
+    }
+
+    // when error occurs and when a production can't sensibly continue
+    // (e.g. -> missing in a func type) then call this to reach a good
+    // point where u can continue parsing.
+    fn sync(self: *Parser, stop_set: []const token.TokenType) !void {
+        var depth: usize = 0;
+        while (true) {
+            const t = try self.lexer.peek_token();
+            if (t.type == .eof) return;
+            if (depth == 0) {
+                for (stop_set) |s| {
+                    if (t.type == s) return; // not consume it, as code after this needs this token
+                }
+            }
+            _ = try self.lexer.next();
+            switch (t.type) {
+                .l_paren, .l_bracket => depth += 1,
+                .r_paren, .r_bracket => if (depth > 0) {
+                    depth -= 1;
+                },
+                else => {},
+            }
+        }
+    }
+
+    // error type token
+    fn error_type(self: *Parser, tok: token.Token) !*ast.Type {
+        const ty = try self.allocator.create(ast.Type);
+        ty.* = .{
+            .is_optional = false,
+            .is_error_union = false,
+            .base = .{ .named = .{ .name = "<error>", .args = &[_]*ast.Type{}, .token = tok } },
+            .token = tok,
+        };
+        return ty;
+    }
+
     pub fn parse(self: *Parser) !ast.AST {
         var ast_res = ast.AST.init();
         ast_res.program = try self.parse_program();
@@ -109,27 +154,18 @@ pub const Parser = struct {
         // todo: parse_type_params for the .type_params
 
         // get the function name
-        const name_tok = try self.lexer.next();
-        if (name_tok.type != token.TokenType.ident) {
-            try self.compiler.addError("expected function name", err.Severity.Error, name_tok);
-        }
+        const name_tok = try self.expect(.ident, "expected function name") orelse token.Token{ .type = .ident, .val = "", .line = func_tok.line, .col = func_tok.col };
         func_def.name = name_tok.val;
 
         // extect '('
-        const lparen_tok = try self.lexer.next();
-        if (lparen_tok.type != token.TokenType.l_paren) {
-            try self.compiler.addError("expected '('", err.Severity.Error, lparen_tok);
-        }
+        _ = try self.expect(.l_paren, "expected '('");
 
         // TODO: type params
         // parse parameters
         func_def.params = try self.parse_params();
 
         // expect '->'
-        const arrow = try self.lexer.next();
-        if (arrow.type != token.TokenType.arrow) {
-            try self.compiler.addError("expected '->'", err.Severity.Error, arrow);
-        }
+        _ = try self.expect(.arrow, "expected '->'");
 
         func_def.result = try self.parse_result();
 
@@ -163,6 +199,20 @@ pub const Parser = struct {
                 },
                 else => {
                     try self.compiler.addError("expected ',' or ')'", err.Severity.Error, tok);
+
+                    try self.sync(&.{ .comma, .r_paren });
+
+                    const hmm = try self.lexer.peek_token();
+                    if (hmm.type == .comma) {
+                        _ = try self.lexer.next();
+                        continue;
+                    } else if (hmm.type == .r_paren) {
+                        _ = try self.lexer.next();
+                        break;
+                    } else {
+                        // can't recover
+                        break;
+                    }
                     break;
                 },
             }
@@ -180,17 +230,10 @@ pub const Parser = struct {
         };
 
         // name
-        var tok = try self.lexer.next();
-        if (tok.type != token.TokenType.ident) {
-            try self.compiler.addError("expected identifier", err.Severity.Error, tok);
-        }
-        param.token = tok;
+        _ = try self.expect(.ident, "expected identifier");
 
         // :
-        tok = try self.lexer.next();
-        if (tok.type != token.TokenType.colon) {
-            try self.compiler.addError("expected ':'", err.Severity.Error, tok);
-        }
+        _ = try self.expect(.colon, "expected ':'");
 
         // type
         param.type = try self.parse_type();
@@ -270,12 +313,12 @@ pub const Parser = struct {
         } else if (size_tok.type == token.TokenType.ident and std.mem.eql(u8, size_tok.val, "_")) {
             size = .inferred;
         } else {
-            try self.compiler.addError("expected an INTEGER or '_'", err.Severity.Error, tok);
+            try self.compiler.addError("expected an INTEGER or '_'", err.Severity.Error, size_tok);
         }
 
-        const rbtok = try self.lexer.next();
-        if (rbtok.type != token.TokenType.r_bracket) {
-            try self.compiler.addError("expected ']'", err.Severity.Error, rbtok);
+        if (try self.expect(.r_bracket, "expected ']'") == null) {
+            try self.sync(&.{ .comma, .r_paren });
+            return ast.BaseType{ .array = .{ .size = size, .elem = try self.error_type(tok), .token = tok } };
         }
 
         const elem = try self.parse_type();
@@ -284,16 +327,13 @@ pub const Parser = struct {
     }
 
     fn parse_func_type(self: *Parser, tok: token.Token) !ast.BaseType {
-        const lptok = try self.lexer.next();
-        if (lptok.type != token.TokenType.l_paren) {
-            try self.compiler.addError("expected '('", err.Severity.Error, lptok);
-        }
+        _ = try self.expect(.l_paren, "expected '('");
 
         const params = try self.parse_type_list();
 
-        const artok = try self.lexer.next(); // ->
-        if (artok.type != token.TokenType.arrow) {
-            try self.compiler.addError("expected '->'", err.Severity.Error, artok);
+        if (try self.expect(.arrow, "expected '->'") == null) {
+            try self.sync(&.{ .r_paren, .comma });
+            return ast.BaseType{ .func = .{ .params = params, .result = try self.error_type(tok), .token = tok } };
         }
         const result = try self.parse_type();
 
@@ -325,7 +365,17 @@ pub const Parser = struct {
                 },
                 else => {
                     try self.compiler.addError("expected ',' or ')'", err.Severity.Error, sep);
-                    break;
+
+                    try self.sync(&.{ .comma, .r_paren });
+                    const hmm = try self.lexer.peek_token();
+                    if (hmm.type == .comma) {
+                        _ = try self.lexer.next();
+                        continue;
+                    } else if (hmm.type == .r_paren) {
+                        _ = try self.lexer.next();
+                    } else {
+                        break;
+                    }
                 },
             }
         }
@@ -345,19 +395,19 @@ pub const Parser = struct {
     pub fn parse_import_def(self: *Parser) !ast.ImportDef {
         var tok = try self.lexer.next();
         var import_def = ast.ImportDef{ .path = .empty, .token = tok };
-        while (tok.type != token.TokenType.semicolon) {
+        while (true) {
             // expect an ident
-            tok = try self.lexer.next();
-            if (tok.type != token.TokenType.ident) {
-                try self.compiler.addError("expected ident ", err.Severity.Error, tok);
-            }
+            tok = try self.expect(.ident, "expected ident ") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
 
             try import_def.path.append(self.allocator, tok.val);
             // can be a '.'
             tok = try self.lexer.next();
-            if (tok.type != token.TokenType.semicolon) {
+            if (tok.type == token.TokenType.semicolon) break;
+            if (tok.type != token.TokenType.dot) {
                 if (tok.type != token.TokenType.dot) {
                     try self.compiler.addError("expected . or ; ", err.Severity.Error, tok);
+                    try self.sync(&.{ .semicolon, .kw_import, .kw_func, .kw_const, .kw_var, .kw_type, .kw_extern, .kw_pub, .kw_proc });
+                    break;
                 }
             }
         }
@@ -376,12 +426,9 @@ pub const Parser = struct {
         };
 
         // expect name ident
-        tok = try self.lexer.next();
-        if (tok.type != token.TokenType.ident) {
-            try self.compiler.addError("expected name ident ", err.Severity.Error, tok);
-        }
-
+        tok = try self.expect(.ident, "expected name ident ") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
         const_def.name = tok.val;
+
         // if ':' parse type
         tok = try self.lexer.peek_token();
         if (tok.type == token.TokenType.colon) {
@@ -390,18 +437,11 @@ pub const Parser = struct {
         }
 
         // expect '='
-        tok = try self.lexer.next();
-        if (tok.type != token.TokenType.eq) {
-            try self.compiler.addError("expected '=' ", err.Severity.Error, tok);
-        }
-
+        _ = try self.expect(.eq, "expected '='");
         const_def.value = try self.parse_expression();
 
         // extect ';'
-        tok = try self.lexer.next();
-        if (tok.type != token.TokenType.semicolon) {
-            try self.compiler.addError("expected ';' ", err.Severity.Error, tok);
-        }
+        _ = try self.expect(.semicolon, "expected ';'");
 
         return const_def;
     }
