@@ -179,8 +179,7 @@ pub const Parser = struct {
         }
 
         // type
-        tok = try self.lexer.next();
-        param.type = try self.parse_type(tok);
+        param.type = try self.parse_type();
 
         return param;
     }
@@ -192,22 +191,70 @@ pub const Parser = struct {
         return stmt;
     }
 
-    pub fn parse_type(self: *Parser, tok: token.Token) !*ast.Type {
-        const ty = try self.allocator.create(ast.Type);
-        if (std.mem.eql(u8, tok.val, "i32")) {
-            ty.* = .{
-                .base = .{ .primitive = .i32 },
-                .token = tok,
-            };
-        } else {
-            // TODO
+    pub fn parse_type(self: *Parser) !*ast.Type {
+        const start_tok = try self.lexer.peek_token();
+
+        var is_optional = false;
+        if (start_tok.type == token.TokenType.optional) {
+            _ = try self.lexer.next();
+            is_optional = true;
         }
+
+        // todo: implement parse_base_type
+
+        var is_error_union = false;
+        const is_it_bang = try self.lexer.peek_token();
+        if (is_it_bang.type == token.TokenType.bang) {
+            _ = try self.lexer.next();
+            is_error_union = true;
+        }
+
+        const ty = try self.allocator.create(ast.Type);
+        ty.* = .{
+            .is_optional = is_optional,
+            .is_error_union = is_error_union,
+            .base = undefined,
+            .token = start_tok,
+        };
         return ty;
     }
 
-    pub fn parse_result(self: *Parser) !*ast.Type {
+    fn parse_base_type(self: *Parser) !ast.BaseType {
         const tok = try self.lexer.next();
-        return self.parse_type(tok);
+
+        switch (tok.type) {
+            .star => {
+                const pointee = try self.parse_type();
+                return ast.BaseType{ .pointer = pointee };
+            },
+            .l_bracket => return try self.parse_array_type(tok),
+            .kw_func => return try self.parse_func_type(tok),
+            .ident => {
+                if (std.meta.stringToEnum(ast.PrimitiveType, tok.val)) |prim| {
+                    return ast.BaseType{ .primitive = prim };
+                }
+                return ast.BaseType{ .named = try self.parse_named_type(tok) };
+            },
+            else => {
+                return ast.BaseType{ .named = .{ .name = tok.val, .args = &[_]*ast.Type{}, .token = tok } };
+            },
+        }
+    }
+
+    fn parse_array_type() !ast.BaseType {
+        //todo: implement
+    }
+
+    fn parse_func_type() !ast.BaseType {
+        //todo: implement
+    }
+
+    fn parse_named_type() !ast.BaseType {
+        //todo: implement
+    }
+
+    pub fn parse_result(self: *Parser) !*ast.Type {
+        return self.parse_type();
     }
 
     pub fn parse_import_def(self: *Parser) !ast.ImportDef {
