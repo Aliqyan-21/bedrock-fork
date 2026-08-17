@@ -140,17 +140,25 @@ pub const Parser = struct {
     pub fn parse_params(self: *Parser) !std.ArrayList(ast.Param) {
         var params: std.ArrayList(ast.Param) = .empty;
 
+        const first = try self.lexer.peek_token();
+        if (first.type == token.TokenType.r_paren) {
+            _ = try self.lexer.next();
+            return params;
+        }
+
         while (true) {
-            try params.append(
-                self.allocator,
-                try self.parse_param(),
-            );
-
+            try params.append(self.allocator, try self.parse_param());
             const tok = try self.lexer.next();
-
             switch (tok.type) {
                 .r_paren => break,
-                .comma => continue,
+                .comma => {
+                    const nxt = try self.lexer.peek_token();
+                    if (nxt.type == token.TokenType.r_paren) {
+                        _ = try self.lexer.next();
+                        break;
+                    }
+                    continue;
+                },
                 else => {
                     try self.compiler.addError("expected ',' or ')'", err.Severity.Error, tok);
                     break;
