@@ -261,6 +261,7 @@ pub const ConstDef = struct {
     pub fn deinit(self: *ConstDef, allocator: std.mem.Allocator) void {
         if (self.type_ann) |ty| {
             ty.deinit(allocator);
+            allocator.destroy(ty);
         }
         self.value.deinit(allocator);
     }
