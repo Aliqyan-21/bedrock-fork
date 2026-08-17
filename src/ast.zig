@@ -425,7 +425,15 @@ pub const BaseType = union(enum) {
                 a.elem.deinit(allocator);
                 allocator.destroy(a.elem);
             },
-            //todo: implement other deinits
+            .func => |*f| {
+                for (f.params.items) |p| {
+                    p.deinit(allocator);
+                    allocator.destroy(p);
+                }
+                f.params.deinit(allocator);
+                f.result.deinit(allocator);
+                allocator.destroy(f.result);
+            },
             else => {},
         }
     }
