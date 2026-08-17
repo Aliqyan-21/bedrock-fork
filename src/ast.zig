@@ -129,6 +129,15 @@ pub const ProcDef = struct {
             try stmt.print(indent + 4);
         }
     }
+    pub fn deinit(self: *ProcDef, allocator: std.mem.Allocator) void {
+        for (self.params.items) |param| {
+            param.type.deinit(allocator);
+            allocator.destroy(param.type);
+        }
+        self.params.deinit(allocator);
+        self.type_params.deinit(allocator);
+        self.body.deinit(allocator);
+    }
 };
 
 // struct_def = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
@@ -434,6 +443,13 @@ pub const BaseType = union(enum) {
                 f.params.deinit(allocator);
                 f.result.deinit(allocator);
                 allocator.destroy(f.result);
+            },
+            .proc => |*p| {
+                for (p.params.items) |pa| {
+                    pa.deinit(allocator);
+                    allocator.destroy(pa);
+                }
+                p.params.deinit(allocator);
             },
             else => {},
         }
@@ -1045,6 +1061,7 @@ pub const AST = struct {
                 .function => |*func| func.deinit(allocator),
                 .import_def => |*i_def| i_def.deinit(allocator),
                 .const_def => |*c_def| c_def.deinit(allocator),
+                .proc => |*p_def| p_def.deinit(allocator),
                 else => {
                     // TODO:
                 },
