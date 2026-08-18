@@ -298,15 +298,65 @@ pub const Parser = struct {
     }
 
     fn parse_var_stmt(self: *Parser) !ast.Stmt {
-        //todo: implement
-        _ = self;
-        return error.notimplemented;
+        var tok = try self.lexer.next();
+        var var_stmt = ast.VarStmt{
+            .name = "",
+            .type_ann = null,
+            .value = undefined,
+            .token = tok,
+        };
+
+        // expect name ident
+        tok = try self.expect(.ident, "expected name ident ") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+        var_stmt.name = tok.val;
+
+        // if ':' parse type
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.colon) {
+            _ = try self.lexer.next();
+            var_stmt.type_ann = try self.parse_type();
+        }
+
+        // expect '='
+        _ = try self.expect(.eq, "expected '='");
+        var_stmt.value = try self.parse_expression();
+
+        // extect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+
+        return ast.Stmt{ .var_stmt = var_stmt };
     }
+
     fn parse_const_stmt(self: *Parser) !ast.Stmt {
-        //todo: implement
-        _ = self;
-        return error.notimplemented;
+        var tok = try self.lexer.next();
+        var const_stmt = ast.ConstStmt{
+            .name = "",
+            .type_ann = null,
+            .value = undefined,
+            .token = tok,
+        };
+
+        // expect name ident
+        tok = try self.expect(.ident, "expected name ident ") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+        const_stmt.name = tok.val;
+
+        // if ':' parse type
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.colon) {
+            _ = try self.lexer.next();
+            const_stmt.type_ann = try self.parse_type();
+        }
+
+        // expect '='
+        _ = try self.expect(.eq, "expected '='");
+        const_stmt.value = try self.parse_expression();
+
+        // extect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+
+        return ast.Stmt{ .const_stmt = const_stmt };
     }
+
     fn parse_local_static_var_stmt(self: *Parser) !ast.Stmt {
         //todo: implement
         _ = self;

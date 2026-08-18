@@ -1,0 +1,5 @@
+func abc() -> i32
+    var a = 10;
+    var b: i32 = 100;
+    const c: i64 = 42 + 2_6 * 2 + 1;
+end

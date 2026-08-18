@@ -94,6 +94,8 @@ pub const FunctionDef = struct {
         self.params.deinit(allocator);
         self.result.deinit(allocator);
         allocator.destroy(self.result);
+        for (self.body.items) |*stmt| stmt.deinit(allocator);
+        self.body.deinit(allocator);
     }
 
     pub fn print(self: *FunctionDef, indent: usize) anyerror!void {
@@ -958,6 +960,13 @@ pub const Stmt = union(enum) {
             .expr_stmt => |*e| try e.print(indent),
         }
     }
+    pub fn deinit(self: *Stmt, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .var_stmt => |*v| v.deinit(allocator),
+            .const_stmt => |*c| c.deinit(allocator),
+            else => {},
+        }
+    }
 };
 
 // var_stmt = "var" IDENT [ ":" type ] "=" expression ";"
@@ -973,6 +982,13 @@ pub const VarStmt = struct {
         if (self.type_ann) |t| try t.print(indent + 4);
         try self.value.print(indent + 4);
     }
+    pub fn deinit(self: *VarStmt, allocator: std.mem.Allocator) void {
+        if (self.type_ann) |ty| {
+            ty.deinit(allocator);
+            allocator.destroy(ty);
+        }
+        self.value.deinit(allocator);
+    }
 };
 
 // const_stmt = "const" IDENT [ ":" type ] "=" expression ";"
@@ -987,6 +1003,13 @@ pub const ConstStmt = struct {
         std.debug.print("const stmt: {s}\n", .{self.name});
         if (self.type_ann) |t| try t.print(indent + 4);
         try self.value.print(indent + 4);
+    }
+    pub fn deinit(self: *ConstStmt, allocator: std.mem.Allocator) void {
+        if (self.type_ann) |ty| {
+            ty.deinit(allocator);
+            allocator.destroy(ty);
+        }
+        self.value.deinit(allocator);
     }
 };
 
