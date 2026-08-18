@@ -448,6 +448,10 @@ pub const BaseType = union(enum) {
     pub fn deinit(self: *BaseType, allocator: std.mem.Allocator) void {
         switch (self.*) {
             .primitive => {},
+            .pointer => |p| {
+                p.deinit(allocator);
+                allocator.destroy(p);
+            },
             .array => |*a| {
                 a.elem.deinit(allocator);
                 allocator.destroy(a.elem);
@@ -475,7 +479,6 @@ pub const BaseType = union(enum) {
                 }
                 p.params.deinit(allocator);
             },
-            else => {},
         }
     }
 };

@@ -316,7 +316,6 @@ pub const Parser = struct {
                 return ast.BaseType{ .pointer = pointee };
             },
             .l_bracket => return try self.parse_array_type(tok),
-            // fixme: uncomment this for impl
             .kw_func => return try self.parse_func_type(tok),
             .kw_proc => return try self.parse_proc_type(tok),
             .ident => {
