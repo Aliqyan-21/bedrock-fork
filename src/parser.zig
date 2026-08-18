@@ -573,7 +573,7 @@ pub const Parser = struct {
             tok = try self.lexer.peek_token();
             // expect a operator
             const op = switch (tok.type) {
-                .plus => tok.type,
+                .plus, .minus, .star, .slash => tok.type,
                 else => break,
             };
 
@@ -601,7 +601,8 @@ pub const Parser = struct {
 
 fn infix_binding_power(op: token.TokenType) [2]usize {
     return switch (op) {
-        .plus => .{ 1, 2 },
+        .plus, .minus => .{ 1, 2 },
+        .star, .slash => .{ 3, 4 },
         else => .{ 0, 0 },
     };
 }
@@ -609,6 +610,9 @@ fn infix_binding_power(op: token.TokenType) [2]usize {
 fn get_op(op: token.TokenType) ast.BinaryOp {
     return switch (op) {
         .plus => ast.BinaryOp.add,
+        .minus => ast.BinaryOp.sub,
+        .star => ast.BinaryOp.mul,
+        .slash => ast.BinaryOp.div,
         else => unreachable,
     };
 }
