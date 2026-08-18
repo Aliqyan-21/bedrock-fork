@@ -173,7 +173,7 @@ pub const Parser = struct {
         func_def.result = try self.parse_result();
 
         // parse block statement
-        func_def.body = try self.parse_statement();
+        func_def.body = try self.parse_body();
 
         return func_def;
     }
@@ -201,7 +201,7 @@ pub const Parser = struct {
             proc_def.params = try self.parse_params();
         }
 
-        proc_def.body = try self.parse_statement();
+        proc_def.body = try self.parse_body();
 
         return proc_def;
     }
@@ -272,11 +272,65 @@ pub const Parser = struct {
         return param;
     }
 
-    pub fn parse_statement(self: *Parser) !std.ArrayList(ast.Stmt) {
+    pub fn parse_body(self: *Parser) !std.ArrayList(ast.Stmt) {
+        var stmts: std.ArrayList(ast.Stmt) = .empty;
+        while (true) {
+            const tok = try self.lexer.peek_token();
+            if (tok.type == .kw_end or tok.type == .eof) break;
+            try stmts.append(self.allocator, try self.parse_statement());
+        }
+        _ = try self.expect(.kw_end, "expected 'end'");
+        return stmts;
+    }
+
+    pub fn parse_statement(self: *Parser) !ast.Stmt {
+        const tok = try self.lexer.peek_token();
+
+        return switch (tok.type) {
+            .kw_var => try self.parse_var_stmt(),
+            .kw_const => try self.parse_const_stmt(),
+            .kw_static => try self.parse_local_static_var_stmt(),
+            .kw_defer => try self.parse_defer_stmt(),
+            .kw_unsafe => try self.parse_unsafe_stmt(),
+            .kw_return => try self.parse_return_stmt(),
+            else => try self.parse_expr_or_assign_stmt(),
+        };
+    }
+
+    fn parse_var_stmt(self: *Parser) !ast.Stmt {
+        //todo: implement
         _ = self;
-        var stmt: std.ArrayList(ast.Stmt) = .empty;
-        _ = &stmt;
-        return stmt;
+        return error.notimplemented;
+    }
+    fn parse_const_stmt(self: *Parser) !ast.Stmt {
+        //todo: implement
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_local_static_var_stmt(self: *Parser) !ast.Stmt {
+        //todo: implement
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_defer_stmt(self: *Parser) !ast.Stmt {
+        //todo: implement
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_unsafe_stmt(self: *Parser) !ast.Stmt {
+        //todo: implement
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_return_stmt(self: *Parser) !ast.Stmt {
+        //todo: implement
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_expr_or_assign_stmt(self: *Parser) !ast.Stmt {
+        //todo: implement
+        _ = self;
+        return error.notimplemented;
     }
 
     pub fn parse_type(self: *Parser) anyerror!*ast.Type {
