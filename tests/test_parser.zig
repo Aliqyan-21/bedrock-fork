@@ -139,6 +139,15 @@ test "expression precedence parsing" {
     buf = try parse_expression(std.testing.allocator, "100 / 10 - 10");
     try std.testing.expectEqualStrings(buf, "((100 / 10) - 10)");
     allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "-10");
+    try std.testing.expectEqualStrings(buf, "(-10)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 + -10");
+    try std.testing.expectEqualStrings(buf, "(10 + (-10))");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "--10");
+    try std.testing.expectEqualStrings(buf, "(-(-10))");
+    allocator.free(buf);
 }
 
 test "var statement" {

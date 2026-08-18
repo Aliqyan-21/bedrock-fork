@@ -691,6 +691,17 @@ pub const Parser = struct {
                     .token = tok,
                 } };
             },
+            .minus => {
+                const p_bp = prefix_binding_power(tok.type);
+                const rhs = try self.parse_expression_bp(p_bp[1]);
+                lhs.* = .{
+                    .unary = .{
+                        .op = get_unary_op(tok.type),
+                        .operand = rhs,
+                        .token = tok,
+                    },
+                };
+            },
             else => {
                 // TODO:
             },
@@ -715,7 +726,7 @@ pub const Parser = struct {
             lhs.* = .{
                 .binary = .{
                     .lhs = prev_lhs,
-                    .op = get_op(op),
+                    .op = get_binary_op(op),
                     .rhs = rhs,
                     .token = tok,
                 },
@@ -734,12 +745,26 @@ fn infix_binding_power(op: token.TokenType) [2]usize {
     };
 }
 
-fn get_op(op: token.TokenType) ast.BinaryOp {
+fn prefix_binding_power(op: token.TokenType) [2]usize {
+    return switch (op) {
+        .minus => .{ 0, 5 },
+        else => .{ 0, 0 },
+    };
+}
+
+fn get_binary_op(op: token.TokenType) ast.BinaryOp {
     return switch (op) {
         .plus => ast.BinaryOp.add,
         .minus => ast.BinaryOp.sub,
         .star => ast.BinaryOp.mul,
         .slash => ast.BinaryOp.div,
+        else => unreachable,
+    };
+}
+
+fn get_unary_op(op: token.TokenType) ast.UnaryOp {
+    return switch (op) {
+        .minus => ast.UnaryOp.neg,
         else => unreachable,
     };
 }
