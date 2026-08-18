@@ -45,5 +45,4 @@ test "named type with args" {
     try std.testing.expect(ls.base == .named);
     try std.testing.expectEqualStrings("List", ls.base.named.name);
     try std.testing.expectEqual(@as(usize, 1), ls.base.named.args.len);
-    // and so on...lazy
 }
