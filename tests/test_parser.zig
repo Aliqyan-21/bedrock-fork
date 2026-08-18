@@ -4,6 +4,16 @@ const ast = bedrock.ast;
 const compiler = bedrock.compiler;
 const parser = bedrock.parser;
 
+const StmtResult = struct {
+    stmt: ast.Stmt,
+    c: *compiler.Compiler,
+    fn deinit(self: *StmtResult, allocator: std.mem.Allocator) void {
+        self.stmt.deinit(allocator);
+        self.c.deinit();
+        allocator.destroy(self.c);
+    }
+};
+
 const TypeResult = struct {
     ty: *ast.Type,
     c: *compiler.Compiler,
@@ -31,6 +41,14 @@ fn parse_expression(allocator: std.mem.Allocator, source: []const u8) ![]const u
     expr.deinit(allocator);
     c.deinit();
     return buf;
+}
+
+fn parse_stmt(allocator: std.mem.Allocator, source: []const u8) !StmtResult {
+    const c = try allocator.create(compiler.Compiler);
+    c.* = compiler.Compiler.init(allocator, source);
+    var p = parser.Parser.init(allocator, source, c);
+    const stmt = try p.parse_statement();
+    return .{ .stmt = stmt, .c = c };
 }
 
 test "primitive type" {
@@ -121,4 +139,24 @@ test "expression precedence parsing" {
     buf = try parse_expression(std.testing.allocator, "100 / 10 - 10");
     try std.testing.expectEqualStrings(buf, "((100 / 10) - 10)");
     allocator.free(buf);
+}
+
+test "var statement" {
+    var res = try parse_stmt(std.testing.allocator, "var b: i16 = 69;");
+    defer res.deinit(std.testing.allocator);
+    try std.testing.expect(res.stmt == .var_stmt);
+    try std.testing.expectEqualStrings("b", res.stmt.var_stmt.name);
+    try std.testing.expectEqual(ast.PrimitiveType.i32, res.stmt.var_stmt.type_ann.?.base.primitive);
+    try std.testing.expect(res.stmt.var_stmt.value.* == .literal);
+    try std.testing.expectEqualStrings("69", res.stmt.var_stmt.value.literal.raw);
+}
+
+test "const statement" {
+    var res = try parse_stmt(std.testing.allocator, "const b: i16 = 69;");
+    defer res.deinit(std.testing.allocator);
+    try std.testing.expect(res.stmt == .const_stmt);
+    try std.testing.expectEqualStrings("b", res.stmt.const_stmt.name);
+    try std.testing.expectEqual(ast.PrimitiveType.i32, res.stmt.const_stmt.type_ann.?.base.primitive);
+    try std.testing.expect(res.stmt.const_stmt.value.* == .literal);
+    try std.testing.expectEqualStrings("69", res.stmt.const_stmt.value.literal.raw);
 }
