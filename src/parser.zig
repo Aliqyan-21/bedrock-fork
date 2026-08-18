@@ -323,10 +323,7 @@ pub const Parser = struct {
                 if (std.meta.stringToEnum(ast.PrimitiveType, tok.val)) |prim| {
                     return ast.BaseType{ .primitive = prim };
                 }
-                // fixme: uncomment this for impl:
-                // return ast.BaseType{ .named = try self.parse_named_type(tok) };
-                // delet this:
-                return ast.BaseType{ .named = .{ .name = tok.val, .args = &[_]*ast.Type{}, .token = tok } };
+                return try self.parse_named_type(tok);
             },
             else => {
                 try self.compiler.addError("expected a type", err.Severity.Error, tok);
@@ -424,9 +421,43 @@ pub const Parser = struct {
     }
 
     fn parse_named_type(self: *Parser, tok: token.Token) !ast.BaseType {
-        _ = self;
-        _ = tok;
-        //todo: implement
+        var args: std.ArrayList(*ast.Type) = .empty;
+
+        var nxt = try self.lexer.peek_token();
+        if (nxt.type != token.TokenType.l_bracket) {
+            return ast.BaseType{ .named = .{ .name = tok.val, .args = &[_]*ast.Type{}, .token = tok } };
+        }
+        _ = try self.lexer.next();
+
+        while (true) {
+            try args.append(self.allocator, try self.parse_type());
+
+            const sep = try self.lexer.peek_token();
+            if (sep.type == token.TokenType.r_bracket) {
+                _ = try self.lexer.next();
+                break;
+            }
+
+            if (try self.expect(.comma, "expected ',' or ']'") == null) {
+                const hmm = try self.lexer.peek_token();
+                if (hmm.type == .comma) {
+                    _ = try self.lexer.next();
+                    continue;
+                } else if (hmm.type == .r_bracket) {
+                    _ = try self.lexer.next();
+                    break;
+                } else {
+                    break;
+                }
+            }
+
+            nxt = try self.lexer.peek_token();
+            if (nxt.type == token.TokenType.r_bracket) {
+                _ = try self.lexer.next();
+                break;
+            }
+        }
+        return ast.BaseType{ .named = .{ .name = tok.val, .args = try args.toOwnedSlice(self.allocator), .token = tok } };
     }
 
     pub fn parse_result(self: *Parser) !*ast.Type {
