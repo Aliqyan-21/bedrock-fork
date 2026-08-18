@@ -637,6 +637,22 @@ pub const UnaryExpr = struct {
         try self.op.print(indent + 4);
         try self.operand.print(indent + 4);
     }
+
+    pub fn deinit(self: *UnaryExpr, allocator: std.mem.Allocator) void {
+        self.operand.deinit(allocator);
+    }
+
+    pub fn to_string(self: *UnaryExpr, allocator: std.mem.Allocator) anyerror![]const u8 {
+        const o = try self.operand.to_string(allocator);
+        defer {
+            allocator.free(o);
+        }
+        const op = switch (self.op) {
+            .neg => "-",
+            else => "",
+        };
+        return try std.fmt.allocPrint(allocator, "({s}{s})", .{ op, o });
+    }
 };
 
 // A "." Ident
@@ -916,7 +932,10 @@ pub const Expr = union(enum) {
             .literal => allocator.destroy(self),
             .binary => |*b| {
                 b.deinit(allocator);
-                // allocator.destroy(b);
+                allocator.destroy(self);
+            },
+            .unary => |*u| {
+                u.deinit(allocator);
                 allocator.destroy(self);
             },
             else => {
@@ -929,6 +948,7 @@ pub const Expr = union(enum) {
         return switch (self.*) {
             .literal => |*l| l.to_string(allocator),
             .binary => |*b| b.to_string(allocator),
+            .unary => |*u| u.to_string(allocator),
             else => try std.fmt.allocPrint(allocator, "", .{}),
         };
     }
