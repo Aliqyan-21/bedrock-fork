@@ -40,6 +40,7 @@ pub const Compiler = struct {
             var lines = std.mem.splitScalar(u8, self.source, '\n');
             while (lines.next()) |l| {
                 if (l_count + 3 <= e.token.line) {
+                    l_count += 1;
                     continue;
                 } else if (l_count >= e.token.line + 3) {
                     break;
