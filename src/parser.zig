@@ -358,10 +358,33 @@ pub const Parser = struct {
     }
 
     fn parse_local_static_var_stmt(self: *Parser) !ast.Stmt {
-        //todo: implement
-        _ = self;
-        return error.notimplemented;
+        var tok = try self.lexer.next();
+        var lsv_stmt = ast.LocalStaticVarStmt{
+            .name = "",
+            .type_ann = null,
+            .value = undefined,
+            .token = tok,
+        };
+
+        _ = try self.expect(.kw_var, "expected 'var'");
+
+        tok = try self.expect(.ident, "expected name ident") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+        lsv_stmt.name = tok.val;
+
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.colon) {
+            _ = try self.lexer.next();
+            lsv_stmt.type_ann = try self.parse_type();
+        }
+
+        _ = try self.expect(.eq, "expected '='");
+        lsv_stmt.value = try self.parse_expression();
+
+        _ = try self.expect(.semicolon, "expected ';'");
+
+        return ast.Stmt{ .local_static_var_stmt = lsv_stmt };
     }
+
     fn parse_defer_stmt(self: *Parser) !ast.Stmt {
         //todo: implement
         _ = self;
