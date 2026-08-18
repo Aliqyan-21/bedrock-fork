@@ -1,7 +1,7 @@
 # Program
 program        = { item }
 item           = import_def | function | proc_def | struct_def | enum_def | extern_def
-               | global_var_def | const_def
+               | var_def | const_def
 
 import_def      = "import" IDENT { "." IDENT } ";"
 
@@ -45,10 +45,9 @@ statement       = var_stmt | local_static_var_stmt | assign_stmt | defer_stmt
 var_stmt        = "var" IDENT [ ":" type ] "=" expression ";"
 assign_stmt     = place_expr ( "=" | compound_op ) expression ";"
 
-# module scope only — plain mutable global, "pub" is meaningful here
-global_var_def  = [ "pub" ] "var" IDENT [ ":" type ] "=" expression ";"
+var_def  = [ "pub" ] "var" IDENT [ ":" type ] "=" expression ";"
 
-# function scope only — no "pub" here, a local static can't be exposed outside its function
+# like c, does not change value in simultanous calls.
 local_static_var_stmt = "static" "var" IDENT [ ":" type ] "=" expression ";"
 
 const_def       = [ "pub" ] "const" IDENT [ ":" type ] "=" expression ";"
@@ -59,7 +58,7 @@ place_expr      = "*" "(" expression ")"
 compound_op     = "+=" | "-=" | "*=" | "/=" | "%="
                 | "&=" | "|=" | "^=" | "<<=" | ">>="
 
-defer_stmt      = "defer" ( var_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
+defer_stmt      = "defer" { statement } "end"
 
 unsafe_stmt     = "unsafe" block "end"
 
@@ -129,11 +128,13 @@ base_type       = "i8" | "i16" | "i32" | "i64"
                 | "bool" | "char" | "str"
                 | "*" type
                 | array_type
+                | slice_type
                 | named_type
                 | func_type
                 | proc_type
 
 array_type = "[" ( INTEGER | "_" ) "]" type
+slice_type = "[" "]" type
 named_type = IDENT [ "[" type { "," type } [ "," ] "]" ]
 
 type_list  = type { "," type } [ "," ]
