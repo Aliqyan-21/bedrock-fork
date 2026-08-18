@@ -27,7 +27,7 @@ fn parse_expression(allocator: std.mem.Allocator, source: []const u8) ![]const u
     var c = compiler.Compiler.init(allocator, source);
     var p = parser.Parser.init(allocator, source, &c);
     var expr = try p.parse_expression();
-    const buf = try expr.parse_to_string(allocator);
+    const buf = try expr.to_string(allocator);
     expr.deinit(allocator);
     c.deinit();
     return buf;
