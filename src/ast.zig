@@ -243,8 +243,23 @@ pub const VarDef = struct {
     token: Token,
 
     pub fn print(self: *VarDef, indent: usize) anyerror!void {
+        std.debug.print("VarDef:\n", .{});
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("var: {s}\n", .{self.name});
+        std.debug.print("var {s}\n", .{self.name});
+        if (self.type_ann) |ty| {
+            try ty.print(indent + 2);
+        }
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("value:\n", .{});
+        try self.value.print(indent + 2);
+    }
+
+    pub fn deinit(self: *VarDef, allocator: std.mem.Allocator) void {
+        if (self.type_ann) |ty| {
+            ty.deinit(allocator);
+            allocator.destroy(ty);
+        }
+        self.value.deinit(allocator);
     }
 };
 
@@ -258,13 +273,15 @@ pub const ConstDef = struct {
     token: Token,
 
     pub fn print(self: *ConstDef, indent: usize) anyerror!void {
+        std.debug.print("ConstDef:\n", .{});
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("const {s} ", .{self.name});
+        std.debug.print("const {s}\n", .{self.name});
         if (self.type_ann) |ty| {
-            try ty.print(0);
+            try ty.print(indent + 2);
         }
-        std.debug.print(" = ", .{});
-        try self.value.print(0);
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("value:\n", .{});
+        try self.value.print(indent + 2);
     }
 
     pub fn deinit(self: *ConstDef, allocator: std.mem.Allocator) void {
@@ -332,7 +349,7 @@ pub const PrimitiveType = enum {
     str,
 
     pub fn print(self: *PrimitiveType, indent: usize) anyerror!void {
-        for (0..indent) |_| std.debug.print(" ", .{});
+        _ = indent;
         std.debug.print("primitive type: {s}\n", .{@tagName(self.*)});
     }
 };
@@ -500,7 +517,7 @@ pub const LiteralExpr = struct {
     pub fn print(self: *LiteralExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("{s}\n", .{self.raw});
-        try self.kind.print(indent + 4);
+        try self.kind.print(indent + 2);
     }
 };
 
@@ -1061,6 +1078,7 @@ pub const AST = struct {
                 .function => |*func| func.deinit(allocator),
                 .import_def => |*i_def| i_def.deinit(allocator),
                 .const_def => |*c_def| c_def.deinit(allocator),
+                .var_def => |*v_def| v_def.deinit(allocator),
                 .proc => |*p_def| p_def.deinit(allocator),
                 else => {
                     // TODO:
