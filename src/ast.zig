@@ -389,7 +389,7 @@ pub const NamedType = struct {
 
     pub fn print(self: *NamedType, indent: usize) anyerror!void {
         // for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print(" {s} ", .{self.name});
+        std.debug.print("named_type: {s}\n", .{self.name});
         for (self.args) |arg| try arg.print(indent + 4);
     }
 };
@@ -448,9 +448,20 @@ pub const BaseType = union(enum) {
     pub fn deinit(self: *BaseType, allocator: std.mem.Allocator) void {
         switch (self.*) {
             .primitive => {},
+            .pointer => |p| {
+                p.deinit(allocator);
+                allocator.destroy(p);
+            },
             .array => |*a| {
                 a.elem.deinit(allocator);
                 allocator.destroy(a.elem);
+            },
+            .named => |*n| {
+                for (n.args) |arg| {
+                    arg.deinit(allocator);
+                    allocator.destroy(arg);
+                }
+                if (n.args.len > 0) allocator.free(n.args);
             },
             .func => |*f| {
                 for (f.params.items) |p| {
@@ -468,7 +479,6 @@ pub const BaseType = union(enum) {
                 }
                 p.params.deinit(allocator);
             },
-            else => {},
         }
     }
 };
