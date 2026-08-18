@@ -530,6 +530,10 @@ pub const LiteralExpr = struct {
         std.debug.print("{s}\n", .{self.raw});
         try self.kind.print(indent + 2);
     }
+
+    pub fn to_string(self: *LiteralExpr, allocator: std.mem.Allocator) ![]const u8 {
+        return try std.fmt.allocPrint(allocator, "{s}", .{self.raw});
+    }
 };
 
 pub const IdentExpr = struct {
@@ -600,6 +604,23 @@ pub const BinaryExpr = struct {
     pub fn deinit(self: *BinaryExpr, allocator: std.mem.Allocator) void {
         self.lhs.deinit(allocator);
         self.rhs.deinit(allocator);
+    }
+
+    pub fn to_string(self: *BinaryExpr, allocator: std.mem.Allocator) anyerror![]const u8 {
+        const lhs = try self.lhs.to_string(allocator);
+        const rhs = try self.rhs.to_string(allocator);
+        defer {
+            allocator.free(lhs);
+            allocator.free(rhs);
+        }
+        const op = switch (self.op) {
+            .add => "+",
+            .sub => "-",
+            .mul => "*",
+            .div => "/",
+            else => "",
+        };
+        return try std.fmt.allocPrint(allocator, "({s} {s} {s})", .{ lhs, op, rhs });
     }
 };
 
@@ -893,12 +914,21 @@ pub const Expr = union(enum) {
             .literal => allocator.destroy(self),
             .binary => |*b| {
                 b.deinit(allocator);
+                // allocator.destroy(b);
                 allocator.destroy(self);
             },
             else => {
                 // TODO:
             },
         }
+    }
+
+    pub fn to_string(self: *Expr, allocator: std.mem.Allocator) anyerror![]const u8 {
+        return switch (self.*) {
+            .literal => |*l| l.to_string(allocator),
+            .binary => |*b| b.to_string(allocator),
+            else => try std.fmt.allocPrint(allocator, "", .{}),
+        };
     }
 };
 

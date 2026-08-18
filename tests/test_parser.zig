@@ -23,6 +23,16 @@ fn parse_type(allocator: std.mem.Allocator, source: []const u8) !TypeResult {
     return .{ .ty = ty, .c = c };
 }
 
+fn parse_expression(allocator: std.mem.Allocator, source: []const u8) ![]const u8 {
+    var c = compiler.Compiler.init(allocator, source);
+    var p = parser.Parser.init(allocator, source, &c);
+    var expr = try p.parse_expression();
+    const buf = try expr.to_string(allocator);
+    expr.deinit(allocator);
+    c.deinit();
+    return buf;
+}
+
 test "primitive type" {
     const res = try parse_type(std.testing.allocator, "i8");
     defer res.deinit(std.testing.allocator);
@@ -92,4 +102,23 @@ test "named type with args" {
     try std.testing.expect(ls.base == .named);
     try std.testing.expectEqualStrings("List", ls.base.named.name);
     try std.testing.expectEqual(@as(usize, 1), ls.base.named.args.len);
+}
+
+test "expression precedence parsing" {
+    const allocator = std.testing.allocator;
+    var buf = try parse_expression(std.testing.allocator, "10");
+    try std.testing.expectEqualStrings(buf, "10");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 + 10");
+    try std.testing.expectEqualStrings(buf, "(10 + 10)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 + 10 * 10");
+    try std.testing.expectEqualStrings(buf, "(10 + (10 * 10))");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 + 10 * 10 - 10");
+    try std.testing.expectEqualStrings(buf, "((10 + (10 * 10)) - 10)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "100 / 10 - 10");
+    try std.testing.expectEqualStrings(buf, "((100 / 10) - 10)");
+    allocator.free(buf);
 }
