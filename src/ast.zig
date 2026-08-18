@@ -964,6 +964,7 @@ pub const Stmt = union(enum) {
         switch (self.*) {
             .var_stmt => |*v| v.deinit(allocator),
             .const_stmt => |*c| c.deinit(allocator),
+            .local_static_var_stmt => |*l| l.deinit(allocator),
             else => {},
         }
     }
@@ -1025,6 +1026,13 @@ pub const LocalStaticVarStmt = struct {
         std.debug.print("local static var stmt: {s}\n", .{self.name});
         if (self.type_ann) |t| try t.print(indent + 4);
         try self.value.print(indent + 4);
+    }
+    pub fn deinit(self: *LocalStaticVarStmt, allocator: std.mem.Allocator) void {
+        if (self.type_ann) |ty| {
+            ty.deinit(allocator);
+            allocator.destroy(ty);
+        }
+        self.value.deinit(allocator);
     }
 };
 

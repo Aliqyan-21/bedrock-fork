@@ -160,3 +160,13 @@ test "const statement" {
     try std.testing.expect(res.stmt.const_stmt.value.* == .literal);
     try std.testing.expectEqualStrings("10", res.stmt.const_stmt.value.literal.raw);
 }
+
+test "local static var statement" {
+    var res = try parse_stmt(std.testing.allocator, "static var b: i16 = 10;");
+    defer res.deinit(std.testing.allocator);
+    try std.testing.expect(res.stmt == .local_static_var_stmt);
+    try std.testing.expectEqualStrings("b", res.stmt.local_static_var_stmt.name);
+    try std.testing.expectEqual(ast.PrimitiveType.i16, res.stmt.local_static_var_stmt.type_ann.?.base.primitive);
+    try std.testing.expect(res.stmt.local_static_var_stmt.value.* == .literal);
+    try std.testing.expectEqualStrings("10", res.stmt.local_static_var_stmt.value.literal.raw);
+}
