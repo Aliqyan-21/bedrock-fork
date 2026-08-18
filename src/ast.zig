@@ -893,7 +893,6 @@ pub const Expr = union(enum) {
             .literal => allocator.destroy(self),
             .binary => |*b| {
                 b.deinit(allocator);
-                // allocator.destroy(b);
                 allocator.destroy(self);
             },
             else => {
