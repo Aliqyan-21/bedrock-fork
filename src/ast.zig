@@ -1,4 +1,5 @@
 const std = @import("std");
+const token = @import("token.zig");
 const Token = @import("token.zig").Token;
 
 pub const Item = union(enum) {
@@ -595,6 +596,11 @@ pub const BinaryExpr = struct {
         try self.lhs.print(indent + 4);
         try self.rhs.print(indent + 4);
     }
+
+    pub fn deinit(self: *BinaryExpr, allocator: std.mem.Allocator) void {
+        self.lhs.deinit(allocator);
+        self.rhs.deinit(allocator);
+    }
 };
 
 pub const UnaryExpr = struct {
@@ -885,6 +891,10 @@ pub const Expr = union(enum) {
     pub fn deinit(self: *Expr, allocator: std.mem.Allocator) void {
         switch (self.*) {
             .literal => allocator.destroy(self),
+            .binary => |*b| {
+                b.deinit(allocator);
+                allocator.destroy(self);
+            },
             else => {
                 // TODO:
             },
