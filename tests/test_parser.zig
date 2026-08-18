@@ -142,21 +142,21 @@ test "expression precedence parsing" {
 }
 
 test "var statement" {
-    var res = try parse_stmt(std.testing.allocator, "var b: i16 = 69;");
+    var res = try parse_stmt(std.testing.allocator, "var b: i16 = 10;");
     defer res.deinit(std.testing.allocator);
     try std.testing.expect(res.stmt == .var_stmt);
     try std.testing.expectEqualStrings("b", res.stmt.var_stmt.name);
     try std.testing.expectEqual(ast.PrimitiveType.i16, res.stmt.var_stmt.type_ann.?.base.primitive);
     try std.testing.expect(res.stmt.var_stmt.value.* == .literal);
-    try std.testing.expectEqualStrings("69", res.stmt.var_stmt.value.literal.raw);
+    try std.testing.expectEqualStrings("10", res.stmt.var_stmt.value.literal.raw);
 }
 
 test "const statement" {
-    var res = try parse_stmt(std.testing.allocator, "const b: i16 = 69;");
+    var res = try parse_stmt(std.testing.allocator, "const b: i16 = 10;");
     defer res.deinit(std.testing.allocator);
     try std.testing.expect(res.stmt == .const_stmt);
     try std.testing.expectEqualStrings("b", res.stmt.const_stmt.name);
     try std.testing.expectEqual(ast.PrimitiveType.i16, res.stmt.const_stmt.type_ann.?.base.primitive);
     try std.testing.expect(res.stmt.const_stmt.value.* == .literal);
-    try std.testing.expectEqualStrings("69", res.stmt.const_stmt.value.literal.raw);
+    try std.testing.expectEqualStrings("10", res.stmt.const_stmt.value.literal.raw);
 }
