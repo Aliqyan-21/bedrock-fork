@@ -1,0 +1,4 @@
+const a = 10;
+const b: i32 = 10;
+const c = 10 + 10;
+const d = 10 + 10 + 10;

@@ -550,23 +550,65 @@ pub const Parser = struct {
     }
 
     pub fn parse_expression(self: *Parser) !*ast.Expr {
-        const exp = try self.allocator.create(ast.Expr);
-        const tok = try self.lexer.peek_token();
+        return try self.parse_expression_bp(0);
+    }
+
+    pub fn parse_expression_bp(self: *Parser, min_bp: usize) !*ast.Expr {
+        var lhs = try self.allocator.create(ast.Expr);
+        var tok = try self.lexer.next();
         switch (tok.type) {
-            token.TokenType.integer => {
-                exp.* = .{ .literal = .{
+            .integer => {
+                lhs.* = .{ .literal = .{
                     .kind = ast.LiteralKind.integer,
                     .raw = tok.val,
                     .token = tok,
                 } };
             },
             else => {
-                // TODO
+                // TODO:
             },
         }
 
-        _ = try self.lexer.next();
+        while (true) {
+            tok = try self.lexer.peek_token();
+            // expect a operator
+            const op = switch (tok.type) {
+                .plus => tok.type,
+                else => break,
+            };
 
-        return exp;
+            const i_bp = infix_binding_power(op);
+            if (i_bp[0] < min_bp) break;
+
+            tok = try self.lexer.next();
+            const rhs = try self.parse_expression_bp(i_bp[1]);
+
+            const prev_lhs = lhs;
+            lhs = try self.allocator.create(ast.Expr);
+            lhs.* = .{
+                .binary = .{
+                    .lhs = prev_lhs,
+                    .op = get_op(op),
+                    .rhs = rhs,
+                    .token = tok,
+                },
+            };
+        }
+
+        return lhs;
     }
 };
+
+fn infix_binding_power(op: token.TokenType) [2]usize {
+    return switch (op) {
+        .plus => .{ 1, 2 },
+        else => .{ 0, 0 },
+    };
+}
+
+fn get_op(op: token.TokenType) ast.BinaryOp {
+    return switch (op) {
+        .plus => ast.BinaryOp.add,
+        else => unreachable,
+    };
+}
