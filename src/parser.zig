@@ -919,7 +919,7 @@ pub const Parser = struct {
             tok = try self.lexer.peek_token();
             // expect a operator
             const op = switch (tok.type) {
-                .plus, .minus, .star, .slash => tok.type,
+                .plus, .minus, .star, .slash, .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt => tok.type,
                 else => break,
             };
 
@@ -947,8 +947,9 @@ pub const Parser = struct {
 
 fn infix_binding_power(op: token.TokenType) [2]usize {
     return switch (op) {
-        .plus, .minus => .{ 1, 2 },
-        .star, .slash => .{ 3, 4 },
+        .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt => .{ 1, 2 },
+        .plus, .minus => .{ 3, 4 },
+        .star, .slash => .{ 5, 6 },
         else => .{ 0, 0 },
     };
 }
@@ -966,6 +967,12 @@ fn get_binary_op(op: token.TokenType) ast.BinaryOp {
         .minus => ast.BinaryOp.sub,
         .star => ast.BinaryOp.mul,
         .slash => ast.BinaryOp.div,
+        .eq_eq => ast.BinaryOp.eq,
+        .gt_eq => ast.BinaryOp.ge,
+        .lt_eq => ast.BinaryOp.le,
+        .bang_eq => ast.BinaryOp.ne,
+        .gt => ast.BinaryOp.gt,
+        .lt => ast.BinaryOp.lt,
         else => unreachable,
     };
 }

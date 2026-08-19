@@ -620,6 +620,12 @@ pub const BinaryExpr = struct {
             .sub => "-",
             .mul => "*",
             .div => "/",
+            .eq => "==",
+            .gt => ">",
+            .ge => ">=",
+            .lt => "<",
+            .le => "<=",
+            .ne => "!=",
             else => "",
         };
         return try std.fmt.allocPrint(allocator, "({s} {s} {s})", .{ lhs, op, rhs });

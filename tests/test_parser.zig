@@ -157,8 +157,17 @@ test "expression precedence parsing" {
     buf = try parse_expression(std.testing.allocator, "(10 + 10) * !10");
     try std.testing.expectEqualStrings(buf, "((10 + 10) * (!10))");
     allocator.free(buf);
-    buf = try parse_expression(std.testing.allocator, "(10 * 10 * *10");
+    buf = try parse_expression(std.testing.allocator, "10 * 10 * *10");
     try std.testing.expectEqualStrings(buf, "((10 * 10) * (*10))");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 == 10");
+    try std.testing.expectEqualStrings(buf, "(10 == 10)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 * 10 == 100");
+    try std.testing.expectEqualStrings(buf, "((10 * 10) == 100)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "(10 + 10 > -10");
+    try std.testing.expectEqualStrings(buf, "((10 + 10) > (-10))");
     allocator.free(buf);
 }
 
