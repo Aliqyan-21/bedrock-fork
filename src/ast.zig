@@ -985,6 +985,7 @@ pub const Stmt = union(enum) {
             .var_stmt => |*v| v.deinit(allocator),
             .const_stmt => |*c| c.deinit(allocator),
             .local_static_var_stmt => |*l| l.deinit(allocator),
+            .defer_stmt => |*d| d.deinit(allocator),
             else => {},
         }
     }
@@ -1100,6 +1101,10 @@ pub const DeferStmt = struct {
         for (self.statement_list.items) |*s| {
             try s.print(indent + 4);
         }
+    }
+    pub fn deinit(self: *DeferStmt, allocator: std.mem.Allocator) void {
+        for (self.statement_list.items) |*s| s.deinit(allocator);
+        self.statement_list.deinit(allocator);
     }
 };
 
