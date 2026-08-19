@@ -293,7 +293,7 @@ pub const Parser = struct {
             .kw_defer => try self.parse_defer_stmt(),
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
-            .kw_match => try self.parse_match_stmt(),
+            .kw_if, .kw_match, .kw_while, .kw_for => try self.parse_control_flow_stmt(),
             else => try self.parse_expr_stmt(),
         };
     }
@@ -410,6 +410,56 @@ pub const Parser = struct {
         const value = try self.parse_expression();
         _ = try self.expect(.semicolon, "expected ';'");
         return ast.Stmt{ .expr_stmt = .{ .value = value } };
+    }
+
+    fn parse_control_flow_stmt(self: *Parser) !ast.Stmt {
+        const tok = try self.lexer.peek_token();
+
+        const cf = switch (tok.type) {
+            .kw_if => try self.parse_if_expr(),
+            .kw_match => try self.parse_match_expr(),
+            .kw_while => try self.parse_while_expr(),
+            .kw_for => try self.parse_for_expr(),
+            else => unreachable,
+        };
+
+        return ast.Stmt{ .control_flow_stmt = cf };
+    }
+
+    fn parse_if_expr(self: *Parser) !ast.ControlFlowStmt {
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_match_expr(self: *Parser) !ast.ControlFlowStmt {
+        var tok = try self.lexer.next();
+        var match = ast.MatchExpr{
+            .subject = undefined,
+            .arms = .empty,
+            .else_body = null,
+            .token = tok,
+        };
+
+        // parse expression
+        match.subject = try self.parse_expression();
+
+        // if "end" then no body
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.kw_end) {
+            _ = try self.lexer.next();
+        } else {
+            // TODO:
+        }
+
+        return .{ .match_expr = match };
+    }
+
+    fn parse_while_expr(self: *Parser) !ast.ControlFlowStmt {
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_for_expr(self: *Parser) !ast.ControlFlowStmt {
+        _ = self;
+        return error.notimplemented;
     }
 
     pub fn parse_type(self: *Parser) anyerror!*ast.Type {
@@ -755,29 +805,6 @@ pub const Parser = struct {
         }
 
         return lhs;
-    }
-
-    pub fn parse_match_stmt(self: *Parser) !ast.Stmt {
-        var tok = try self.lexer.next();
-        var match = ast.MatchExpr{
-            .subject = undefined,
-            .arms = .empty,
-            .else_body = null,
-            .token = tok,
-        };
-
-        // parse expression
-        match.subject = try self.parse_expression();
-
-        // if "end" then no body
-        tok = try self.lexer.peek_token();
-        if (tok.type == token.TokenType.kw_end) {
-            _ = try self.lexer.next();
-        } else {
-            // TODO:
-        }
-
-        return .{ .control_flow_stmt = .{ .match_expr = match } };
     }
 };
 
