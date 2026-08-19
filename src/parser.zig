@@ -253,6 +253,7 @@ pub const Parser = struct {
     }
 
     pub fn parse_param(self: *Parser) !ast.Param {
+        var tok = try self.lexer.peek_token();
         var param = ast.Param{
             .name = "",
             .is_const = false,
@@ -261,14 +262,20 @@ pub const Parser = struct {
         };
 
         // name
-        _ = try self.expect(.ident, "expected identifier");
+        tok = try self.expect(.ident, "expected identifier") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+        param.name = tok.val;
+        param.token = tok;
 
         // :
         _ = try self.expect(.colon, "expected ':'");
 
         // type
-        param.type = try self.parse_type();
+        if ((try self.lexer.peek_token()).type == .kw_const) {
+            _ = try self.lexer.next();
+            param.is_const = true;
+        }
 
+        param.type = try self.parse_type();
         return param;
     }
 
