@@ -682,19 +682,34 @@ pub const Parser = struct {
     }
 
     pub fn parse_expression_bp(self: *Parser, min_bp: usize) !*ast.Expr {
-        var lhs = try self.allocator.create(ast.Expr);
+        var lhs: *ast.Expr = undefined;
         var tok = try self.lexer.next();
         switch (tok.type) {
             .integer => {
+                lhs = try self.allocator.create(ast.Expr);
                 lhs.* = .{ .literal = .{
                     .kind = ast.LiteralKind.integer,
                     .raw = tok.val,
                     .token = tok,
                 } };
             },
+            .kw_false, .kw_true => {
+                lhs = try self.allocator.create(ast.Expr);
+                lhs.* = .{ .literal = .{
+                    .kind = get_bool_type(tok.type),
+                    .raw = tok.val,
+                    .token = tok,
+                } };
+            },
+            .l_paren => {
+                lhs = try self.parse_expression_bp(0);
+                // expect ')'
+                _ = try self.expect(.r_paren, "expected ')'");
+            },
             .minus => {
                 const p_bp = prefix_binding_power(tok.type);
                 const rhs = try self.parse_expression_bp(p_bp[1]);
+                lhs = try self.allocator.create(ast.Expr);
                 lhs.* = .{
                     .unary = .{
                         .op = get_unary_op(tok.type),
@@ -766,6 +781,14 @@ fn get_binary_op(op: token.TokenType) ast.BinaryOp {
 fn get_unary_op(op: token.TokenType) ast.UnaryOp {
     return switch (op) {
         .minus => ast.UnaryOp.neg,
+        else => unreachable,
+    };
+}
+
+fn get_bool_type(op: token.TokenType) ast.LiteralKind {
+    return switch (op) {
+        .kw_true => ast.LiteralKind.bool_true,
+        .kw_false => ast.LiteralKind.bool_false,
         else => unreachable,
     };
 }
