@@ -276,7 +276,7 @@ pub const Parser = struct {
         var stmts: std.ArrayList(ast.Stmt) = .empty;
         while (true) {
             const tok = try self.lexer.peek_token();
-            if (tok.type == .kw_end or tok.type == .eof) break;
+            if (tok.type == .kw_end or tok.type == .eof or tok.type == .kw_case) break;
             try stmts.append(self.allocator, try self.parse_statement());
         }
         _ = try self.expect(.kw_end, "expected 'end'");
