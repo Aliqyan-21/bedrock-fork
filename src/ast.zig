@@ -649,7 +649,10 @@ pub const UnaryExpr = struct {
         }
         const op = switch (self.op) {
             .neg => "-",
-            else => "",
+            .bit_not => "~",
+            .not => "!",
+            .addr_of => "&",
+            .deref => "*",
         };
         return try std.fmt.allocPrint(allocator, "({s}{s})", .{ op, o });
     }
