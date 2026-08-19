@@ -10,5 +10,4 @@ func foo() -> u8
             var b = 10;
             var c = 10;
             var d = 10 + 10;
-    end
 end
