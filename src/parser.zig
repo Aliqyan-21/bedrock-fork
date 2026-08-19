@@ -391,11 +391,12 @@ pub const Parser = struct {
         return ast.Stmt{ .defer_stmt = .{ .statement_list = statement_list, .token = tok } };
     }
 
-    fn parse_unsafe_stmt(self: *Parser) !ast.Stmt {
-        //todo: implement
-        _ = self;
-        return error.notimplemented;
+    fn parse_unsafe_stmt(self: *Parser) anyerror!ast.Stmt {
+        const tok = try self.lexer.next();
+        const body = try self.parse_body();
+        return ast.Stmt{ .unsafe_stmt = .{ .body = body, .token = tok } };
     }
+
     fn parse_return_stmt(self: *Parser) !ast.Stmt {
         //todo: implement
         _ = self;

@@ -986,6 +986,7 @@ pub const Stmt = union(enum) {
             .const_stmt => |*c| c.deinit(allocator),
             .local_static_var_stmt => |*l| l.deinit(allocator),
             .defer_stmt => |*d| d.deinit(allocator),
+            .unsafe_stmt => |*u| u.deinit(allocator),
             else => {},
         }
     }
@@ -1121,6 +1122,10 @@ pub const UnsafeStmt = struct {
             std.debug.print("stmt\n", .{});
             try stmt.print(indent + 4);
         }
+    }
+    pub fn deinit(self: *UnsafeStmt, allocator: std.mem.Allocator) void {
+        for (self.body.items) |*s| s.deinit(allocator);
+        self.body.deinit(allocator);
     }
 };
 
