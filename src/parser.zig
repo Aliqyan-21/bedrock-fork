@@ -497,14 +497,14 @@ pub const Parser = struct {
     fn parse_match_arms(self: *Parser) !std.ArrayList(ast.MatchArm) {
         var tok = try self.lexer.peek_token();
         var arms: std.ArrayList(ast.MatchArm) = .empty;
-        while (tok.type != token.TokenType.kw_end) {
+        while (tok.type != token.TokenType.kw_end and tok.type != token.TokenType.eof) {
             // parse match pattern
             try arms.append(self.allocator, try self.parse_match_arm());
             // check if the tok is 'case' for 'else'
             tok = try self.lexer.peek_token();
         }
         // 'end' keyword
-        _ = try self.lexer.next();
+        _ = try self.expect(.kw_end, "expected 'end'");
 
         return arms;
     }
