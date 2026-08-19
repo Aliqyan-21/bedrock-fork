@@ -415,8 +415,7 @@ pub const Parser = struct {
     fn parse_control_flow_stmt(self: *Parser) !ast.Stmt {
         const tok = try self.lexer.peek_token();
 
-        const cf = try self.allocator.create(ast.ControlFlowStmt);
-        cf.* = switch (tok.type) {
+        const cf = switch (tok.type) {
             .kw_if => try self.parse_if_expr(),
             .kw_match => try self.parse_match_expr(),
             .kw_while => try self.parse_while_expr(),
@@ -432,9 +431,28 @@ pub const Parser = struct {
         return error.notimplemented;
     }
     fn parse_match_expr(self: *Parser) !ast.ControlFlowStmt {
-        _ = self;
-        return error.notimplemented;
+        var tok = try self.lexer.next();
+        var match = ast.MatchExpr{
+            .subject = undefined,
+            .arms = .empty,
+            .else_body = null,
+            .token = tok,
+        };
+
+        // parse expression
+        match.subject = try self.parse_expression();
+
+        // if "end" then no body
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.kw_end) {
+            _ = try self.lexer.next();
+        } else {
+            // TODO:
+        }
+
+        return .{ .match_expr = match };
     }
+
     fn parse_while_expr(self: *Parser) !ast.ControlFlowStmt {
         _ = self;
         return error.notimplemented;

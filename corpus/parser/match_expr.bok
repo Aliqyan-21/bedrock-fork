@@ -1,0 +1,4 @@
+func foo() -> u8
+    match 1
+    end
+end
