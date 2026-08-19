@@ -988,6 +988,7 @@ pub const Stmt = union(enum) {
             .defer_stmt => |*d| d.deinit(allocator),
             .unsafe_stmt => |*u| u.deinit(allocator),
             .return_stmt => |*r| r.deinit(allocator),
+            .expr_stmt => |*e| e.deinit(allocator),
             else => {},
         }
     }
@@ -1153,6 +1154,9 @@ pub const ExprStmt = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("expr stmt\n", .{});
         if (self.value) |v| try v.print(indent + 4);
+    }
+    pub fn deinit(self: *ExprStmt, allocator: std.mem.Allocator) void {
+        if (self.value) |v| v.deinit(allocator);
     }
 };
 

@@ -1,0 +1,3 @@
+func molybdenum() -> i32
+  10 + 10;
+end
