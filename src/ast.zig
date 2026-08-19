@@ -902,10 +902,6 @@ pub const Expr = union(enum) {
     index: IndexExpr,
     optional_unwrap: OptionalUnwrapExpr,
     array_literal: ArrayLiteralExpr,
-    if_expr: IfExpr,
-    match_expr: MatchExpr,
-    while_expr: WhileExpr,
-    for_expr: ForExpr,
     comptime_expr: ComptimeExpr,
 
     pub fn print(self: *Expr, indent: usize) anyerror!void {
@@ -919,10 +915,6 @@ pub const Expr = union(enum) {
             .index => |*i| try i.print(indent),
             .optional_unwrap => |*o| try o.print(indent),
             .array_literal => |*a| try a.print(indent),
-            .if_expr => |*i| try i.print(indent),
-            .match_expr => |*m| try m.print(indent),
-            .while_expr => |*w| try w.print(indent),
-            .for_expr => |*f| try f.print(indent),
             .comptime_expr => |*c| try c.print(indent),
         }
     }
@@ -963,7 +955,7 @@ pub const Stmt = union(enum) {
     local_static_var_stmt: LocalStaticVarStmt,
     defer_stmt: DeferStmt,
     unsafe_stmt: UnsafeStmt,
-    control_flow_stmt: *Expr,
+    control_flow_stmt: *ControlFlowStmt,
     return_stmt: ReturnStmt,
     expr_stmt: ExprStmt,
 
@@ -990,6 +982,30 @@ pub const Stmt = union(enum) {
             .return_stmt => |*r| r.deinit(allocator),
             .expr_stmt => |*e| e.deinit(allocator),
             else => {},
+        }
+    }
+};
+
+pub const ControlFlowStmt = union(enum) {
+    if_expr: IfExpr,
+    match_expr: MatchExpr,
+    while_expr: WhileExpr,
+    for_expr: ForExpr,
+
+    pub fn print(self: *ControlFlowStmt, indent: usize) anyerror!void {
+        switch (self.*) {
+            .if_expr => |*i| try i.print(indent + 2),
+            .match_expr => |*m| try m.print(indent + 2),
+            .while_expr => |*w| try w.print(indent + 2),
+            .for_expr => |*f| try f.print(indent + 2),
+        }
+    }
+    pub fn deinit(self: *ControlFlowStmt, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .if_expr => |*i| try i.deinit(allocator),
+            .match_expr => |*m| try m.deinit(allocator),
+            .while_expr => |*w| try w.deinit(allocator),
+            .for_expr => |*f| try f.deinit(allocator),
         }
     }
 };
