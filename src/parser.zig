@@ -748,6 +748,18 @@ pub const Parser = struct {
                     .token = tok,
                 } };
             },
+            .ident => {
+                lhs = try self.allocator.create(ast.Expr);
+                // can be a call expression
+                const peek_tok = try self.lexer.peek_token();
+                if (peek_tok.type == token.TokenType.l_paren) {
+                    // TODO:
+                }
+                lhs.* = .{ .ident = .{
+                    .name = tok.val,
+                    .token = tok,
+                } };
+            },
             .kw_false, .kw_true => {
                 lhs = try self.allocator.create(ast.Expr);
                 lhs.* = .{ .literal = .{
