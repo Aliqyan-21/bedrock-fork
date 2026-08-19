@@ -814,6 +814,11 @@ pub const MatchArm = struct {
             try stmt.print(indent + 4);
         }
     }
+
+    pub fn deinit(self: *MatchArm, allocator: std.mem.Allocator) void {
+        for (self.body.items) |*s| s.deinit(allocator);
+        self.body.deinit(allocator);
+    }
 };
 
 // match_expr = "match" expression [ match_arms ] "end"
@@ -842,6 +847,7 @@ pub const MatchExpr = struct {
 
     pub fn deinit(self: *MatchExpr, allocator: std.mem.Allocator) void {
         self.subject.deinit(allocator);
+        for (self.arms.items) |*a| a.deinit(allocator);
         self.arms.deinit(allocator);
         if (self.else_body) |*body| {
             for (body.items) |*i| i.deinit(allocator);
@@ -941,6 +947,7 @@ pub const Expr = union(enum) {
                 u.deinit(allocator);
                 allocator.destroy(self);
             },
+            .ident => allocator.destroy(self),
             else => {
                 // TODO:
             },

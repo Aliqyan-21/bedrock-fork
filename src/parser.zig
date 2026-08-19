@@ -279,7 +279,9 @@ pub const Parser = struct {
             if (tok.type == .kw_end or tok.type == .eof or tok.type == .kw_case) break;
             try stmts.append(self.allocator, try self.parse_statement());
         }
-        _ = try self.expect(.kw_end, "expected 'end'");
+        if ((try self.lexer.peek_token()).type == .kw_end) {
+            _ = try self.expect(.kw_end, "expected 'end'");
+        }
         return stmts;
     }
 
@@ -799,6 +801,18 @@ pub const Parser = struct {
                 lhs.* = .{ .literal = .{
                     .kind = ast.LiteralKind.integer,
                     .raw = tok.val,
+                    .token = tok,
+                } };
+            },
+            .ident => {
+                lhs = try self.allocator.create(ast.Expr);
+                // can be a call expression
+                const peek_tok = try self.lexer.peek_token();
+                if (peek_tok.type == token.TokenType.l_paren) {
+                    // TODO:
+                }
+                lhs.* = .{ .ident = .{
+                    .name = tok.val,
                     .token = tok,
                 } };
             },
