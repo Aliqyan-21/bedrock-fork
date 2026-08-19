@@ -440,7 +440,11 @@ pub const Parser = struct {
 
         if_expr.cond = try self.parse_expression();
         if_expr.then_body = try self.parse_body();
-        if_expr.elifs = try self.parse_elif_clause();
+
+        tok = try self.lexer.peek_token();
+        if (tok.type == .kw_elif) {
+            if_expr.elifs = try self.parse_elif_clause();
+        }
 
         tok = try self.lexer.peek_token();
         if (tok.type == .kw_else) {
