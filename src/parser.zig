@@ -296,7 +296,7 @@ pub const Parser = struct {
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
             .kw_if, .kw_match, .kw_while, .kw_for => try self.parse_control_flow_stmt(),
-            else => try self.parse_expr_stmt(),
+            else => try self.parse_expr_or_assign_stmt(),
         };
     }
 
@@ -407,8 +407,10 @@ pub const Parser = struct {
         return ast.Stmt{ .return_stmt = .{ .value = value, .token = tok } };
     }
 
-    fn parse_expr_stmt(self: *Parser) !ast.Stmt {
-        _ = try self.lexer.peek_token();
+    // todo: make this such to be able to parse assign statements like
+    // a = 10;
+    // a = b;
+    fn parse_expr_or_assign_stmt(self: *Parser) !ast.Stmt {
         const value = try self.parse_expression();
         _ = try self.expect(.semicolon, "expected ';'");
         return ast.Stmt{ .expr_stmt = .{ .value = value } };
