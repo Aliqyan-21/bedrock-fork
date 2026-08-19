@@ -888,6 +888,11 @@ pub const WhileExpr = struct {
             try stmt.print(indent + 4);
         }
     }
+    pub fn deinit(self: *WhileExpr, allocator: std.mem.Allocator) void {
+        self.cond.deinit(allocator);
+        for (self.body.items) |*s| s.deinit(allocator);
+        self.body.deinit(allocator);
+    }
 };
 
 // for_expr = "for" IDENT "in" expression block "end"
@@ -1044,10 +1049,8 @@ pub const ControlFlowStmt = union(enum) {
         switch (self.*) {
             .match_expr => |*m| m.deinit(allocator),
             .if_expr => |*i| i.deinit(allocator),
-            .for_expr => |*i| i.deinit(allocator),
-            else => {
-                // TODO:
-            },
+            .for_expr => |*f| f.deinit(allocator),
+            .while_expr => |*w| w.deinit(allocator),
         }
     }
 };

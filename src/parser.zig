@@ -454,8 +454,6 @@ pub const Parser = struct {
             if_expr.else_body = try self.parse_body();
         }
 
-        _ = try self.expect(.kw_end, "expected 'end'");
-
         return .{ .if_expr = if_expr };
     }
 
@@ -547,9 +545,18 @@ pub const Parser = struct {
         };
     }
 
-    fn parse_while_expr(self: *Parser) !ast.ControlFlowStmt {
-        _ = self;
-        return error.notimplemented;
+    fn parse_while_expr(self: *Parser) anyerror!ast.ControlFlowStmt {
+        const tok = try self.lexer.next();
+        var while_expr = ast.WhileExpr{
+            .cond = undefined,
+            .body = .empty,
+            .token = tok,
+        };
+
+        while_expr.cond = try self.parse_expression();
+        while_expr.body = try self.parse_body();
+
+        return .{ .while_expr = while_expr };
     }
 
     fn parse_for_expr(self: *Parser) anyerror!ast.ControlFlowStmt {
