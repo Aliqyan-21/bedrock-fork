@@ -986,6 +986,8 @@ pub const Stmt = union(enum) {
             .const_stmt => |*c| c.deinit(allocator),
             .local_static_var_stmt => |*l| l.deinit(allocator),
             .defer_stmt => |*d| d.deinit(allocator),
+            .unsafe_stmt => |*u| u.deinit(allocator),
+            .return_stmt => |*r| r.deinit(allocator),
             else => {},
         }
     }
@@ -1122,6 +1124,10 @@ pub const UnsafeStmt = struct {
             try stmt.print(indent + 4);
         }
     }
+    pub fn deinit(self: *UnsafeStmt, allocator: std.mem.Allocator) void {
+        for (self.body.items) |*s| s.deinit(allocator);
+        self.body.deinit(allocator);
+    }
 };
 
 // return_stmt = return_expr ";"
@@ -1133,6 +1139,9 @@ pub const ReturnStmt = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("return stmt\n", .{});
         if (self.value) |v| try v.print(indent + 4);
+    }
+    pub fn deinit(self: *ReturnStmt, allocator: std.mem.Allocator) void {
+        if (self.value) |v| v.deinit(allocator);
     }
 };
 

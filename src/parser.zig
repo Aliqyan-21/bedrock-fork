@@ -391,16 +391,19 @@ pub const Parser = struct {
         return ast.Stmt{ .defer_stmt = .{ .statement_list = statement_list, .token = tok } };
     }
 
-    fn parse_unsafe_stmt(self: *Parser) !ast.Stmt {
-        //todo: implement
-        _ = self;
-        return error.notimplemented;
+    fn parse_unsafe_stmt(self: *Parser) anyerror!ast.Stmt {
+        const tok = try self.lexer.next();
+        const body = try self.parse_body();
+        return ast.Stmt{ .unsafe_stmt = .{ .body = body, .token = tok } };
     }
+
     fn parse_return_stmt(self: *Parser) !ast.Stmt {
-        //todo: implement
-        _ = self;
-        return error.notimplemented;
+        const tok = try self.lexer.next();
+        const value = try self.parse_expression();
+        _ = try self.expect(.semicolon, "expected ';'");
+        return ast.Stmt{ .return_stmt = .{ .value = value, .token = tok } };
     }
+
     fn parse_expr_or_assign_stmt(self: *Parser) !ast.Stmt {
         //todo: implement
         _ = self;
