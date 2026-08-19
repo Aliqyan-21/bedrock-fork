@@ -825,7 +825,9 @@ pub const MatchExpr = struct {
 
     pub fn print(self: *MatchExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("match expr\n", .{});
+        std.debug.print("match\n", .{});
+        for (0..indent + 2) |_| std.debug.print(" ", .{});
+        std.debug.print("expr\n", .{});
         try self.subject.print(indent + 4);
         for (self.arms.items) |*arm| try arm.print(indent + 4);
         if (self.else_body) |*else_body| {
@@ -835,6 +837,15 @@ pub const MatchExpr = struct {
                 std.debug.print("else clause\n", .{});
                 try stmt.print(indent + 4);
             }
+        }
+    }
+
+    pub fn deinit(self: *MatchExpr, allocator: std.mem.Allocator) void {
+        self.subject.deinit(allocator);
+        self.arms.deinit(allocator);
+        if (self.else_body) |*body| {
+            for (body.items) |*i| i.deinit(allocator);
+            body.deinit(allocator);
         }
     }
 };
@@ -955,7 +966,7 @@ pub const Stmt = union(enum) {
     local_static_var_stmt: LocalStaticVarStmt,
     defer_stmt: DeferStmt,
     unsafe_stmt: UnsafeStmt,
-    control_flow_stmt: *ControlFlowStmt,
+    control_flow_stmt: ControlFlowStmt,
     return_stmt: ReturnStmt,
     expr_stmt: ExprStmt,
 
@@ -967,7 +978,7 @@ pub const Stmt = union(enum) {
             .local_static_var_stmt => |*l| try l.print(indent),
             .defer_stmt => |*d| try d.print(indent),
             .unsafe_stmt => |*u| try u.print(indent),
-            .control_flow_stmt => |c| try c.print(indent),
+            .control_flow_stmt => |*c| try c.print(indent),
             .return_stmt => |*r| try r.print(indent),
             .expr_stmt => |*e| try e.print(indent),
         }
@@ -981,6 +992,7 @@ pub const Stmt = union(enum) {
             .unsafe_stmt => |*u| u.deinit(allocator),
             .return_stmt => |*r| r.deinit(allocator),
             .expr_stmt => |*e| e.deinit(allocator),
+            .control_flow_stmt => |*c_f| c_f.deinit(allocator),
             else => {},
         }
     }
@@ -1002,10 +1014,10 @@ pub const ControlFlowStmt = union(enum) {
     }
     pub fn deinit(self: *ControlFlowStmt, allocator: std.mem.Allocator) void {
         switch (self.*) {
-            .if_expr => |*i| try i.deinit(allocator),
-            .match_expr => |*m| try m.deinit(allocator),
-            .while_expr => |*w| try w.deinit(allocator),
-            .for_expr => |*f| try f.deinit(allocator),
+            .match_expr => |*m| m.deinit(allocator),
+            else => {
+                // TODO:
+            },
         }
     }
 };

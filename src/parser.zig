@@ -293,6 +293,7 @@ pub const Parser = struct {
             .kw_defer => try self.parse_defer_stmt(),
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
+            .kw_match => try self.parse_match_stmt(),
             else => try self.parse_expr_stmt(),
         };
     }
@@ -754,6 +755,29 @@ pub const Parser = struct {
         }
 
         return lhs;
+    }
+
+    pub fn parse_match_stmt(self: *Parser) !ast.Stmt {
+        var tok = try self.lexer.next();
+        var match = ast.MatchExpr{
+            .subject = undefined,
+            .arms = .empty,
+            .else_body = null,
+            .token = tok,
+        };
+
+        // parse expression
+        match.subject = try self.parse_expression();
+
+        // if "end" then no body
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.kw_end) {
+            _ = try self.lexer.next();
+        } else {
+            // TODO:
+        }
+
+        return .{ .control_flow_stmt = .{ .match_expr = match } };
     }
 };
 
