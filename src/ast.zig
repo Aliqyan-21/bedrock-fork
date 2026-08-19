@@ -1090,35 +1090,16 @@ pub const AssignStmt = struct {
     }
 };
 
-// defer_stmt = "defer" ( var_stmt | const_stmt | assign_stmt | control_flow_stmt | return_stmt | expr_stmt )
-pub const DeferrableStmt = union(enum) {
-    var_stmt: VarStmt,
-    const_stmt: ConstStmt,
-    assign_stmt: AssignStmt,
-    control_flow_stmt: *Expr,
-    return_stmt: ReturnStmt,
-    expr_stmt: ExprStmt,
-
-    pub fn print(self: *DeferrableStmt, indent: usize) anyerror!void {
-        switch (self.*) {
-            .var_stmt => |*v| try v.print(indent),
-            .const_stmt => |*c| try c.print(indent),
-            .assign_stmt => |*a| try a.print(indent),
-            .control_flow_stmt => |c| try c.print(indent),
-            .return_stmt => |*r| try r.print(indent),
-            .expr_stmt => |*e| try e.print(indent),
-        }
-    }
-};
-
 pub const DeferStmt = struct {
-    inner: *DeferrableStmt,
+    statement_list: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *DeferStmt, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("defer stmt\n", .{});
-        try self.inner.print(indent + 4);
+        for (self.statement_list.items) |*s| {
+            try s.print(indent + 4);
+        }
     }
 };
 
