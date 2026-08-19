@@ -941,6 +941,7 @@ pub const Expr = union(enum) {
                 u.deinit(allocator);
                 allocator.destroy(self);
             },
+            .ident => allocator.destroy(self),
             else => {
                 // TODO:
             },
