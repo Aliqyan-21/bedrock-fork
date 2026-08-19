@@ -1,0 +1,13 @@
+func foo() -> u8
+    if 2
+      var a = 20;
+      a = 10;
+      if 2
+        a = 10;
+      end
+    elif 1
+      var b = 30;
+    else
+      var c = 42;
+    end
+end

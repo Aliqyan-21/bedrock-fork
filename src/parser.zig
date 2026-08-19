@@ -430,6 +430,7 @@ pub const Parser = struct {
         _ = self;
         return error.notimplemented;
     }
+
     fn parse_match_expr(self: *Parser) !ast.ControlFlowStmt {
         var tok = try self.lexer.next();
         var match = ast.MatchExpr{
@@ -446,11 +447,64 @@ pub const Parser = struct {
         tok = try self.lexer.peek_token();
         if (tok.type == token.TokenType.kw_end) {
             _ = try self.lexer.next();
+        } else if (tok.type == token.TokenType.kw_case) {
+            match.arms = try self.parse_match_arms();
         } else {
             // TODO:
         }
 
         return .{ .match_expr = match };
+    }
+
+    fn parse_match_arms(self: *Parser) !std.ArrayList(ast.MatchArm) {
+        var tok = try self.lexer.peek_token();
+        var arms: std.ArrayList(ast.MatchArm) = .empty;
+        while (tok.type != token.TokenType.kw_end) {
+            // parse match pattern
+            try arms.append(self.allocator, try self.parse_match_arm());
+            // check if the tok is 'case' for 'else'
+            tok = try self.lexer.peek_token();
+        }
+        // 'end' keyword
+        _ = try self.lexer.next();
+
+        return arms;
+    }
+
+    fn parse_match_arm(self: *Parser) anyerror!ast.MatchArm {
+        var tok = try self.lexer.peek_token();
+        var match_arm: ast.MatchArm = undefined;
+        match_arm.token = tok;
+        // expect case keyword
+        if (try self.expect(.kw_case, "expected 'case'") == null) {
+            try self.sync(&.{ .kw_case, .kw_end });
+            return match_arm;
+        }
+
+        tok = try self.lexer.next();
+        switch (tok.type) {
+            .integer => {
+                match_arm.pattern = try self.parse_literal_pattern(tok);
+            },
+            else => {
+                // TODO:
+            },
+        }
+
+        match_arm.body = try self.parse_body();
+
+        return match_arm;
+    }
+
+    fn parse_literal_pattern(self: *Parser, tok: token.Token) !ast.Pattern {
+        _ = self;
+        return switch (tok.type) {
+            .integer => .{ .integer = tok.val },
+            .ident => .{ .ident = tok.val },
+            .kw_false => .{ .boolean = false },
+            .kw_true => .{ .boolean = true },
+            else => unreachable,
+        };
     }
 
     fn parse_while_expr(self: *Parser) !ast.ControlFlowStmt {
