@@ -293,6 +293,7 @@ pub const Parser = struct {
             .kw_defer => try self.parse_defer_stmt(),
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
+            .kw_if, .kw_match, .kw_while, .kw_for => try self.parse_control_flow_stmt(),
             else => try self.parse_expr_stmt(),
         };
     }
@@ -409,6 +410,38 @@ pub const Parser = struct {
         const value = try self.parse_expression();
         _ = try self.expect(.semicolon, "expected ';'");
         return ast.Stmt{ .expr_stmt = .{ .value = value } };
+    }
+
+    fn parse_control_flow_stmt(self: *Parser) !ast.Stmt {
+        const tok = try self.lexer.peek_token();
+
+        const cf = try self.allocator.create(ast.ControlFlowStmt);
+        cf.* = switch (tok.type) {
+            .kw_if => try self.parse_if_expr(),
+            .kw_match => try self.parse_match_expr(),
+            .kw_while => try self.parse_while_expr(),
+            .kw_for => try self.parse_for_expr(),
+            else => unreachable,
+        };
+
+        return ast.Stmt{ .control_flow_stmt = cf };
+    }
+
+    fn parse_if_expr(self: *Parser) !ast.ControlFlowStmt {
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_match_expr(self: *Parser) !ast.ControlFlowStmt {
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_while_expr(self: *Parser) !ast.ControlFlowStmt {
+        _ = self;
+        return error.notimplemented;
+    }
+    fn parse_for_expr(self: *Parser) !ast.ControlFlowStmt {
+        _ = self;
+        return error.notimplemented;
     }
 
     pub fn parse_type(self: *Parser) anyerror!*ast.Type {
