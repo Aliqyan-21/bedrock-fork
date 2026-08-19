@@ -385,11 +385,12 @@ pub const Parser = struct {
         return ast.Stmt{ .local_static_var_stmt = lsv_stmt };
     }
 
-    fn parse_defer_stmt(self: *Parser) !ast.Stmt {
-        //todo: implement
-        _ = self;
-        return error.notimplemented;
+    fn parse_defer_stmt(self: *Parser) anyerror!ast.Stmt {
+        const tok = try self.lexer.next();
+        const statement_list = try self.parse_body();
+        return ast.Stmt{ .defer_stmt = .{ .statement_list = statement_list, .token = tok } };
     }
+
     fn parse_unsafe_stmt(self: *Parser) !ast.Stmt {
         //todo: implement
         _ = self;
