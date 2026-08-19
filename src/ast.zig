@@ -912,6 +912,11 @@ pub const ForExpr = struct {
             try stmt.print(indent + 4);
         }
     }
+    pub fn deinit(self: *ForExpr, allocator: std.mem.Allocator) void {
+        self.iterable.deinit(allocator);
+        for (self.body.items) |*i| i.deinit(allocator);
+        self.body.deinit(allocator);
+    }
 };
 
 // comptime_expr = "comptime" block "end"
@@ -1044,10 +1049,8 @@ pub const ControlFlowStmt = union(enum) {
         switch (self.*) {
             .match_expr => |*m| m.deinit(allocator),
             .if_expr => |*i| i.deinit(allocator),
+            .for_expr => |*f| f.deinit(allocator),
             .while_expr => |*w| w.deinit(allocator),
-            else => {
-                // TODO:
-            },
         }
     }
 };

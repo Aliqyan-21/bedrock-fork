@@ -559,9 +559,25 @@ pub const Parser = struct {
         return .{ .while_expr = while_expr };
     }
 
-    fn parse_for_expr(self: *Parser) !ast.ControlFlowStmt {
-        _ = self;
-        return error.notimplemented;
+    fn parse_for_expr(self: *Parser) anyerror!ast.ControlFlowStmt {
+        const tok = try self.lexer.next();
+        var for_expr = ast.ForExpr{
+            .binding = undefined,
+            .iterable = undefined,
+            .body = .empty,
+            .token = tok,
+        };
+
+        const binding_tok = try self.expect(.ident, "expected identifier") orelse
+            token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+        for_expr.binding = binding_tok.val;
+
+        _ = try self.expect(.kw_in, "expected 'in'");
+
+        for_expr.iterable = try self.parse_expression();
+        for_expr.body = try self.parse_body();
+
+        return .{ .for_expr = for_expr };
     }
 
     pub fn parse_type(self: *Parser) anyerror!*ast.Type {
