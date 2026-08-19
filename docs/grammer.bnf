@@ -58,7 +58,7 @@ place_expr      = "*" "(" expression ")"
 compound_op     = "+=" | "-=" | "*=" | "/=" | "%="
                 | "&=" | "|=" | "^=" | "<<=" | ">>="
 
-defer_stmt      = "defer" { statement } "end"
+defer_stmt      = "defer" block "end"
 
 unsafe_stmt     = "unsafe" block "end"
 
