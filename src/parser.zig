@@ -276,10 +276,12 @@ pub const Parser = struct {
         var stmts: std.ArrayList(ast.Stmt) = .empty;
         while (true) {
             const tok = try self.lexer.peek_token();
-            if (tok.type == .kw_end or tok.type == .eof) break;
+            if (tok.type == .kw_end or tok.type == .kw_elif or tok.type == .kw_else or tok.type == .eof) break;
             try stmts.append(self.allocator, try self.parse_statement());
         }
-        _ = try self.expect(.kw_end, "expected 'end'");
+        if ((try self.lexer.peek_token()).type == .kw_end) {
+            _ = try self.expect(.kw_end, "expected 'end'");
+        }
         return stmts;
     }
 
@@ -426,10 +428,47 @@ pub const Parser = struct {
         return ast.Stmt{ .control_flow_stmt = cf };
     }
 
-    fn parse_if_expr(self: *Parser) !ast.ControlFlowStmt {
-        _ = self;
-        return error.notimplemented;
+    fn parse_if_expr(self: *Parser) anyerror!ast.ControlFlowStmt {
+        var tok = try self.lexer.next();
+        var if_expr = ast.IfExpr{
+            .cond = undefined,
+            .then_body = .empty,
+            .elifs = .empty,
+            .else_body = null,
+            .token = tok,
+        };
+
+        if_expr.cond = try self.parse_expression();
+        if_expr.then_body = try self.parse_body();
+
+        tok = try self.lexer.peek_token();
+        if (tok.type == .kw_elif) {
+            if_expr.elifs = try self.parse_elif_clause();
+        }
+
+        tok = try self.lexer.peek_token();
+        if (tok.type == .kw_else) {
+            _ = try self.lexer.next();
+            if_expr.else_body = try self.parse_body();
+        }
+
+        _ = try self.expect(.kw_end, "expected 'end'");
+
+        return .{ .if_expr = if_expr };
     }
+
+    fn parse_elif_clause(self: *Parser) !std.ArrayList(ast.ElifClause) {
+        var elifs: std.ArrayList(ast.ElifClause) = .empty;
+        while (true) {
+            const tok = try self.lexer.next();
+            const cond = try self.parse_expression();
+            const body = try self.parse_body();
+            try elifs.append(self.allocator, .{ .cond = cond, .body = body, .token = tok });
+            if ((try self.lexer.peek_token()).type != .kw_elif) break;
+        }
+        return elifs;
+    }
+
     fn parse_match_expr(self: *Parser) !ast.ControlFlowStmt {
         var tok = try self.lexer.next();
         var match = ast.MatchExpr{
