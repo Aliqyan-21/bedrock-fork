@@ -185,3 +185,38 @@ test "local static var statement" {
     try std.testing.expect(res.stmt.local_static_var_stmt.value.* == .literal);
     try std.testing.expectEqualStrings("10", res.stmt.local_static_var_stmt.value.literal.raw);
 }
+
+test "if/elif/else expression" {
+    var res = try parse_stmt(std.testing.allocator,
+        \\if 2
+        \\  var a = 20;
+        \\elif 1
+        \\  var b = 30;
+        \\else
+        \\  var c = 42;
+        \\end
+    );
+    defer res.deinit(std.testing.allocator);
+
+    try std.testing.expect(res.stmt == .control_flow_stmt);
+    const cf = res.stmt.control_flow_stmt;
+    try std.testing.expect(cf == .if_expr);
+    const if_expr = cf.if_expr;
+
+    try std.testing.expect(if_expr.cond.* == .literal);
+    try std.testing.expectEqualStrings("2", if_expr.cond.literal.raw);
+
+    try std.testing.expectEqual(@as(usize, 1), if_expr.then_body.items.len);
+    try std.testing.expect(if_expr.then_body.items[0] == .var_stmt);
+    try std.testing.expectEqualStrings("a", if_expr.then_body.items[0].var_stmt.name);
+    try std.testing.expectEqualStrings("20", if_expr.then_body.items[0].var_stmt.value.literal.raw);
+
+    try std.testing.expectEqual(@as(usize, 1), if_expr.elifs.items.len);
+    try std.testing.expectEqualStrings("1", if_expr.elifs.items[0].cond.literal.raw);
+    try std.testing.expectEqual(@as(usize, 1), if_expr.elifs.items[0].body.items.len);
+    try std.testing.expectEqualStrings("b", if_expr.elifs.items[0].body.items[0].var_stmt.name);
+
+    try std.testing.expect(if_expr.else_body != null);
+    try std.testing.expectEqual(@as(usize, 1), if_expr.else_body.?.items.len);
+    try std.testing.expectEqualStrings("c", if_expr.else_body.?.items[0].var_stmt.name);
+}

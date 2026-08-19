@@ -751,6 +751,11 @@ pub const ElifClause = struct {
             try stmt.print(indent + 4);
         }
     }
+    pub fn deinit(self: *ElifClause, allocator: std.mem.Allocator) void {
+        self.cond.deinit(allocator);
+        for (self.body.items) |*s| s.deinit(allocator);
+        self.body.deinit(allocator);
+    }
 };
 
 // if_expr = "if" expression block { elif_clause } [ else_clause ] "end"
@@ -778,6 +783,17 @@ pub const IfExpr = struct {
                 std.debug.print("else clause\n", .{});
                 try stmt.print(indent + 4);
             }
+        }
+    }
+    pub fn deinit(self: *IfExpr, allocator: std.mem.Allocator) void {
+        self.cond.deinit(allocator);
+        for (self.then_body.items) |*s| s.deinit(allocator);
+        self.then_body.deinit(allocator);
+        for (self.elifs.items) |*s| s.deinit(allocator);
+        self.elifs.deinit(allocator);
+        if (self.else_body) |*body| {
+            for (body.items) |*i| i.deinit(allocator);
+            body.deinit(allocator);
         }
     }
 };
@@ -1022,6 +1038,7 @@ pub const ControlFlowStmt = union(enum) {
     pub fn deinit(self: *ControlFlowStmt, allocator: std.mem.Allocator) void {
         switch (self.*) {
             .match_expr => |*m| m.deinit(allocator),
+            .if_expr => |*i| i.deinit(allocator),
             else => {
                 // TODO:
             },
