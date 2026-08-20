@@ -498,20 +498,26 @@ pub const Parser = struct {
             // TODO:
         }
 
+        tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.kw_else) {
+            match.else_body = try self.parse_else_arm();
+        }
+
         return .{ .match_expr = match };
     }
 
     fn parse_match_arms(self: *Parser) !std.ArrayList(ast.MatchArm) {
         var tok = try self.lexer.peek_token();
         var arms: std.ArrayList(ast.MatchArm) = .empty;
-        while (tok.type != token.TokenType.kw_end and tok.type != token.TokenType.eof) {
+        while (tok.type != token.TokenType.kw_end and tok.type != token.TokenType.eof and tok.type != token.TokenType.kw_else and tok.type != token.TokenType.kw_match) {
             // parse match pattern
             try arms.append(self.allocator, try self.parse_match_arm());
             // check if the tok is 'case' for 'else'
             tok = try self.lexer.peek_token();
         }
         // 'end' keyword
-        _ = try self.expect(.kw_end, "expected 'end'");
+        if (tok.type == token.TokenType.kw_end)
+            _ = try self.lexer.next();
 
         return arms;
     }
@@ -528,9 +534,7 @@ pub const Parser = struct {
 
         tok = try self.lexer.next();
         switch (tok.type) {
-            .integer => {
-                match_arm.pattern = try self.parse_literal_pattern(tok);
-            },
+            .integer => match_arm.pattern = try self.parse_literal_pattern(tok),
             else => {
                 // TODO:
             },
@@ -539,6 +543,11 @@ pub const Parser = struct {
         match_arm.body = try self.parse_body();
 
         return match_arm;
+    }
+
+    fn parse_else_arm(self: *Parser) anyerror!std.ArrayList(ast.Stmt) {
+        _ = try self.lexer.next();
+        return try self.parse_body();
     }
 
     fn parse_literal_pattern(self: *Parser, tok: token.Token) !ast.Pattern {
