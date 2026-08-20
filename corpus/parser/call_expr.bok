@@ -1,4 +1,7 @@
 func foo() -> i32
     bar();
     baz(1, 1);
+    bazz(1, a, 1, a);
+    var a = bar();
+    var b = a + bar(1, 1, 1);
 end

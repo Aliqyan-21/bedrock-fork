@@ -922,8 +922,8 @@ pub const Parser = struct {
             return c_expr;
         }
         while (true) {
-            if (tok.type == .r_paren or tok.type == .eof)
-                break;
+            if (tok.type == .r_paren or tok.type == .eof) break;
+            // TODO: check for comma missing error
             if (tok.type == .comma) {
                 _ = try self.lexer.next();
             }
