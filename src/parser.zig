@@ -534,9 +534,10 @@ pub const Parser = struct {
 
         tok = try self.lexer.next();
         switch (tok.type) {
-            .integer => match_arm.pattern = try self.parse_literal_pattern(tok),
+            .integer, .char, .kw_true, .kw_false => match_arm.pattern = try self.parse_literal_pattern(tok),
+            .ident => match_arm.pattern = try self.parse_variant_pattern(),
             else => {
-                // TODO:
+                // TODO: error handling
             },
         }
 
@@ -554,11 +555,17 @@ pub const Parser = struct {
         _ = self;
         return switch (tok.type) {
             .integer => .{ .integer = tok.val },
-            .ident => .{ .ident = tok.val },
+            .char => .{ .ident = tok.val },
             .kw_false => .{ .boolean = false },
             .kw_true => .{ .boolean = true },
             else => unreachable,
         };
+    }
+
+    fn parse_variant_pattern(self: *Parser) !ast.Pattern {
+        _ = self;
+        // TODO:
+        return error.TODO;
     }
 
     fn parse_while_expr(self: *Parser) anyerror!ast.ControlFlowStmt {
