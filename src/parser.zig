@@ -935,7 +935,13 @@ pub const Parser = struct {
             tok = try self.lexer.peek_token();
             // expect a operator
             const op = switch (tok.type) {
-                .plus, .minus, .star, .slash, .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt => tok.type,
+                // zig fmt: off
+                .plus, .minus, .star, .slash, 
+                .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt,
+                .amp_amp, .pipe_pipe,
+                .amp, .pipe, .caret,
+                .shl, .shr => tok.type,
+                // zig fmt: on
                 else => break,
             };
 
@@ -963,9 +969,16 @@ pub const Parser = struct {
 
 fn infix_binding_power(op: token.TokenType) [2]usize {
     return switch (op) {
-        .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt => .{ 1, 2 },
-        .plus, .minus => .{ 3, 4 },
-        .star, .slash => .{ 5, 6 },
+        .pipe_pipe => .{ 1, 2 },
+        .amp_amp => .{ 3, 4 },
+        .eq_eq, .bang_eq, .lt, .lt_eq, .gt, .gt_eq => .{ 5, 6 },
+        .pipe => .{ 7, 8 },
+        .caret => .{ 9, 10 },
+        .amp => .{ 11, 12 },
+        .shl, .shr => .{ 13, 14 },
+        .dot_dot => .{ 15, 16 },
+        .plus, .minus => .{ 17, 18 },
+        .star, .slash, .percent => .{ 19, 20 },
         else => .{ 0, 0 },
     };
 }
@@ -989,6 +1002,13 @@ fn get_binary_op(op: token.TokenType) ast.BinaryOp {
         .bang_eq => ast.BinaryOp.ne,
         .gt => ast.BinaryOp.gt,
         .lt => ast.BinaryOp.lt,
+        .pipe => ast.BinaryOp.bit_or,
+        .caret => ast.BinaryOp.bit_xor,
+        .amp => ast.BinaryOp.bit_and,
+        .amp_amp => ast.BinaryOp.logical_and,
+        .pipe_pipe => ast.BinaryOp.logical_or,
+        .shl => ast.BinaryOp.shl,
+        .shr => ast.BinaryOp.shr,
         else => unreachable,
     };
 }

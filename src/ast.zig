@@ -626,6 +626,13 @@ pub const BinaryExpr = struct {
             .lt => "<",
             .le => "<=",
             .ne => "!=",
+            .logical_or => "||",
+            .logical_and => "&&",
+            .bit_or => "|",
+            .bit_xor => "^",
+            .bit_and => "&",
+            .shr => ">>",
+            .shl => "<<",
             else => "",
         };
         return try std.fmt.allocPrint(allocator, "({s} {s} {s})", .{ lhs, op, rhs });
