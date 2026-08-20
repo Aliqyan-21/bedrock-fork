@@ -302,6 +302,7 @@ pub const Parser = struct {
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
             .kw_if, .kw_match, .kw_while, .kw_for => try self.parse_control_flow_stmt(),
+            // .ident => try self.parse_expression_statement(),
             else => try self.parse_expr_or_assign_stmt(),
         };
     }
@@ -413,9 +414,6 @@ pub const Parser = struct {
         return ast.Stmt{ .return_stmt = .{ .value = value, .token = tok } };
     }
 
-    // todo: make this such to be able to parse assign statements like
-    // a = 10;
-    // a = b;
     fn parse_expr_or_assign_stmt(self: *Parser) !ast.Stmt {
         const tok = try self.lexer.peek_token();
         const expr = try self.parse_expression();
@@ -897,6 +895,63 @@ pub const Parser = struct {
         return var_def;
     }
 
+    pub fn parse_expression_statement(self: *Parser) !ast.Stmt {
+        const e = try self.parse_expression();
+        // expect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+        return .{ .expr_stmt = .{ .value = e } };
+    }
+
+    pub fn parse_call_expression(self: *Parser, callee: *ast.Expr) anyerror!ast.CallExpr {
+        // TODO: check if tok is ok to peek here
+        var tok = try self.lexer.peek_token();
+        var c_expr = ast.CallExpr{
+            .callee = callee,
+            .args = .empty,
+            .token = tok,
+        };
+
+        // expect a '('
+        tok = (try self.expect(.l_paren, "expected '('")).?;
+        tok = try self.lexer.peek_token();
+        if (tok.type == .r_paren) {
+            _ = try self.lexer.next(); // consume ')'
+            return c_expr;
+        }
+        while (true) {
+            if (tok.type == .r_paren or tok.type == .eof) break;
+            // TODO: check for comma missing error
+            if (tok.type == .comma) {
+                _ = try self.lexer.next();
+            }
+            const arg = try self.parse_call_arg();
+            try c_expr.args.append(self.allocator, arg);
+            tok = try self.lexer.peek_token();
+        }
+
+        if (tok.type == token.TokenType.r_paren) _ = try self.lexer.next();
+
+        return c_expr;
+    }
+
+    pub fn parse_call_arg(self: *Parser) anyerror!ast.CallArg {
+        var c_arg = ast.CallArg{
+            .name = null,
+            .value = undefined,
+        };
+
+        const tok = try self.lexer.peek_token();
+        if (tok.type == token.TokenType.eq) {
+            c_arg.name = tok.val;
+            // expect '='
+            _ = try self.expect(.semicolon, "expected '='");
+        }
+
+        c_arg.value = try self.parse_expression();
+
+        return c_arg;
+    }
+
     pub fn parse_expression(self: *Parser) !*ast.Expr {
         return try self.parse_expression_bp(0);
     }
@@ -964,10 +1019,21 @@ pub const Parser = struct {
                 .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt,
                 .amp_amp, .pipe_pipe,
                 .amp, .pipe, .caret,
-                .shl, .shr => tok.type,
+                .shl, .shr,
+                .l_paren => tok.type,
                 // zig fmt: on
                 else => break,
             };
+
+            if (postfix_binding_power(op)) |p_bp| {
+                if (p_bp[0] < min_bp) break;
+                if (tok.type == token.TokenType.l_paren) {
+                    const prev_lhs = lhs;
+                    lhs = try self.allocator.create(ast.Expr);
+                    lhs.* = .{ .call = try self.parse_call_expression(prev_lhs) };
+                }
+                continue;
+            }
 
             const i_bp = infix_binding_power(op);
             if (i_bp[0] < min_bp) break;
@@ -1011,6 +1077,13 @@ fn prefix_binding_power(op: token.TokenType) [2]usize {
     return switch (op) {
         .minus, .bang_eq, .tilde, .amp, .star => .{ 0, 5 },
         else => .{ 0, 0 },
+    };
+}
+
+fn postfix_binding_power(op: token.TokenType) ?[2]usize {
+    return switch (op) {
+        .l_paren => .{ 21, 22 },
+        else => null,
     };
 }
 

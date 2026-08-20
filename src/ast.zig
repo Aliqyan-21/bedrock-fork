@@ -697,6 +697,10 @@ pub const CallArg = struct {
         }
         try self.value.print(indent + 4);
     }
+
+    pub fn deinit(self: *CallArg, allocator: std.mem.Allocator) void {
+        self.value.deinit(allocator);
+    }
 };
 
 pub const CallExpr = struct {
@@ -709,6 +713,14 @@ pub const CallExpr = struct {
         std.debug.print("call expr\n", .{});
         try self.callee.print(indent + 4);
         for (self.args.items) |*arg| try arg.print(indent + 4);
+    }
+
+    pub fn deinit(self: *CallExpr, allocator: std.mem.Allocator) void {
+        self.callee.deinit(allocator);
+        for (self.args.items) |*arg| {
+            arg.deinit(allocator);
+        }
+        self.args.deinit(allocator);
     }
 };
 
@@ -990,6 +1002,10 @@ pub const Expr = union(enum) {
                 allocator.destroy(self);
             },
             .ident => allocator.destroy(self),
+            .call => |*c| {
+                c.deinit(allocator);
+                allocator.destroy(self);
+            },
             else => {
                 // TODO:
             },
