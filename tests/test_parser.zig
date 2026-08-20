@@ -169,6 +169,27 @@ test "expression precedence parsing" {
     buf = try parse_expression(std.testing.allocator, "(10 + 10 > -10");
     try std.testing.expectEqualStrings(buf, "((10 + 10) > (-10))");
     allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 << 2 + 1");
+    try std.testing.expectEqualStrings(buf, "(10 << (2 + 1))");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 < 20 == true");
+    try std.testing.expectEqualStrings(buf, "((10 < 20) == true)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 & 20 == 0");
+    try std.testing.expectEqualStrings(buf, "((10 & 20) == 0)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 ^ 20 & 30");
+    try std.testing.expectEqualStrings(buf, "(10 ^ (20 & 30))");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 | 20 ^ 30");
+    try std.testing.expectEqualStrings(buf, "(10 | (20 ^ 30))");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "true && false || true");
+    try std.testing.expectEqualStrings(buf, "((true && false) || true)");
+    allocator.free(buf);
+    buf = try parse_expression(std.testing.allocator, "10 || 20 && 30");
+    try std.testing.expectEqualStrings(buf, "(10 || (20 && 30))");
+    allocator.free(buf);
 }
 
 test "var statement" {
