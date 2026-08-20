@@ -302,6 +302,7 @@ pub const Parser = struct {
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
             .kw_if, .kw_match, .kw_while, .kw_for => try self.parse_control_flow_stmt(),
+            .ident => try self.parse_expression_statement(),
             else => try self.parse_expr_or_assign_stmt(),
         };
     }
@@ -897,6 +898,13 @@ pub const Parser = struct {
         return var_def;
     }
 
+    pub fn parse_expression_statement(self: *Parser) !ast.Stmt {
+        const e = try self.parse_expression();
+        // expect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+        return .{ .expr_stmt = .{ .value = e } };
+    }
+
     pub fn parse_call_expression(self: *Parser, callee: *ast.Expr) anyerror!ast.CallExpr {
         // TODO: check if tok is ok to peek here
         var tok = try self.lexer.peek_token();
@@ -918,12 +926,13 @@ pub const Parser = struct {
                 break;
             if (tok.type == .comma) {
                 _ = try self.lexer.next();
-                continue;
             }
             const arg = try self.parse_call_arg();
             try c_expr.args.append(self.allocator, arg);
             tok = try self.lexer.peek_token();
         }
+
+        if (tok.type == token.TokenType.r_paren) _ = try self.lexer.next();
 
         return c_expr;
     }

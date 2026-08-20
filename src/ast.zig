@@ -712,10 +712,6 @@ pub const CallExpr = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("call expr\n", .{});
         try self.callee.print(indent + 4);
-        std.debug.print("call args items list: {}\n", .{self.args.items.len});
-        for (self.args.items) |*arg| {
-            std.debug.print("arg: {any}\n", .{arg.*.name});
-        }
         for (self.args.items) |*arg| try arg.print(indent + 4);
     }
 
