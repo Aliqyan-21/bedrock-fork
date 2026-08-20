@@ -78,7 +78,6 @@ pub const Parser = struct {
     }
 
     pub fn parse_items(self: *Parser) !std.ArrayList(ast.Item) {
-        // TODO: replace the [] fields with arrayList
         var items: std.ArrayList(ast.Item) = .empty;
         while (!self.lexer.is_end()) {
             var tok = try self.lexer.peek_token();
@@ -418,9 +417,34 @@ pub const Parser = struct {
     // a = 10;
     // a = b;
     fn parse_expr_or_assign_stmt(self: *Parser) !ast.Stmt {
-        const value = try self.parse_expression();
+        const tok = try self.lexer.peek_token();
+        const expr = try self.parse_expression();
+        const op = try self.lexer.peek_token();
+        const coop = get_compund_op(op.type);
+        if (op.type == .eq or coop != null) {
+            _ = try self.lexer.next();
+            const value = try self.parse_expression();
+            _ = try self.expect(.semicolon, "expected ';'");
+            return ast.Stmt{ .assign_stmt = .{ .target = expr, .op = coop, .value = value, .token = tok } };
+        }
         _ = try self.expect(.semicolon, "expected ';'");
-        return ast.Stmt{ .expr_stmt = .{ .value = value } };
+        return ast.Stmt{ .expr_stmt = .{ .value = expr } };
+    }
+
+    fn get_compund_op(ty: token.TokenType) ?ast.CompoundOp {
+        return switch (ty) {
+            .plus_eq => ast.CompoundOp.add,
+            .minus_eq => ast.CompoundOp.sub,
+            .star_eq => ast.CompoundOp.mul,
+            .slash_eq => ast.CompoundOp.div,
+            .percent_eq => ast.CompoundOp.mod,
+            .amp_eq => ast.CompoundOp.bit_and,
+            .pipe_eq => ast.CompoundOp.bit_or,
+            .caret_eq => ast.CompoundOp.bit_xor,
+            .shl_eq => ast.CompoundOp.shl,
+            .shr_eq => ast.CompoundOp.shr,
+            else => null,
+        };
     }
 
     fn parse_control_flow_stmt(self: *Parser) !ast.Stmt {

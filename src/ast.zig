@@ -1029,13 +1029,13 @@ pub const Stmt = union(enum) {
         switch (self.*) {
             .var_stmt => |*v| v.deinit(allocator),
             .const_stmt => |*c| c.deinit(allocator),
+            .assign_stmt => |*a| a.deinit(allocator),
             .local_static_var_stmt => |*l| l.deinit(allocator),
             .defer_stmt => |*d| d.deinit(allocator),
             .unsafe_stmt => |*u| u.deinit(allocator),
             .return_stmt => |*r| r.deinit(allocator),
             .expr_stmt => |*e| e.deinit(allocator),
             .control_flow_stmt => |*c_f| c_f.deinit(allocator),
-            else => {},
         }
     }
 };
@@ -1161,6 +1161,10 @@ pub const AssignStmt = struct {
         try self.target.print(indent + 4);
         if (self.op) |*op| try op.print(indent + 4);
         try self.value.print(indent + 4);
+    }
+    pub fn deinit(self: *AssignStmt, allocator: std.mem.Allocator) void {
+        self.target.deinit(allocator);
+        self.value.deinit(allocator);
     }
 };
 
