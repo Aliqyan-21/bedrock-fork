@@ -81,17 +81,42 @@ pub const Sema = struct {
         }
     }
 
-    fn visit_statement(stmt: *ast.Stmt) !void {
+    fn visit_statement(stmt: *ast.Stmt) anyerror!void {
+        std.debug.print("visiting statement\n", .{});
         switch (stmt.*) {
-            .var_stmt => {},
-            .const_stmt => {},
-            .local_static_var_stmt => {},
-            .assign_stmt => {},
-            .defer_stmt => {},
-            .unsafe_stmt => {},
+            .var_stmt => |*v| {
+                if (v.type_ann) |ty| try visit_type(ty);
+                try visit_expression(v.value);
+            },
+            .const_stmt => |*c| {
+                if (c.type_ann) |ty| try visit_type(ty);
+                try visit_expression(c.value);
+            },
+            .local_static_var_stmt => |lv| {
+                if (lv.type_ann) |ty| try visit_type(ty);
+                try visit_expression(lv.value);
+            },
+            .assign_stmt => |*a| {
+                try visit_expression(a.target);
+                try visit_expression(a.value);
+            },
+            .defer_stmt => |*d| {
+                for (d.statement_list.items) |*s| {
+                    try visit_statement(s);
+                }
+            },
+            .unsafe_stmt => |*u| {
+                for (u.body.items) |*s| {
+                    try visit_statement(s);
+                }
+            },
             .control_flow_stmt => {},
-            .return_stmt => {},
-            .expr_stmt => {},
+            .return_stmt => |*r| {
+                if (r.value) |value| try visit_expression(value);
+            },
+            .expr_stmt => |*e| {
+                if (e.value) |value| try visit_expression(value);
+            },
         }
     }
 
