@@ -682,6 +682,10 @@ pub const FieldAccessExpr = struct {
         std.debug.print("field access: {s}\n", .{self.field});
         try self.target.print(indent + 4);
     }
+
+    pub fn deinit(self: *FieldAccessExpr, allocator: std.mem.Allocator) void {
+        self.target.deinit(allocator);
+    }
 };
 
 pub const CallArg = struct {
@@ -1002,6 +1006,10 @@ pub const Expr = union(enum) {
                 allocator.destroy(self);
             },
             .ident => allocator.destroy(self),
+            .field_access => |*f| {
+                f.deinit(allocator);
+                allocator.destroy(self);
+            },
             .call => |*c| {
                 c.deinit(allocator);
                 allocator.destroy(self);
