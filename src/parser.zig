@@ -1035,7 +1035,7 @@ pub const Parser = struct {
                 .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt,
                 .amp_amp, .pipe_pipe,
                 .amp, .pipe, .caret,
-                .shl, .shr,
+                .shl, .shr, .dot,
                 .l_paren => tok.type,
                 // zig fmt: on
                 else => break,
@@ -1047,6 +1047,12 @@ pub const Parser = struct {
                     const prev_lhs = lhs;
                     lhs = try self.allocator.create(ast.Expr);
                     lhs.* = .{ .call = try self.parse_call_expression(prev_lhs) };
+                } else if (tok.type == .dot) {
+                    _ = try self.lexer.next();
+                    const f = try self.expect(.ident, "expected field name") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+                    const tmp = lhs;
+                    lhs = try self.allocator.create(ast.Expr);
+                    lhs.* = .{ .field_access = .{ .target = tmp, .field = f.val, .token = f } };
                 }
                 continue;
             }
@@ -1098,7 +1104,7 @@ fn prefix_binding_power(op: token.TokenType) [2]usize {
 
 fn postfix_binding_power(op: token.TokenType) ?[2]usize {
     return switch (op) {
-        .l_paren => .{ 21, 22 },
+        .l_paren, .dot => .{ 21, 22 },
         else => null,
     };
 }
