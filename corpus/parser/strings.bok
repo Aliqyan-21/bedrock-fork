@@ -1,0 +1,5 @@
+proc zee()
+  a = "zyro";
+  b = '!';
+  a.cstr();
+end
