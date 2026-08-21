@@ -1,0 +1,2 @@
+func array(arr: [10i32) -> []u8
+end
