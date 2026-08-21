@@ -139,6 +139,9 @@ pub const ProcDef = struct {
         }
         self.params.deinit(allocator);
         self.type_params.deinit(allocator);
+        for (self.body.items) |*stmt| {
+            stmt.deinit(allocator);
+        }
         self.body.deinit(allocator);
     }
 };
