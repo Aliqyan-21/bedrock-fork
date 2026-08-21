@@ -46,6 +46,28 @@ pub const Codegen = struct {
         const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(llvm.LLVMInt32Type(), null, 0, 0);
         const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, function.name.ptr, func_type);
         const entry: llvm.LLVMBasicBlockRef = llvm.LLVMAppendBasicBlock(main_func, "entry");
-        _ = entry;
+        const builder: llvm.LLVMBuilderRef = llvm.LLVMCreateBuilder();
+        llvm.LLVMPositionBuilderAtEnd(builder, entry);
+        for (function.body.items) |*item| {
+            switch (item.*) {
+                .return_stmt => |*r| {
+                    if (r.value) |e| {
+                        switch (e.*) {
+                            .literal => |*l| {
+                                const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
+                                const i_c: llvm.LLVMValueRef = llvm.LLVMConstInt(llvm.LLVMInt32Type(), i, 1);
+                                _ = llvm.LLVMBuildRet(builder, i_c);
+                            },
+                            else => {
+                                // TODO:
+                            },
+                        }
+                    }
+                },
+                else => {
+                    // TODO:
+                },
+            }
+        }
     }
 };
