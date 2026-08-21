@@ -23,8 +23,8 @@ pub const Sema = struct {
     fn visit_item(item: *ast.Item) !void {
         switch (item.*) {
             .import_def => {},
-            .function => {},
-            .proc => {},
+            .function => |*f| try visit_function(f),
+            .proc => |*p| try visit_proc(p),
             .struct_def => {},
             .enum_def => {},
             .extern_def => {},
@@ -34,22 +34,32 @@ pub const Sema = struct {
     }
 
     fn visit_function(func: *ast.FunctionDef) !void {
-        //todo: visit type
+        std.debug.print("visiting function\n", .{});
+        try visit_type(func.result);
 
-        for (func.params.items) |*params| {
-            _ = params;
-            //todo: visit type
+        for (func.params.items) |*param| {
+            try visit_type(param.type);
         }
 
         for (func.body.items) |*stmt| {
-            _ = stmt;
-            //todo: visit stmt
+            try visit_statement(stmt);
+        }
+    }
+
+    fn visit_proc(func: *ast.ProcDef) !void {
+        std.debug.print("visiting proc\n", .{});
+        for (func.params.items) |*param| {
+            try visit_type(param.type);
+        }
+
+        for (func.body.items) |*stmt| {
+            try visit_statement(stmt);
         }
     }
 
     fn visit_type(ty: *ast.Type) !void {
         switch (ty.base) {
-            .primive => {},
+            .primitive => {},
             .pointer => {},
             .array => {},
             .named => {},
