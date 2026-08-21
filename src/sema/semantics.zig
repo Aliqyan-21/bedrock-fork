@@ -47,6 +47,31 @@ pub const Sema = struct {
         }
     }
 
+    fn visit_type(ty: *ast.Type) !void {
+        switch (ty.base) {
+            .primive => {},
+            .pointer => {},
+            .array => {},
+            .named => {},
+            .func => {},
+            .proc => {},
+        }
+    }
+
+    fn visit_statement(stmt: *ast.Stmt) !void {
+        switch (stmt.*) {
+            .var_stmt => {},
+            .const_stmt => {},
+            .local_static_var_stmt => {},
+            .assign_stmt => {},
+            .defer_stmt => {},
+            .unsafe_stmt => {},
+            .control_flow_stmt => {},
+            .return_stmt => {},
+            .expr_stmt => {},
+        }
+    }
+
     // note: so the structure is that we visit these different definitions and all the things
     // like basically make visitors and check for our decided semantics...
     // so progressively we keep developing the semantics here.
