@@ -4,25 +4,28 @@ const lexer = @import("lexer.zig");
 const err = @import("error.zig");
 const token = @import("token.zig");
 const parser = @import("parser.zig");
+const ast = @import("ast.zig");
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
     errors: std.ArrayList(err.SourceError),
     source: []const u8,
+    ast: ast.AST,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8) Compiler {
         return Compiler{
             .allocator = allocator,
             .errors = .empty,
             .source = source,
+            .ast = undefined,
         };
     }
 
     pub fn run(self: *Compiler) !void {
         var p = parser.Parser.init(self.allocator, self.source, self);
-        var p_res = try p.parse();
-        try p_res.print();
-        p_res.deinit(self.allocator);
+        self.ast = try p.parse();
+        try self.ast.print();
+        self.ast.deinit(self.allocator);
     }
 
     pub fn addError(self: *Compiler, msg: []const u8, severity: err.Severity, tok: token.Token) !void {
