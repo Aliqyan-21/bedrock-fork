@@ -1,6 +1,6 @@
 const std = @import("std");
-const ast = @import("ast.zig");
-const compiler = @import("compiler.zig");
+const ast = @import("../ast.zig");
+const compiler = @import("../compiler.zig");
 
 pub const Sema = struct {
     compiler: *compiler.Compiler,
@@ -30,6 +30,20 @@ pub const Sema = struct {
             .extern_def => {},
             .var_def => {},
             .const_def => {},
+        }
+    }
+
+    fn visit_function(func: *ast.FunctionDef) !void {
+        //todo: visit type
+
+        for (func.params.items) |*params| {
+            _ = params;
+            //todo: visit type
+        }
+
+        for (func.body.items) |*stmt| {
+            _ = stmt;
+            //todo: visit stmt
         }
     }
 

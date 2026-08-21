@@ -6,7 +6,7 @@ const token = @import("token.zig");
 const parser = @import("parser.zig");
 const ast = @import("ast.zig");
 const codegen = @import("codegen.zig");
-const sema = @import("semantics.zig");
+const sema = @import("sema/semantics.zig");
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
