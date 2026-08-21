@@ -5,12 +5,14 @@ const err = @import("error.zig");
 const token = @import("token.zig");
 const parser = @import("parser.zig");
 const ast = @import("ast.zig");
+const codegen = @import("codegen.zig");
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
     errors: std.ArrayList(err.SourceError),
     source: []const u8,
     ast: ast.AST,
+    mod: llvm.LLVMModuleRef,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8) Compiler {
         return Compiler{
@@ -18,6 +20,7 @@ pub const Compiler = struct {
             .errors = .empty,
             .source = source,
             .ast = undefined,
+            .mod = undefined,
         };
     }
 
@@ -25,6 +28,17 @@ pub const Compiler = struct {
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
         try self.ast.print();
+        var c = codegen.Codegen.init(self.allocator, self);
+        self.mod = try c.codegen();
+        var error_message: [*c]u8 = null;
+        const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
+        if (res != 0) {
+            if (error_message) |msg| {
+                std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
+
+                llvm.LLVMDisposeMessage(msg);
+            }
+        }
         self.ast.deinit(self.allocator);
     }
 
