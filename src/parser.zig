@@ -232,11 +232,11 @@ pub const Parser = struct {
 
                     try self.sync(&.{ .comma, .r_paren });
 
-                    const hmm = try self.lexer.peek_token();
-                    if (hmm.type == .comma) {
+                    const peek_tok = try self.lexer.peek_token();
+                    if (peek_tok.type == .comma) {
                         _ = try self.lexer.next();
                         continue;
-                    } else if (hmm.type == .r_paren) {
+                    } else if (peek_tok.type == .r_paren) {
                         _ = try self.lexer.next();
                         break;
                     } else {
@@ -750,11 +750,11 @@ pub const Parser = struct {
                     try self.compiler.addError("expected ',' or ')'", err.Severity.Error, sep);
 
                     try self.sync(&.{ .comma, .r_paren });
-                    const hmm = try self.lexer.peek_token();
-                    if (hmm.type == .comma) {
+                    const peek_tok = try self.lexer.peek_token();
+                    if (peek_tok.type == .comma) {
                         _ = try self.lexer.next();
                         continue;
-                    } else if (hmm.type == .r_paren) {
+                    } else if (peek_tok.type == .r_paren) {
                         _ = try self.lexer.next();
                     } else {
                         break;
@@ -784,11 +784,11 @@ pub const Parser = struct {
             }
 
             if (try self.expect(.comma, "expected ',' or ']'") == null) {
-                const hmm = try self.lexer.peek_token();
-                if (hmm.type == .comma) {
+                const peek_tok = try self.lexer.peek_token();
+                if (peek_tok.type == .comma) {
                     _ = try self.lexer.next();
                     continue;
-                } else if (hmm.type == .r_bracket) {
+                } else if (peek_tok.type == .r_bracket) {
                     _ = try self.lexer.next();
                     break;
                 } else {
@@ -936,11 +936,11 @@ pub const Parser = struct {
                 else => {
                     try self.compiler.addError("expected ',' or ')'", err.Severity.Error, tok);
                     try self.sync(&.{ .comma, .r_paren });
-                    const hmm = try self.lexer.peek_token();
-                    if (hmm.type == .comma) {
+                    const peek_tok = try self.lexer.peek_token();
+                    if (peek_tok.type == .comma) {
                         _ = try self.lexer.next();
                         continue;
-                    } else if (hmm.type == .r_paren) {
+                    } else if (peek_tok.type == .r_paren) {
                         _ = try self.lexer.next();
                         break;
                     } else break;

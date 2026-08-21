@@ -1,4 +1,4 @@
 func foo() -> i32
-  pogo(1, 1;
-  dogo(1, a, 1 a);
+  bar(1, 1)
+  baz(1, a, 1 a);
 end
