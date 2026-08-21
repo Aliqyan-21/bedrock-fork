@@ -1,7 +1,6 @@
 ; ModuleID = 'module'
 source_filename = "module"
 
-define i32 @main() {
+define i32 @arrayfication() {
 entry:
-  ret i32 10
 }
