@@ -1013,6 +1013,22 @@ pub const Parser = struct {
                     },
                 };
             },
+            .string => {
+                lhs = try self.allocator.create(ast.Expr);
+                lhs.* = .{ .literal = .{
+                    .kind = ast.LiteralKind.string,
+                    .raw = tok.val,
+                    .token = tok,
+                } };
+            },
+            .char => {
+                lhs = try self.allocator.create(ast.Expr);
+                lhs.* = .{ .literal = .{
+                    .kind = ast.LiteralKind.char,
+                    .raw = tok.val,
+                    .token = tok,
+                } };
+            },
             else => {
                 // TODO:
             },
