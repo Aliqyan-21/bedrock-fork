@@ -5,12 +5,14 @@ const err = @import("error.zig");
 const token = @import("token.zig");
 const parser = @import("parser.zig");
 const ast = @import("ast.zig");
+const codegen = @import("codegen.zig");
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
     errors: std.ArrayList(err.SourceError),
     source: []const u8,
     ast: ast.AST,
+    mod: [*c]u8,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8) Compiler {
         return Compiler{
@@ -18,6 +20,7 @@ pub const Compiler = struct {
             .errors = .empty,
             .source = source,
             .ast = undefined,
+            .mod = undefined,
         };
     }
 
@@ -25,6 +28,9 @@ pub const Compiler = struct {
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
         try self.ast.print();
+        var c = codegen.Codegen.init(self.allocator, self);
+        self.mod = try c.codegen();
+        std.debug.print("llvm-ir:\n: {s}", .{self.mod});
         self.ast.deinit(self.allocator);
     }
 
