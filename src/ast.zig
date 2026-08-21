@@ -685,16 +685,11 @@ pub const FieldAccessExpr = struct {
 };
 
 pub const CallArg = struct {
-    name: ?[]const u8,
     value: *Expr,
 
     pub fn print(self: *CallArg, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        if (self.name) |n| {
-            std.debug.print("call arg: {s}\n", .{n});
-        } else {
-            std.debug.print("call arg\n", .{});
-        }
+        std.debug.print("call arg\n", .{});
         try self.value.print(indent + 4);
     }
 

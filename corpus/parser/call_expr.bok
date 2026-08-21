@@ -2,7 +2,7 @@ func foo() -> i32
     bar();
     baz(1, 1);
     bazz(1, a, 1, a);
-    var a = khar();
+    var a = koo();
     var a = bar(foo(), zig());
     b = a + bar(1, 1, 1);
 end

@@ -952,16 +952,8 @@ pub const Parser = struct {
 
     pub fn parse_call_arg(self: *Parser) anyerror!ast.CallArg {
         var c_arg = ast.CallArg{
-            .name = null,
             .value = undefined,
         };
-
-        const tok = try self.lexer.peek_token();
-        if (tok.type == token.TokenType.eq) {
-            c_arg.name = tok.val;
-            // expect '='
-            _ = try self.expect(.semicolon, "expected '='");
-        }
 
         c_arg.value = try self.parse_expression();
 

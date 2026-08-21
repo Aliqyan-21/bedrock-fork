@@ -117,7 +117,7 @@ array_literal = "[" [ array_elems ] "]"
 array_elems = expression { "," expression } [ "," ]
 
 call_args       = call_arg { "," call_arg } [ "," ]
-call_arg        = [ IDENT "=" ] expression
+call_arg        = expression
 
 type            = [ "?" ] base_type [ "!" ]
 
