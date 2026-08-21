@@ -12,7 +12,7 @@ pub const Compiler = struct {
     errors: std.ArrayList(err.SourceError),
     source: []const u8,
     ast: ast.AST,
-    mod: [*c]u8,
+    mod: llvm.LLVMModuleRef,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8) Compiler {
         return Compiler{
@@ -30,7 +30,15 @@ pub const Compiler = struct {
         try self.ast.print();
         var c = codegen.Codegen.init(self.allocator, self);
         self.mod = try c.codegen();
-        std.debug.print("llvm-ir:\n: {s}", .{self.mod});
+        var error_message: [*c]u8 = null;
+        const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
+        if (res != 0) {
+            if (error_message) |msg| {
+                std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
+
+                llvm.LLVMDisposeMessage(msg);
+            }
+        }
         self.ast.deinit(self.allocator);
     }
 

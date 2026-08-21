@@ -19,11 +19,10 @@ pub const Codegen = struct {
         };
     }
 
-    pub fn codegen(self: *Codegen) ![*c]u8 {
+    pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {
         self.mod = llvm.LLVMModuleCreateWithNameInContext("module", self.ctx);
         try self.codegen_program(self.compiler.ast.program);
-        const mod_str = llvm.LLVMPrintModuleToString(self.mod);
-        return mod_str;
+        return self.mod;
     }
 
     pub fn codegen_program(self: *Codegen, program: ast.Program) !void {
@@ -44,7 +43,9 @@ pub const Codegen = struct {
     pub fn codegen_function(self: *Codegen, function: *ast.FunctionDef) !void {
         // NOTE: just handle the corpus/codegen/hello.bok for now
         const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(llvm.LLVMInt32Type(), null, 0, 0);
-        const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, function.name.ptr, func_type);
+        const name = try self.allocator.dupeZ(u8, function.name);
+        defer self.allocator.free(name);
+        const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         const entry: llvm.LLVMBasicBlockRef = llvm.LLVMAppendBasicBlock(main_func, "entry");
         const builder: llvm.LLVMBuilderRef = llvm.LLVMCreateBuilder();
         llvm.LLVMPositionBuilderAtEnd(builder, entry);
