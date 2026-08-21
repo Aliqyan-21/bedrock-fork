@@ -110,12 +110,62 @@ pub const Sema = struct {
                     try visit_statement(s);
                 }
             },
-            .control_flow_stmt => {},
+            .control_flow_stmt => |*c| try visit_control_flow(c),
             .return_stmt => |*r| {
                 if (r.value) |value| try visit_expression(value);
             },
             .expr_stmt => |*e| {
                 if (e.value) |value| try visit_expression(value);
+            },
+        }
+    }
+
+    fn visit_control_flow(stmt: *ast.ControlFlowStmt) !void {
+        std.debug.print("visiting control flow\n", .{});
+        switch (stmt.*) {
+            .if_expr => |*i| {
+                try visit_expression(i.cond);
+                for (i.then_body.items) |*s| {
+                    try visit_statement(s);
+                }
+                for (i.elifs.items) |*e| {
+                    try visit_expression(e.cond);
+                    for (e.body.items) |*s| {
+                        try visit_statement(s);
+                    }
+                }
+                if (i.else_body) |*body| {
+                    for (body.items) |*s| {
+                        try visit_statement(s);
+                    }
+                }
+            },
+            .match_expr => |*m| {
+                try visit_expression(m.subject);
+
+                for (m.arms.items) |*arm| {
+                    for (arm.body.items) |*s| {
+                        try visit_statement(s);
+                    }
+                }
+
+                if (m.else_body) |*body| {
+                    for (body.items) |*s| {
+                        try visit_statement(s);
+                    }
+                }
+            },
+            .while_expr => |*w| {
+                try visit_expression(w.cond);
+                for (w.body.items) |*s| {
+                    try visit_statement(s);
+                }
+            },
+            .for_expr => |*f| {
+                try visit_expression(f.iterable);
+                for (f.body.items) |*s| {
+                    try visit_statement(s);
+                }
             },
         }
     }
