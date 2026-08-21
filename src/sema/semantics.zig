@@ -58,13 +58,26 @@ pub const Sema = struct {
     }
 
     fn visit_type(ty: *ast.Type) !void {
+        std.debug.print("visiting type\n", .{});
         switch (ty.base) {
             .primitive => {},
-            .pointer => {},
-            .array => {},
-            .named => {},
-            .func => {},
-            .proc => {},
+            .pointer => |inner| try visit_type(inner),
+            .array => |a| try visit_type(a.elem),
+            .named => |*named| {
+                for (named.args) |arg| {
+                    try visit_type(arg);
+                }
+            },
+            .func => |*func| {
+                for (func.params.items) |p| {
+                    try visit_type(p);
+                }
+            },
+            .proc => |*proc| {
+                for (proc.params.items) |p| {
+                    try visit_type(p);
+                }
+            },
         }
     }
 
