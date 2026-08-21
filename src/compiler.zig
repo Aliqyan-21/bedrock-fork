@@ -6,12 +6,14 @@ const token = @import("token.zig");
 const parser = @import("parser.zig");
 const ast = @import("ast.zig");
 const codegen = @import("codegen.zig");
+const sema = @import("semantics.zig");
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
     errors: std.ArrayList(err.SourceError),
     source: []const u8,
     ast: ast.AST,
+    sema: sema.Sema,
     mod: llvm.LLVMModuleRef,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8) Compiler {
@@ -20,6 +22,7 @@ pub const Compiler = struct {
             .errors = .empty,
             .source = source,
             .ast = undefined,
+            .sema = undefined,
             .mod = undefined,
         };
     }
@@ -28,6 +31,8 @@ pub const Compiler = struct {
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
         try self.ast.print();
+        self.sema = sema.Sema.init(self);
+        try self.sema.analyze();
         var c = codegen.Codegen.init(self.allocator, self);
         self.mod = try c.codegen();
         var error_message: [*c]u8 = null;
