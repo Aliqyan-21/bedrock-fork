@@ -28,8 +28,8 @@ pub const Sema = struct {
             .struct_def => {},
             .enum_def => {},
             .extern_def => {},
-            .var_def => {},
-            .const_def => {},
+            .var_def => |*v| try visit_expression(v.value),
+            .const_def => |*c| try visit_expression(c.value),
         }
     }
 
@@ -79,6 +79,48 @@ pub const Sema = struct {
             .control_flow_stmt => {},
             .return_stmt => {},
             .expr_stmt => {},
+        }
+    }
+
+    fn visit_expression(expr: *ast.Expr) !void {
+        std.debug.print("visiting expression\n", .{});
+        switch (expr.*) {
+            .literal, .ident => {},
+            .binary => |*b| {
+                try visit_expression(b.lhs);
+                try visit_expression(b.rhs);
+            },
+            .unary => |*u| {
+                try visit_expression(u.operand);
+            },
+            .field_access => |*f| {
+                try visit_expression(f.target);
+            },
+            .call => |*c| {
+                try visit_expression(c.callee);
+                for (c.args.items) |arg| {
+                    try visit_expression(arg.value);
+                }
+            },
+            .index => |*i| {
+                try visit_expression(i.target);
+                for (i.args.items) |arg| {
+                    try visit_expression(arg);
+                }
+            },
+            .optional_unwrap => |*o| {
+                try visit_expression(o.operand);
+            },
+            .array_literal => |*al| {
+                for (al.elements.items) |elem| {
+                    try visit_expression(elem);
+                }
+            },
+            .comptime_expr => |*ce| {
+                for (ce.body.items) |*stmt| {
+                    try visit_statement(stmt);
+                }
+            },
         }
     }
 
