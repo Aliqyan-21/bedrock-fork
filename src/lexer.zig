@@ -113,11 +113,23 @@ pub const Lexer = struct {
     }
 
     pub fn peek_token(self: *Lexer) !t.Token {
-        return self.scan(false);
+        var tok: t.Token = undefined;
+        while (true) {
+            tok = try self.scan(false);
+            if (tok.type == .comment)
+                _ = try self.scan(true);
+            if (tok.type != .comment) break;
+        }
+        return tok;
     }
 
     pub fn next(self: *Lexer) !t.Token {
-        return self.scan(true);
+        var tok: t.Token = undefined;
+        while (true) {
+            tok = try self.scan(true);
+            if (tok.type != .comment) break;
+        }
+        return tok;
     }
 
     fn read_comment(self: *Lexer, line: usize, col: usize) t.Token {
