@@ -6,7 +6,7 @@ const token = @import("token.zig");
 const parser = @import("parser.zig");
 const ast = @import("ast.zig");
 const codegen = @import("codegen.zig");
-const sema = @import("semantics.zig");
+const sema = @import("sema/semantics.zig");
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
@@ -33,6 +33,7 @@ pub const Compiler = struct {
         try self.ast.print();
         self.sema = sema.Sema.init(self);
         try self.sema.analyze();
+        self.sema.deinit();
         var c = codegen.Codegen.init(self.allocator, self);
         self.mod = try c.codegen();
         var error_message: [*c]u8 = null;
