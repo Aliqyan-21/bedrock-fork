@@ -1,14 +1,21 @@
 const std = @import("std");
 const ast = @import("../ast.zig");
 const compiler = @import("../compiler.zig");
+const scope = @import("scope.zig");
 
 pub const Sema = struct {
     compiler: *compiler.Compiler,
+    scope: scope.Scope,
 
     pub fn init(c: *compiler.Compiler) Sema {
         return .{
             .compiler = c,
+            .scope = scope.Scope.init(c.allocator),
         };
+    }
+
+    pub fn deinit(self: *Sema) void {
+        self.scope.deinit();
     }
 
     pub fn analyze(self: *Sema) !void {

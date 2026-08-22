@@ -33,6 +33,7 @@ pub const Compiler = struct {
         try self.ast.print();
         self.sema = sema.Sema.init(self);
         try self.sema.analyze();
+        self.sema.deinit();
         var c = codegen.Codegen.init(self.allocator, self);
         self.mod = try c.codegen();
         var error_message: [*c]u8 = null;
