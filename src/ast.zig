@@ -1040,6 +1040,8 @@ pub const Stmt = union(enum) {
     control_flow_stmt: ControlFlowStmt,
     return_stmt: ReturnStmt,
     expr_stmt: ExprStmt,
+    // NOTE: temporary print stub
+    print_stub: PrintStub,
 
     pub fn print(self: *Stmt, indent: usize) anyerror!void {
         switch (self.*) {
@@ -1052,6 +1054,7 @@ pub const Stmt = union(enum) {
             .control_flow_stmt => |*c| try c.print(indent),
             .return_stmt => |*r| try r.print(indent),
             .expr_stmt => |*e| try e.print(indent),
+            .print_stub => |*p| try p.print(indent),
         }
     }
     pub fn deinit(self: *Stmt, allocator: std.mem.Allocator) void {
@@ -1065,6 +1068,30 @@ pub const Stmt = union(enum) {
             .return_stmt => |*r| r.deinit(allocator),
             .expr_stmt => |*e| e.deinit(allocator),
             .control_flow_stmt => |*c_f| c_f.deinit(allocator),
+            .print_stub => {},
+        }
+    }
+};
+
+pub const PrintStub = struct {
+    value: StubExpr,
+    token: Token,
+
+    pub fn print(self: *PrintStub, indent: usize) anyerror!void {
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("print stub:\n", .{});
+        try self.value.print(indent + 4);
+    }
+};
+
+pub const StubExpr = union(enum) {
+    stub_literal: LiteralExpr,
+    stub_ident: IdentExpr,
+
+    pub fn print(self: *StubExpr, indent: usize) anyerror!void {
+        switch (self.*) {
+            .stub_literal => |*l| try l.print(indent + 4),
+            .stub_ident => |*i| try i.print(indent + 4),
         }
     }
 };

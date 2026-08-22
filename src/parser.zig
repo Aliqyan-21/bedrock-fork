@@ -302,7 +302,14 @@ pub const Parser = struct {
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
             .kw_if, .kw_match, .kw_while, .kw_for => try self.parse_control_flow_stmt(),
-            // .ident => try self.parse_expression_statement(),
+            .ident => {
+                // NOTE: temporary print stub
+                if (std.mem.eql(u8, tok.val, "bokbok")) {
+                    return try self.parse_print_stub();
+                } else {
+                    return try self.parse_expr_or_assign_stmt();
+                }
+            },
             else => try self.parse_expr_or_assign_stmt(),
         };
     }
@@ -443,6 +450,43 @@ pub const Parser = struct {
             .shr_eq => ast.CompoundOp.shr,
             else => null,
         };
+    }
+
+    fn parse_print_stub(self: *Parser) !ast.Stmt {
+        var tok = try self.lexer.next();
+        var stub = ast.PrintStub{ .value = undefined, .token = tok };
+        // expect '('
+        if (try self.expect(.l_paren, "expected '('") == null) {
+            try self.sync(&.{.semicolon});
+        }
+
+        tok = try self.lexer.peek_token();
+        switch (tok.type) {
+            .integer => stub.value = .{ .stub_literal = try self.parse_literal() },
+            .ident => stub.value = .{ .stub_ident = try self.parse_ident() },
+            else => {
+                try self.sync(&.{.semicolon});
+            },
+        }
+
+        if (try self.expect(.r_paren, "expected ')'") == null) {
+            try self.sync(&.{.semicolon});
+        }
+
+        // extect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+
+        return ast.Stmt{ .print_stub = stub };
+    }
+
+    fn parse_literal(self: *Parser) !ast.LiteralExpr {
+        const tok = try self.lexer.next();
+        return .{ .kind = .integer, .raw = tok.val, .token = tok };
+    }
+
+    fn parse_ident(self: *Parser) !ast.IdentExpr {
+        const tok = try self.lexer.next();
+        return .{ .name = tok.val, .token = tok };
     }
 
     fn parse_control_flow_stmt(self: *Parser) !ast.Stmt {
