@@ -1,3 +1,5 @@
 func main() -> i32
+    bokbok(10);
+    bokbok(a);
     return 10;
 end
