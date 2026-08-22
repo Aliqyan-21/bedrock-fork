@@ -35,13 +35,29 @@ pub const Sema = struct {
             .struct_def => {},
             .enum_def => {},
             .extern_def => {},
-            .var_def => |*v| try self.visit_expression(v.value),
-            .const_def => |*c| try self.visit_expression(c.value),
+            .var_def => |*v| {
+                self.scope.declare(v.name) catch |err| {
+                    if (err == error.DuplicateName) {
+                        //todo: implement good error for these, with line numbers
+                        //info/hint etc. ?
+                        std.debug.print("Duplicate declaration: {s}\n", .{v.name});
+                    }
+                };
+                try self.visit_expression(v.value);
+            },
+            .const_def => |*c| {
+                self.scope.declare(c.name) catch |err| {
+                    if (err == error.DuplicateName) {
+                        std.debug.print("Duplicate declaration: {s}\n", .{c.name});
+                    }
+                };
+                try self.visit_expression(c.value);
+            },
         }
     }
 
     fn visit_function(self: *Sema, func: *ast.FunctionDef) !void {
-        std.debug.print("visiting function\n", .{});
+        // std.debug.print("visiting function\n", .{});
         try self.visit_type(func.result);
 
         for (func.params.items) |*param| {
@@ -54,7 +70,7 @@ pub const Sema = struct {
     }
 
     fn visit_proc(self: *Sema, func: *ast.ProcDef) !void {
-        std.debug.print("visiting proc\n", .{});
+        // std.debug.print("visiting proc\n", .{});
         for (func.params.items) |*param| {
             try self.visit_type(param.type);
         }
@@ -65,7 +81,7 @@ pub const Sema = struct {
     }
 
     fn visit_type(self: *Sema, ty: *ast.Type) !void {
-        std.debug.print("visiting type\n", .{});
+        // std.debug.print("visiting type\n", .{});
         switch (ty.base) {
             .primitive => {},
             .pointer => |inner| try self.visit_type(inner),
@@ -89,7 +105,7 @@ pub const Sema = struct {
     }
 
     fn visit_statement(self: *Sema, stmt: *ast.Stmt) anyerror!void {
-        std.debug.print("visiting statement\n", .{});
+        // std.debug.print("visiting statement\n", .{});
         switch (stmt.*) {
             .var_stmt => |*v| {
                 if (v.type_ann) |ty| try self.visit_type(ty);
@@ -128,7 +144,7 @@ pub const Sema = struct {
     }
 
     fn visit_control_flow(self: *Sema, stmt: *ast.ControlFlowStmt) !void {
-        std.debug.print("visiting control flow\n", .{});
+        // std.debug.print("visiting control flow\n", .{});
         switch (stmt.*) {
             .if_expr => |*i| {
                 try self.visit_expression(i.cond);
@@ -178,7 +194,7 @@ pub const Sema = struct {
     }
 
     fn visit_expression(self: *Sema, expr: *ast.Expr) !void {
-        std.debug.print("visiting expression\n", .{});
+        // std.debug.print("visiting expression\n", .{});
         switch (expr.*) {
             .literal, .ident => {},
             .binary => |*b| {
