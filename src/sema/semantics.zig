@@ -36,7 +36,7 @@ pub const Sema = struct {
             .enum_def => {},
             .extern_def => {},
             .var_def => |*v| {
-                self.scope.declare(v.name) catch |err| {
+                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |err| {
                     if (err == error.DuplicateName) {
                         //todo: implement good error for these, with line numbers
                         //info/hint etc. ?
@@ -46,7 +46,7 @@ pub const Sema = struct {
                 try self.visit_expression(v.value);
             },
             .const_def => |*c| {
-                self.scope.declare(c.name) catch |err| {
+                self.scope.declare(.{ .name = c.name, .kind = .constant }) catch |err| {
                     if (err == error.DuplicateName) {
                         std.debug.print("Duplicate declaration: {s}\n", .{c.name});
                     }
