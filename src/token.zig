@@ -38,6 +38,8 @@ pub const TokenType = enum {
     kw_end,
     kw_true,
     kw_false,
+    kw_break,
+    kw_continue,
 
     // operators (single char)
     l_paren, // (
@@ -128,6 +130,8 @@ pub const keywords = [_]struct { text: []const u8, kind: TokenType }{
     .{ .text = "end", .kind = .kw_end },
     .{ .text = "true", .kind = .kw_true },
     .{ .text = "false", .kind = .kw_false },
+    .{ .text = "break", .kind = .kw_break },
+    .{ .text = "continue", .kind = .kw_continue },
 };
 
 pub fn lookup_keyword(text: []const u8) ?TokenType {

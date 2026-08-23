@@ -301,6 +301,8 @@ pub const Parser = struct {
             .kw_defer => try self.parse_defer_stmt(),
             .kw_unsafe => try self.parse_unsafe_stmt(),
             .kw_return => try self.parse_return_stmt(),
+            .kw_break => try self.parse_break(),
+            .kw_continue => try self.parse_continue(),
             .kw_if, .kw_match, .kw_while, .kw_for => try self.parse_control_flow_stmt(),
             .ident => {
                 // NOTE: temporary print stub
@@ -372,6 +374,24 @@ pub const Parser = struct {
         _ = try self.expect(.semicolon, "expected ';'");
 
         return ast.Stmt{ .const_stmt = const_stmt };
+    }
+
+    fn parse_break(self: *Parser) !ast.Stmt {
+        const tok = try self.lexer.peek_token();
+        _ = try self.lexer.next();
+        // extect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+
+        return ast.Stmt{ .break_stmt = .{ .token = tok } };
+    }
+
+    fn parse_continue(self: *Parser) !ast.Stmt {
+        const tok = try self.lexer.peek_token();
+        _ = try self.lexer.next();
+        // extect ';'
+        _ = try self.expect(.semicolon, "expected ';'");
+
+        return ast.Stmt{ .continue_stmt = .{ .token = tok } };
     }
 
     fn parse_local_static_var_stmt(self: *Parser) !ast.Stmt {

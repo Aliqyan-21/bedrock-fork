@@ -154,7 +154,7 @@ pub const Sema = struct {
             .expr_stmt => |*e| {
                 if (e.value) |value| try self.visit_expression(value);
             },
-            .print_stub => {},
+            else => {},
         }
     }
 
