@@ -61,6 +61,7 @@ pub const Codegen = struct {
         for (stmts.items) |*stmt| {
             switch (stmt.*) {
                 .return_stmt => |*r| try self.codegen_return(r),
+                .expr_stmt => |*e| try self.codegen_expression_statement(e),
                 else => {
                     // TODO:
                 },
@@ -70,19 +71,70 @@ pub const Codegen = struct {
 
     pub fn codegen_return(self: *Codegen, r: *ast.ReturnStmt) !void {
         if (r.value) |e| {
-            switch (e.*) {
-                .literal => |*l| try self.codegen_literal(l),
-                else => {
-                    // TODO:
-                },
-            }
+            const val = try self.codegen_expression(e);
+            _ = llvm.LLVMBuildRet(self.builder, val);
         }
     }
 
-    pub fn codegen_literal(self: *Codegen, l: *ast.LiteralExpr) !void {
+    pub fn codegen_expression_statement(self: *Codegen, e_stmt: *ast.ExprStmt) !void {
+        if (e_stmt.value) |e| {
+            _ = try self.codegen_expression(e);
+        }
+    }
+
+    pub fn codegen_expression(self: *Codegen, e: *ast.Expr) !llvm.LLVMValueRef {
+        return switch (e.*) {
+            .literal => |*l| self.codegen_literal(l),
+            .binary => |*b| self.codegen_binary(b),
+            .unary => |*u| self.codegen_unary(u),
+            else => unreachable,
+        };
+    }
+
+    pub fn codegen_literal(self: *Codegen, l: *ast.LiteralExpr) !llvm.LLVMValueRef {
+        _ = self;
         const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
-        const i_c: llvm.LLVMValueRef = llvm.LLVMConstInt(llvm.LLVMInt32Type(), i, 1);
-        _ = llvm.LLVMBuildRet(self.builder, i_c);
+        return llvm.LLVMConstInt(llvm.LLVMInt32Type(), i, 1);
+    }
+
+    pub fn codegen_binary(self: *Codegen, b: *ast.BinaryExpr) anyerror!llvm.LLVMValueRef {
+        const l = try self.codegen_expression(b.lhs);
+        const r = try self.codegen_expression(b.rhs);
+        // TODO: handle overflow and underflow
+        return switch (b.op) {
+            .add => llvm.LLVMBuildAdd(self.builder, l, r, "add_bin"),
+            .sub => llvm.LLVMBuildSub(self.builder, l, r, "sub_bin"),
+            .mul => llvm.LLVMBuildMul(self.builder, l, r, "mul_bin"),
+            .div => llvm.LLVMBuildUDiv(self.builder, l, r, "div_bin"),
+            .mod => llvm.LLVMBuildURem(self.builder, l, r, "mod_bin"),
+            .eq => llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntEQ, l, r, "cmp_bin"),
+            .ne => llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntNE, l, r, "cmp_bin"),
+            .lt => llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULE, l, r, "cmp_bin"),
+            .gt => llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntUGT, l, r, "cmp_bin"),
+            .le => llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULE, l, r, "cmp_bin"),
+            .ge => llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntUGE, l, r, "cmp_bin"),
+            .bit_or => llvm.LLVMBuildOr(self.builder, l, r, "log_bin"),
+            .bit_xor => llvm.LLVMBuildXor(self.builder, l, r, "log_bin"),
+            .bit_and => llvm.LLVMBuildAnd(self.builder, l, r, "log_bin"),
+            .shl => llvm.LLVMBuildShl(self.builder, l, r, "shift_bin"),
+            .shr => llvm.LLVMBuildLShr(self.builder, l, r, "shift_bin"),
+            else => {
+                // TODO:
+                unreachable;
+            },
+        };
+    }
+
+    pub fn codegen_unary(self: *Codegen, u: *ast.UnaryExpr) anyerror!llvm.LLVMValueRef {
+        const e = try self.codegen_expression(u.operand);
+        return switch (u.op) {
+            .neg => llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
+            .bit_not => llvm.LLVMBuildNot(self.builder, e, "bit_not_un"),
+            else => {
+                // TODO:
+                unreachable;
+            },
+        };
     }
 
     pub fn get_func_ret_type(self: *Codegen, ret_type: *ast.Type) llvm.LLVMTypeRef {
