@@ -154,6 +154,16 @@ pub const Sema = struct {
             .expr_stmt => |*e| {
                 if (e.value) |value| try self.visit_expression(value);
             },
+            .break_stmt => {
+                if (self.scope.enclosing(.loop) == null) {
+                    std.debug.print("break used outside of loop\n", .{});
+                }
+            },
+            .continue_stmt => {
+                if (self.scope.enclosing(.loop) == null) {
+                    std.debug.print("continue used outside of loop\n", .{});
+                }
+            },
             else => {},
         }
     }
