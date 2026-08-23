@@ -1028,6 +1028,28 @@ pub const Expr = union(enum) {
     }
 };
 
+// break;
+pub const BreakStmt = struct {
+    token: Token,
+
+    pub fn print(self: *BreakStmt, indent: usize) anyerror!void {
+        _ = self;
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("break stmt\n", .{});
+    }
+};
+
+// continue;
+pub const ContinueStmt = struct {
+    token: Token,
+
+    pub fn print(self: *ContinueStmt, indent: usize) anyerror!void {
+        _ = self;
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("continue stmt\n", .{});
+    }
+};
+
 // statement       = var_stmt | const_stmt | local_static_var_stmt | assign_stmt | defer_stmt
 //                 | unsafe_stmt | control_flow_stmt | return_stmt | expr_stmt
 pub const Stmt = union(enum) {
@@ -1040,6 +1062,8 @@ pub const Stmt = union(enum) {
     control_flow_stmt: ControlFlowStmt,
     return_stmt: ReturnStmt,
     expr_stmt: ExprStmt,
+    break_stmt: BreakStmt,
+    continue_stmt: ContinueStmt,
     // NOTE: temporary print stub
     print_stub: PrintStub,
 
@@ -1055,6 +1079,8 @@ pub const Stmt = union(enum) {
             .return_stmt => |*r| try r.print(indent),
             .expr_stmt => |*e| try e.print(indent),
             .print_stub => |*p| try p.print(indent),
+            .break_stmt => |*b| try b.print(indent),
+            .continue_stmt => |*c| try c.print(indent),
         }
     }
     pub fn deinit(self: *Stmt, allocator: std.mem.Allocator) void {
@@ -1068,7 +1094,7 @@ pub const Stmt = union(enum) {
             .return_stmt => |*r| r.deinit(allocator),
             .expr_stmt => |*e| e.deinit(allocator),
             .control_flow_stmt => |*c_f| c_f.deinit(allocator),
-            .print_stub => {},
+            else => {},
         }
     }
 };
