@@ -57,7 +57,7 @@ pub const Scope = struct {
     }
 
     // search outward for a given scope id
-    pub fn enclosing(self: *Scope, id: Id) ?Symbol {
+    pub fn enclosing(self: *Scope, id: Id) ?*Scope {
         var cur: ?*Scope = self;
         while (cur) |s| {
             if (s.id == id) return s;
