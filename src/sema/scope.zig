@@ -1,21 +1,68 @@
 const std = @import("std");
 
-pub const Scope = struct {
-    names: std.StringHashMap(void), // for O(1)
+pub const SymbolKind = enum {
+    variable,
+    constant,
+    param,
+    func,
+    proc,
+};
 
-    pub fn init(allocator: std.mem.Allocator) Scope {
+pub const Symbol = struct {
+    name: []const u8,
+    kind: SymbolKind,
+    // here we keep growing accordingly,
+    // like storing types, etc.
+};
+
+pub const Scope = struct {
+    id: Id,
+    parent: ?*Scope,
+    symbols: std.StringHashMap(Symbol), // for O(1)
+
+    pub const Id = enum {
+        root, // root (var_def, const_def)
+        block, // if, elif, else, etc...
+        func, // both func and proc
+        loop,
+        unsafe,
+    };
+
+    pub fn init(allocator: std.mem.Allocator, id: Id, parent: ?*Scope) Scope {
         return .{
-            .names = std.StringHashMap(void).init(allocator),
+            .id = id,
+            .parent = parent,
+            .symbols = std.StringHashMap(Symbol).init(allocator),
         };
     }
 
     pub fn deinit(self: *Scope) void {
-        self.names.deinit();
+        self.symbols.deinit();
     }
 
     // rule of duplication
-    pub fn declare(self: *Scope, name: []const u8) !void {
-        if (self.names.contains(name)) return error.DuplicateName;
-        try self.names.put(name, {});
+    pub fn declare(self: *Scope, symbol: Symbol) !void {
+        if (self.symbols.contains(symbol.name)) return error.DuplicateName;
+        try self.symbols.put(symbol.name, symbol);
+    }
+
+    // resolve name keep going outward towards upper scope
+    pub fn resolve(self: *Scope, name: []const u8) ?Symbol {
+        var cur: ?*Scope = self;
+        while (cur) |s| {
+            if (s.symbols.get(name)) |sym| return sym;
+            cur = s.parent;
+        }
+        return null;
+    }
+
+    // search outward for a given scope id
+    pub fn enclosing(self: *Scope, id: Id) ?Symbol {
+        var cur: ?*Scope = self;
+        while (cur) |s| {
+            if (s.id == id) return s;
+            cur = s.parent;
+        }
+        return null;
     }
 };

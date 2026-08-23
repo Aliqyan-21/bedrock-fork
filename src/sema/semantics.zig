@@ -5,26 +5,40 @@ const scope = @import("scope.zig");
 
 pub const Sema = struct {
     compiler: *compiler.Compiler,
-    scope: scope.Scope,
+    scope: *scope.Scope,
 
     pub fn init(c: *compiler.Compiler) Sema {
         return .{
             .compiler = c,
-            .scope = scope.Scope.init(c.allocator),
+            .scope = undefined,
         };
     }
 
     pub fn deinit(self: *Sema) void {
-        self.scope.deinit();
+        _ = self;
     }
 
     pub fn analyze(self: *Sema) !void {
         std.debug.print("\n-------\nanalyzing semantics!\n--------\n", .{});
+        var root = scope.Scope.init(self.compiler.allocator, .root, null);
+        defer root.deinit();
+        self.scope = &root;
         const tree = &self.compiler.ast;
 
         for (tree.program.items.items) |*item| {
             try self.visit_item(item);
         }
+    }
+
+    fn enter_scope(self: *Sema, stmts: []ast.Stmt, kind: scope.Scope.Id) !void {
+        var block_scope = scope.Scope.init(self.compiler.allocator, kind, self.scope);
+        defer block_scope.deinit();
+
+        const saved = self.scope;
+        self.scope = &block_scope;
+        defer self.scope = saved;
+
+        for (stmts) |*stmt| try self.visit_statement(stmt);
     }
 
     fn visit_item(self: *Sema, item: *ast.Item) !void {
@@ -36,7 +50,7 @@ pub const Sema = struct {
             .enum_def => {},
             .extern_def => {},
             .var_def => |*v| {
-                self.scope.declare(v.name) catch |err| {
+                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |err| {
                     if (err == error.DuplicateName) {
                         //todo: implement good error for these, with line numbers
                         //info/hint etc. ?
@@ -46,7 +60,7 @@ pub const Sema = struct {
                 try self.visit_expression(v.value);
             },
             .const_def => |*c| {
-                self.scope.declare(c.name) catch |err| {
+                self.scope.declare(.{ .name = c.name, .kind = .constant }) catch |err| {
                     if (err == error.DuplicateName) {
                         std.debug.print("Duplicate declaration: {s}\n", .{c.name});
                     }
@@ -60,13 +74,17 @@ pub const Sema = struct {
         // std.debug.print("visiting function\n", .{});
         try self.visit_type(func.result);
 
+        var func_scope = scope.Scope.init(self.compiler.allocator, .func, self.scope);
+        defer func_scope.deinit();
+        const saved = self.scope;
+        self.scope = &func_scope;
+        defer self.scope = saved;
+
         for (func.params.items) |*param| {
             try self.visit_type(param.type);
         }
 
-        for (func.body.items) |*stmt| {
-            try self.visit_statement(stmt);
-        }
+        try self.enter_scope(func.body.items, .block);
     }
 
     fn visit_proc(self: *Sema, func: *ast.ProcDef) !void {
@@ -124,14 +142,10 @@ pub const Sema = struct {
                 try self.visit_expression(a.value);
             },
             .defer_stmt => |*d| {
-                for (d.statement_list.items) |*s| {
-                    try self.visit_statement(s);
-                }
+                try self.enter_scope(d.statement_list.items, .block);
             },
             .unsafe_stmt => |*u| {
-                for (u.body.items) |*s| {
-                    try self.visit_statement(s);
-                }
+                try self.enter_scope(u.body.items, .unsafe);
             },
             .control_flow_stmt => |*c| try self.visit_control_flow(c),
             .return_stmt => |*r| {
@@ -149,47 +163,33 @@ pub const Sema = struct {
         switch (stmt.*) {
             .if_expr => |*i| {
                 try self.visit_expression(i.cond);
-                for (i.then_body.items) |*s| {
-                    try self.visit_statement(s);
-                }
+                try self.enter_scope(i.then_body.items, .block);
                 for (i.elifs.items) |*e| {
                     try self.visit_expression(e.cond);
-                    for (e.body.items) |*s| {
-                        try self.visit_statement(s);
-                    }
+                    try self.enter_scope(e.body.items, .block);
                 }
                 if (i.else_body) |*body| {
-                    for (body.items) |*s| {
-                        try self.visit_statement(s);
-                    }
+                    try self.enter_scope(body.items, .block);
                 }
             },
             .match_expr => |*m| {
                 try self.visit_expression(m.subject);
 
                 for (m.arms.items) |*arm| {
-                    for (arm.body.items) |*s| {
-                        try self.visit_statement(s);
-                    }
+                    try self.enter_scope(arm.body.items, .block);
                 }
 
                 if (m.else_body) |*body| {
-                    for (body.items) |*s| {
-                        try self.visit_statement(s);
-                    }
+                    try self.enter_scope(body.items, .block);
                 }
             },
             .while_expr => |*w| {
                 try self.visit_expression(w.cond);
-                for (w.body.items) |*s| {
-                    try self.visit_statement(s);
-                }
+                try self.enter_scope(w.body.items, .loop);
             },
             .for_expr => |*f| {
                 try self.visit_expression(f.iterable);
-                for (f.body.items) |*s| {
-                    try self.visit_statement(s);
-                }
+                try self.enter_scope(f.body.items, .loop);
             },
         }
     }
@@ -229,9 +229,7 @@ pub const Sema = struct {
                 }
             },
             .comptime_expr => |*ce| {
-                for (ce.body.items) |*stmt| {
-                    try self.visit_statement(stmt);
-                }
+                try self.enter_scope(ce.body.items, .block);
             },
         }
     }
