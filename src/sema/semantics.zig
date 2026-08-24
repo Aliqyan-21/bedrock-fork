@@ -82,20 +82,30 @@ pub const Sema = struct {
 
         for (func.params.items) |*param| {
             try self.visit_type(param.type);
+            func_scope.declare(.{ .name = param.name, .kind = .param }) catch |err| {
+                if (err == error.DuplicateName) std.debug.print("Duplicate parameter: {s}\n", .{param.name});
+            };
         }
 
         try self.enter_scope(func.body.items, .block);
     }
 
-    fn visit_proc(self: *Sema, func: *ast.ProcDef) !void {
+    fn visit_proc(self: *Sema, proc: *ast.ProcDef) !void {
         // std.debug.print("visiting proc\n", .{});
-        for (func.params.items) |*param| {
+        var proc_scope = scope.Scope.init(self.compiler.allocator, .func, self.scope);
+        defer proc_scope.deinit();
+        const saved = self.scope;
+        self.scope = &proc_scope;
+        defer self.scope = saved;
+
+        for (proc.params.items) |*param| {
             try self.visit_type(param.type);
+            proc_scope.declare(.{ .name = param.name, .kind = .param }) catch |err| {
+                if (err == error.DuplicateName) std.debug.print("Duplicate parameter: {s}\n", .{param.name});
+            };
         }
 
-        for (func.body.items) |*stmt| {
-            try self.visit_statement(stmt);
-        }
+        try self.enter_scope(proc.body.items, .block);
     }
 
     fn visit_type(self: *Sema, ty: *ast.Type) !void {
@@ -128,10 +138,16 @@ pub const Sema = struct {
             .var_stmt => |*v| {
                 if (v.type_ann) |ty| try self.visit_type(ty);
                 try self.visit_expression(v.value);
+                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |err| {
+                    if (err == error.DuplicateName) std.debug.print("Duplicate declaration: {s}\n", .{v.name});
+                };
             },
             .const_stmt => |*c| {
                 if (c.type_ann) |ty| try self.visit_type(ty);
                 try self.visit_expression(c.value);
+                self.scope.declare(.{ .name = c.name, .kind = .variable }) catch |err| {
+                    if (err == error.DuplicateName) std.debug.print("Duplicate declaration: {s}\n", .{c.name});
+                };
             },
             .local_static_var_stmt => |lv| {
                 if (lv.type_ann) |ty| try self.visit_type(ty);
