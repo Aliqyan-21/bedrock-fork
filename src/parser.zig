@@ -115,8 +115,8 @@ pub const Parser = struct {
                     //todo:implement parse_type_item
                 },
                 .kw_extern => {
-                    //todo: error if is_pub or is_inline set (extern takes no modifiers)
-                    //todo: parse_extern_def();
+                    const extern_def = try self.parse_extern_def();
+                    try items.append(self.allocator, ast.Item{ .extern_def = extern_def });
                 },
                 .kw_var => {
                     var var_def = try self.parse_var_def();
@@ -203,6 +203,58 @@ pub const Parser = struct {
         proc_def.body = try self.parse_body();
 
         return proc_def;
+    }
+
+    pub fn parse_extern_def(self: *Parser) !ast.ExternDef {
+        var tok = try self.lexer.next();
+        const ktok = try self.lexer.next(); // func or proc
+
+        switch (ktok.type) {
+            .kw_func => {
+                tok = try self.expect(.ident, "expected function name") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+                _ = try self.expect(.l_paren, "expected '('");
+                const params = try self.parse_params();
+                _ = try self.expect(.arrow, "expected '->'");
+                const result = try self.parse_type();
+                _ = try self.expect(.semicolon, "expected ';'");
+
+                return ast.ExternDef{
+                    .kind = .{
+                        .func = .{
+                            .name = tok.val,
+                            .params = params,
+                            .result = result,
+                            .is_variadic = false, //todo: implement this '...'
+                        },
+                    },
+                    .token = tok,
+                };
+            },
+            .kw_proc => {
+                tok = try self.expect(.ident, "expected proc name") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+                _ = try self.expect(.l_paren, "expected '('");
+                const params = try self.parse_params();
+                _ = try self.expect(.semicolon, "expected ';'");
+
+                return ast.ExternDef{
+                    .kind = .{
+                        .proc = .{
+                            .name = tok.val,
+                            .params = params,
+                            .is_variadic = false,
+                        },
+                    },
+                    .token = tok,
+                };
+            },
+            else => {
+                try self.compiler.addError("expected func or proc", err.Severity.Error, tok);
+                return ast.ExternDef{
+                    .kind = .{ .proc = .{ .name = "<error>", .params = .empty, .is_variadic = false } },
+                    .token = tok,
+                };
+            },
+        }
     }
 
     pub fn parse_params(self: *Parser) !std.ArrayList(ast.Param) {

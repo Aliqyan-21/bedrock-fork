@@ -219,13 +219,13 @@ pub const ExternDef = struct {
     kind: union(enum) {
         func: struct {
             name: []const u8 = "",
-            params: std.ArrayList(ExternParam),
+            params: std.ArrayList(Param),
             is_variadic: bool,
             result: *Type,
         },
         proc: struct {
             name: []const u8 = "",
-            params: std.ArrayList(ExternParam),
+            params: std.ArrayList(Param),
             is_variadic: bool,
         },
     },
@@ -242,6 +242,26 @@ pub const ExternDef = struct {
             .proc => |p| {
                 std.debug.print("extern proc: {s}\n", .{p.name});
                 for (p.params.items) |*param| try param.print(indent + 4);
+            },
+        }
+    }
+    pub fn deinit(self: *ExternDef, allocator: std.mem.Allocator) void {
+        switch (self.kind) {
+            .func => |*f| {
+                for (f.params.items) |p| {
+                    p.type.deinit(allocator);
+                    allocator.destroy(p.type);
+                }
+                f.params.deinit(allocator);
+                f.result.deinit(allocator);
+                allocator.destroy(f.result);
+            },
+            .proc => |*pr| {
+                for (pr.params.items) |p| {
+                    p.type.deinit(allocator);
+                    allocator.destroy(p.type);
+                }
+                pr.params.deinit(allocator);
             },
         }
     }
@@ -1360,6 +1380,7 @@ pub const AST = struct {
                 .const_def => |*c_def| c_def.deinit(allocator),
                 .var_def => |*v_def| v_def.deinit(allocator),
                 .proc => |*p_def| p_def.deinit(allocator),
+                .extern_def => |*e_def| e_def.deinit(allocator),
                 else => {
                     // TODO:
                 },
