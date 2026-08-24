@@ -15,8 +15,9 @@ pub const Compiler = struct {
     ast: ast.AST,
     sema: sema.Sema,
     mod: llvm.LLVMModuleRef,
+    target: []const u8,
 
-    pub fn init(allocator: std.mem.Allocator, source: []const u8) Compiler {
+    pub fn init(allocator: std.mem.Allocator, source: []const u8, target: []const u8) Compiler {
         return Compiler{
             .allocator = allocator,
             .errors = .empty,
@@ -24,10 +25,39 @@ pub const Compiler = struct {
             .ast = undefined,
             .sema = undefined,
             .mod = undefined,
+            .target = target,
         };
     }
 
     pub fn run(self: *Compiler) !void {
+        // jit compilation
+        if (std.mem.eql(u8, self.target, "aarch64")) {
+            llvm.LLVMInitializeAArch64TargetInfo();
+            llvm.LLVMInitializeAArch64Target();
+            llvm.LLVMInitializeAArch64TargetMC();
+            llvm.LLVMInitializeAArch64AsmPrinter();
+        } else if (std.mem.eql(u8, self.target, "x86")) {
+            llvm.LLVMInitializeX86TargetInfo();
+            llvm.LLVMInitializeX86Target();
+            llvm.LLVMInitializeX86TargetMC();
+            llvm.LLVMInitializeX86AsmPrinter();
+        } else {
+            std.debug.print("{s} target is not currently supported\n", .{self.target});
+            return;
+        }
+
+        const builder = llvm.LLVMOrcCreateLLJITBuilder();
+        if (builder == null) {
+            std.debug.print("failed to create LLJIT builder\n", .{});
+            return;
+        }
+        var jit: llvm.LLVMOrcLLJITRef = null;
+        _ = llvm.LLVMOrcCreateLLJIT(&jit, builder);
+        if (jit == null) {
+            std.debug.print("LLVM failed to create LLJIT\n", .{});
+            return;
+        }
+
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
         try self.ast.print();
@@ -45,6 +75,18 @@ pub const Compiler = struct {
                 llvm.LLVMDisposeMessage(msg);
             }
         }
+
+        // get thread safe context for jit
+        const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(c.ctx);
+        const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(c.mod, tsctx);
+        const jd = llvm.LLVMOrcLLJITGetMainJITDylib(jit);
+        _ = llvm.LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm);
+        var addr: llvm.LLVMOrcExecutorAddress = undefined;
+        _ = llvm.LLVMOrcLLJITLookup(jit, &addr, @ptrCast("main"));
+        const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
+        const result = Main();
+
+        std.debug.print("result = {}\n", .{result});
         self.ast.deinit(self.allocator);
     }
 
