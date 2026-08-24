@@ -73,6 +73,10 @@ pub const Param = struct {
         std.debug.print("param: {s} -> ", .{self.name});
         try self.type.*.print(0);
     }
+
+    pub fn deinit(self: *Param, allocator: std.mem.Allocator) void {
+        self.type.deinit(allocator);
+    }
 };
 
 // function = [ "pub" ] [ "inline" ] "func" IDENT [ type_params ] "(" [ params ] ")" result block "end"
@@ -202,6 +206,10 @@ pub const ExternParam = struct {
     pub fn print(self: *ExternParam, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("extern param: {s}\n", .{self.name});
+    }
+
+    pub fn deinit(self: *ExternParam, allocator: std.mem.Allocator) void {
+        self.name.deinit(allocator);
     }
 };
 

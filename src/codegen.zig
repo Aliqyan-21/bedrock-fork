@@ -45,13 +45,20 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_function(self: *Codegen, function: *ast.FunctionDef) !void {
-        // NOTE: just handle the corpus/codegen/hello.bok for now
-        const ret_type = self.get_func_ret_type(function.result);
-        // TODO: check for params
-        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, null, 0, 0);
+        const ret_type = try self.get_type(function.result);
+        const params = try self.codegen_params(function.params);
+        const params_len: c_uint = @intCast(function.params.items.len);
+        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, @ptrCast(@constCast(params[0..function.params.items.len])), params_len, 0);
         const name = try self.allocator.dupeZ(u8, function.name);
         defer self.allocator.free(name);
         const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
+
+        // set function arg names
+        for (function.params.items, 0..) |p, idx| {
+            const arg = llvm.LLVMGetParam(main_func, @intCast(idx));
+            llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
+        }
+
         self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
         try self.codegen_statements(function.body);
@@ -67,6 +74,16 @@ pub const Codegen = struct {
                 },
             }
         }
+    }
+
+    pub fn codegen_params(self: *Codegen, params: std.ArrayList(ast.Param)) ![1024]llvm.LLVMTypeRef {
+        var p_types: [1024]llvm.LLVMTypeRef = undefined;
+        for (params.items, 0..) |param, idx| {
+            const t = try self.get_type(param.type);
+            p_types[idx] = t;
+        }
+
+        return p_types;
     }
 
     pub fn codegen_return(self: *Codegen, r: *ast.ReturnStmt) !void {
@@ -137,7 +154,7 @@ pub const Codegen = struct {
         };
     }
 
-    pub fn get_func_ret_type(self: *Codegen, ret_type: *ast.Type) llvm.LLVMTypeRef {
+    pub fn get_type(self: *Codegen, ret_type: *ast.Type) !llvm.LLVMTypeRef {
         // TODO: handle optionals and errors
         switch (ret_type.base) {
             .primitive => |*p| return self.get_primitive_type(p),
@@ -148,7 +165,7 @@ pub const Codegen = struct {
         }
     }
 
-    pub fn get_primitive_type(self: *Codegen, p: *ast.PrimitiveType) llvm.LLVMTypeRef {
+    pub fn get_primitive_type(self: *Codegen, p: *ast.PrimitiveType) !llvm.LLVMTypeRef {
         _ = self;
         switch (p.*) {
             .i32 => return llvm.LLVMInt32Type(),
