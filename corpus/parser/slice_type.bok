@@ -1,0 +1,2 @@
+func slicer(arr: []i32) -> []u8
+end

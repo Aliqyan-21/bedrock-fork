@@ -725,7 +725,13 @@ pub const Parser = struct {
                 const pointee = try self.parse_type();
                 return ast.BaseType{ .pointer = pointee };
             },
-            .l_bracket => return try self.parse_array_type(tok),
+            .l_bracket => {
+                const nxt = try self.lexer.peek_token();
+                if (nxt.type == .r_bracket) {
+                    return try self.parse_slice_type(tok);
+                }
+                return try self.parse_array_type(tok);
+            },
             .kw_func => return try self.parse_func_type(tok),
             .kw_proc => return try self.parse_proc_type(tok),
             .ident => {
@@ -741,6 +747,12 @@ pub const Parser = struct {
         }
     }
 
+    fn parse_slice_type(self: *Parser, tok: token.Token) !ast.BaseType {
+        _ = try self.lexer.next();
+        const elem = try self.parse_type();
+        return ast.BaseType{ .slice = .{ .elem = elem, .token = tok } };
+    }
+
     fn parse_array_type(self: *Parser, tok: token.Token) !ast.BaseType {
         const size_tok = try self.lexer.peek_token();
         var size: ast.ArraySize = .inferred;
@@ -749,6 +761,7 @@ pub const Parser = struct {
             _ = try self.lexer.next();
             size = .{ .fixed = size_tok.val };
         } else if (size_tok.type == token.TokenType.ident and std.mem.eql(u8, size_tok.val, "_")) {
+            _ = try self.lexer.next();
             size = .inferred;
         } else {
             try self.compiler.addError("expected an INTEGER or '_'", err.Severity.Error, size_tok);
