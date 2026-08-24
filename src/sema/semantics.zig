@@ -1,6 +1,7 @@
 const std = @import("std");
 const ast = @import("../ast.zig");
 const compiler = @import("../compiler.zig");
+const err = @import("../error.zig");
 const scope = @import("scope.zig");
 
 pub const Sema = struct {
@@ -50,19 +51,17 @@ pub const Sema = struct {
             .enum_def => {},
             .extern_def => {},
             .var_def => |*v| {
-                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |err| {
-                    if (err == error.DuplicateName) {
-                        //todo: implement good error for these, with line numbers
-                        //info/hint etc. ?
-                        std.debug.print("Duplicate declaration: {s}\n", .{v.name});
+                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |e| {
+                    if (e == error.DuplicateName) {
+                        try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
                     }
                 };
                 try self.visit_expression(v.value);
             },
             .const_def => |*c| {
-                self.scope.declare(.{ .name = c.name, .kind = .constant }) catch |err| {
-                    if (err == error.DuplicateName) {
-                        std.debug.print("Duplicate declaration: {s}\n", .{c.name});
+                self.scope.declare(.{ .name = c.name, .kind = .constant }) catch |e| {
+                    if (e == error.DuplicateName) {
+                        try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
                     }
                 };
                 try self.visit_expression(c.value);
@@ -82,20 +81,30 @@ pub const Sema = struct {
 
         for (func.params.items) |*param| {
             try self.visit_type(param.type);
+            func_scope.declare(.{ .name = param.name, .kind = .param }) catch |e| {
+                if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
+            };
         }
 
         try self.enter_scope(func.body.items, .block);
     }
 
-    fn visit_proc(self: *Sema, func: *ast.ProcDef) !void {
+    fn visit_proc(self: *Sema, proc: *ast.ProcDef) !void {
         // std.debug.print("visiting proc\n", .{});
-        for (func.params.items) |*param| {
+        var proc_scope = scope.Scope.init(self.compiler.allocator, .func, self.scope);
+        defer proc_scope.deinit();
+        const saved = self.scope;
+        self.scope = &proc_scope;
+        defer self.scope = saved;
+
+        for (proc.params.items) |*param| {
             try self.visit_type(param.type);
+            proc_scope.declare(.{ .name = param.name, .kind = .param }) catch |e| {
+                if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
+            };
         }
 
-        for (func.body.items) |*stmt| {
-            try self.visit_statement(stmt);
-        }
+        try self.enter_scope(proc.body.items, .block);
     }
 
     fn visit_type(self: *Sema, ty: *ast.Type) !void {
@@ -128,10 +137,16 @@ pub const Sema = struct {
             .var_stmt => |*v| {
                 if (v.type_ann) |ty| try self.visit_type(ty);
                 try self.visit_expression(v.value);
+                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |e| {
+                    if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
+                };
             },
             .const_stmt => |*c| {
                 if (c.type_ann) |ty| try self.visit_type(ty);
                 try self.visit_expression(c.value);
+                self.scope.declare(.{ .name = c.name, .kind = .variable }) catch |e| {
+                    if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
+                };
             },
             .local_static_var_stmt => |lv| {
                 if (lv.type_ann) |ty| try self.visit_type(ty);
@@ -154,14 +169,14 @@ pub const Sema = struct {
             .expr_stmt => |*e| {
                 if (e.value) |value| try self.visit_expression(value);
             },
-            .break_stmt => {
+            .break_stmt => |*b| {
                 if (self.scope.enclosing(.loop) == null) {
-                    std.debug.print("break used outside of loop\n", .{});
+                    try self.compiler.add_sem_error("break used outside of loop\n", .{}, .Error, b.token);
                 }
             },
-            .continue_stmt => {
+            .continue_stmt => |*c| {
                 if (self.scope.enclosing(.loop) == null) {
-                    std.debug.print("continue used outside of loop\n", .{});
+                    try self.compiler.add_sem_error("continue used outside of loop\n", .{}, .Error, c.token);
                 }
             },
             else => {},
@@ -207,7 +222,12 @@ pub const Sema = struct {
     fn visit_expression(self: *Sema, expr: *ast.Expr) !void {
         // std.debug.print("visiting expression\n", .{});
         switch (expr.*) {
-            .literal, .ident => {},
+            .literal => {},
+            .ident => |i| {
+                if (self.scope.resolve(i.name) == null) {
+                    try self.compiler.add_sem_error("Unknown identifier '{s}'", .{i.name}, .Error, i.token);
+                }
+            },
             .binary => |*b| {
                 try self.visit_expression(b.lhs);
                 try self.visit_expression(b.rhs);
