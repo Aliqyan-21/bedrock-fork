@@ -1,11 +1,3 @@
-// both bar
-var snake = 12;
-var snake = 21;
-
-// var and const
-var bingo = 19;
-const bingo = 91;
-
 // this situation not supported,
 // have to think about this rule
 func foo() -> i32
