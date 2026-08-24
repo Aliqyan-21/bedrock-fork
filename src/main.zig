@@ -17,16 +17,24 @@ pub fn main(init: std.process.Init) !void {
     _ = args.next();
 
     var file_name: []const u8 = "";
+    var target: []const u8 = "";
     if (args.next()) |f| {
         file_name = f;
     } else {
         @panic("not receive any file name");
     }
 
+    _ = args.next();
+    if (args.next()) |f| {
+        target = f;
+    } else {
+        @panic("not receive any target name");
+    }
+
     const source = try std.Io.Dir.cwd().readFileAlloc(init.io, file_name, allocator, .limited(1 << 22));
     defer allocator.free(source);
 
-    var c = compiler.Compiler.init(allocator, source);
+    var c = compiler.Compiler.init(allocator, source, target);
     try c.run();
     try c.emitErrors();
     defer c.deinit();
