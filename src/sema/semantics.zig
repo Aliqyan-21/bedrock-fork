@@ -223,7 +223,12 @@ pub const Sema = struct {
     fn visit_expression(self: *Sema, expr: *ast.Expr) !void {
         // std.debug.print("visiting expression\n", .{});
         switch (expr.*) {
-            .literal, .ident => {},
+            .literal => {},
+            .ident => |i| {
+                if (self.scope.resolve(i.name) == null) {
+                    std.debug.print("Unknown identifier: {s}", .{i.name});
+                }
+            },
             .binary => |*b| {
                 try self.visit_expression(b.lhs);
                 try self.visit_expression(b.rhs);
