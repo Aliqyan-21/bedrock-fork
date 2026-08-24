@@ -395,6 +395,16 @@ pub const ArrayType = struct {
     }
 };
 
+pub const SliceType = struct {
+    elem: *Type,
+    token: Token,
+    pub fn print(self: *SliceType, indent: usize) anyerror!void {
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("slice type\n", .{});
+        try self.elem.print(indent + 4);
+    }
+};
+
 // named_type = IDENT [ "[" type { "," type } [ "," ] "]" ]
 pub const NamedType = struct {
     name: []const u8 = "",
@@ -440,6 +450,7 @@ pub const BaseType = union(enum) {
     primitive: PrimitiveType,
     pointer: *Type,
     array: ArrayType,
+    slice: SliceType,
     named: NamedType,
     func: FuncType,
     proc: ProcType,
@@ -453,6 +464,7 @@ pub const BaseType = union(enum) {
                 try p.print(indent + 4);
             },
             .array => |*a| try a.print(indent),
+            .slice => |*s| try s.print(indent),
             .named => |*n| try n.print(indent),
             .func => |*f| try f.print(indent),
             .proc => |*p| try p.print(indent),
@@ -469,6 +481,10 @@ pub const BaseType = union(enum) {
             .array => |*a| {
                 a.elem.deinit(allocator);
                 allocator.destroy(a.elem);
+            },
+            .slice => |*s| {
+                s.elem.deinit(allocator);
+                allocator.destroy(s.elem);
             },
             .named => |*n| {
                 for (n.args) |arg| {

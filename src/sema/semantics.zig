@@ -113,6 +113,7 @@ pub const Sema = struct {
             .primitive => {},
             .pointer => |inner| try self.visit_type(inner),
             .array => |a| try self.visit_type(a.elem),
+            .slice => |s| try self.visit_type(s.elem),
             .named => |*named| {
                 for (named.args) |arg| {
                     try self.visit_type(arg);
