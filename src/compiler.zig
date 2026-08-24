@@ -57,6 +57,11 @@ pub const Compiler = struct {
         });
     }
 
+    pub fn add_sem_error(self: *Compiler, comptime fmt: []const u8, args: anytype, severity: err.Severity, tok: token.Token) !void {
+        const err_msg = try std.fmt.allocPrint(self.allocator, fmt, args);
+        try self.errors.append(self.allocator, err.SourceError{ .msg = err_msg, .severity = severity, .token = tok });
+    }
+
     pub fn emitErrors(self: *Compiler) !void {
         for (self.errors.items) |e| {
             var l_count: usize = 1;
