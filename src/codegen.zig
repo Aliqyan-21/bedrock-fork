@@ -37,6 +37,7 @@ pub const Codegen = struct {
         for (items.items) |*item| {
             switch (item.*) {
                 .function => |*f| try self.codegen_function(f),
+                .proc => |*p| try self.codegen_proc(p),
                 else => {
                     // TODO:
                 },
@@ -47,11 +48,15 @@ pub const Codegen = struct {
     pub fn codegen_function(self: *Codegen, function: *ast.FunctionDef) !void {
         const ret_type = try self.get_type(function.result);
         const params = try self.codegen_params(function.params);
+        defer self.allocator.free(params);
         const params_len: c_uint = @intCast(function.params.items.len);
-        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, @ptrCast(@constCast(params[0..function.params.items.len])), params_len, 0);
+        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, 0);
         const name = try self.allocator.dupeZ(u8, function.name);
         defer self.allocator.free(name);
         const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
+        if (main_func != null) {
+            std.debug.print("add function {s} to module\n", .{name});
+        }
 
         // set function arg names
         for (function.params.items, 0..) |p, idx| {
@@ -62,6 +67,30 @@ pub const Codegen = struct {
         self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
         try self.codegen_statements(function.body);
+    }
+
+    pub fn codegen_proc(self: *Codegen, proc: *ast.ProcDef) !void {
+        const ret_type = llvm.LLVMVoidType();
+        const params = try self.codegen_params(proc.params);
+        defer self.allocator.free(params);
+        const params_len: c_uint = @intCast(proc.params.items.len);
+        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, 0);
+        const name = try self.allocator.dupeZ(u8, proc.name);
+        defer self.allocator.free(name);
+        const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
+        if (main_func != null) {
+            std.debug.print("add proc {s} to module\n", .{name});
+        }
+
+        // set function arg names
+        for (proc.params.items, 0..) |p, idx| {
+            const arg = llvm.LLVMGetParam(main_func, @intCast(idx));
+            llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
+        }
+
+        self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
+        llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+        try self.codegen_statements(proc.body);
     }
 
     pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !void {
@@ -76,8 +105,8 @@ pub const Codegen = struct {
         }
     }
 
-    pub fn codegen_params(self: *Codegen, params: std.ArrayList(ast.Param)) ![1024]llvm.LLVMTypeRef {
-        var p_types: [1024]llvm.LLVMTypeRef = undefined;
+    pub fn codegen_params(self: *Codegen, params: std.ArrayList(ast.Param)) ![]llvm.LLVMTypeRef {
+        const p_types = try self.allocator.alloc(llvm.LLVMTypeRef, params.items.len);
         for (params.items, 0..) |param, idx| {
             const t = try self.get_type(param.type);
             p_types[idx] = t;
@@ -104,9 +133,68 @@ pub const Codegen = struct {
             .literal => |*l| self.codegen_literal(l),
             .binary => |*b| self.codegen_binary(b),
             .unary => |*u| self.codegen_unary(u),
+            .call => |*c| self.codegen_call(c),
+            // .ident => |*i| self.codegen_ident(i),
             else => unreachable,
         };
     }
+
+    pub fn codegen_call(self: *Codegen, c: *ast.CallExpr) !llvm.LLVMValueRef {
+        // NOTE: assume callee is an ident
+        const name = switch (c.callee.*) {
+            .ident => |*i| i.name,
+            else => {
+                // TODO:
+                unreachable;
+            },
+        };
+
+        const name_call = try self.allocator.dupeZ(u8, name);
+        defer self.allocator.free(name_call);
+        const func_ref = llvm.LLVMGetNamedFunction(self.mod, name_call.ptr);
+        if (func_ref == null) {
+            std.debug.print("no function named {s}\n", .{name});
+        }
+
+        // see why called value type failed here
+        const func_type = llvm.LLVMGlobalGetValueType(func_ref);
+        if (func_type == null) {
+            std.debug.print("no function type for {s}\n", .{name});
+        }
+
+        const args = try self.codegen_args(c.args);
+        defer self.allocator.free(args);
+        const n_args = c.args.items.len;
+
+        const expected = llvm.LLVMCountParamTypes(func_type);
+        if (expected != n_args) {
+            std.debug.print("expected args = {}, actual args = {}\n", .{ expected, n_args });
+        }
+
+        const call = llvm.LLVMBuildCall2(
+            self.builder,
+            func_type,
+            func_ref,
+            args.ptr,
+            @intCast(n_args),
+            @ptrCast(""),
+            // name_call,
+        );
+
+        return call;
+    }
+
+    pub fn codegen_args(self: *Codegen, args: std.ArrayList(ast.CallArg)) ![]llvm.LLVMValueRef {
+        const a = try self.allocator.alloc(llvm.LLVMValueRef, args.items.len);
+        for (args.items, 0..) |arg, idx| {
+            const v = try self.codegen_expression(arg.value);
+            a[idx] = v;
+        }
+
+        return a;
+    }
+
+    // pub fn codegen_ident(self: *codegen, i: *ast.IdentExpr) !llvm.LLVMValueRef {}
 
     pub fn codegen_literal(self: *Codegen, l: *ast.LiteralExpr) !llvm.LLVMValueRef {
         _ = self;

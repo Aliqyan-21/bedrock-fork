@@ -1,0 +1,7 @@
+func void_func() -> i32
+    return 10 + 10;
+end
+
+func main() -> i32
+    return void_func();
+end
