@@ -247,9 +247,22 @@ pub const Codegen = struct {
     // pub fn codegen_ident(self: *codegen, i: *ast.IdentExpr) !llvm.LLVMValueRef {}
 
     pub fn codegen_literal(self: *Codegen, l: *ast.LiteralExpr) !llvm.LLVMValueRef {
-        _ = self;
-        const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
-        return llvm.LLVMConstInt(llvm.LLVMInt32Type(), i, 1);
+        switch (l.kind) {
+            .integer => {
+                const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
+                return llvm.LLVMConstInt(llvm.LLVMInt32Type(), i, 1);
+            },
+            .string => {
+                const name = try self.allocator.dupeZ(u8, l.raw);
+                defer self.allocator.free(name);
+                // TODO: maintain the global string table
+                return llvm.LLVMBuildGlobalString(self.builder, name, ".str0");
+            },
+            else => {
+                // TODO:
+                unreachable;
+            },
+        }
     }
 
     pub fn codegen_binary(self: *Codegen, b: *ast.BinaryExpr) anyerror!llvm.LLVMValueRef {
@@ -307,6 +320,7 @@ pub const Codegen = struct {
         _ = self;
         switch (p.*) {
             .i32 => return llvm.LLVMInt32Type(),
+            .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
             else => {
                 // TODO:
                 unreachable;

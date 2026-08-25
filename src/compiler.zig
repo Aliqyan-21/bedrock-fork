@@ -80,16 +80,16 @@ pub const Compiler = struct {
         }
 
         // get thread safe context for jit
-        // const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(c.ctx);
-        // const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(c.mod, tsctx);
-        // const jd = llvm.LLVMOrcLLJITGetMainJITDylib(jit);
-        // _ = llvm.LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm);
-        // var addr: llvm.LLVMOrcExecutorAddress = undefined;
-        // _ = llvm.LLVMOrcLLJITLookup(jit, &addr, @ptrCast("main"));
-        // const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
-        // const result = Main();
-        //
-        // std.debug.print("result = {}\n", .{result});
+        const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(c.ctx);
+        const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(c.mod, tsctx);
+        const jd = llvm.LLVMOrcLLJITGetMainJITDylib(jit);
+        _ = llvm.LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm);
+        var addr: llvm.LLVMOrcExecutorAddress = undefined;
+        _ = llvm.LLVMOrcLLJITLookup(jit, &addr, @ptrCast("main"));
+        const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
+        const result = Main();
+
+        std.debug.print("result = {}\n", .{result});
         self.ast.deinit(self.allocator);
     }
 
