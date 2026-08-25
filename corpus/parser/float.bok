@@ -1,0 +1,9 @@
+var a: f32 = 10.231;
+
+func foo(real: f32) -> f32
+  return real;
+end
+
+proc main()
+  foo(3.14215);
+end
