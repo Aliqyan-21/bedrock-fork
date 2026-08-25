@@ -38,6 +38,7 @@ pub const Codegen = struct {
             switch (item.*) {
                 .function => |*f| try self.codegen_function(f),
                 .proc => |*p| try self.codegen_proc(p),
+                .extern_def => |*e| try self.codegen_extern(e),
                 else => {
                     // TODO:
                 },
@@ -91,6 +92,55 @@ pub const Codegen = struct {
         self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
         try self.codegen_statements(proc.body);
+    }
+
+    pub fn codegen_extern(self: *Codegen, e_def: *ast.ExternDef) !void {
+        switch (e_def.kind) {
+            .func => try self.codegen_extern_func(e_def),
+            .proc => try self.codegen_extern_proc(e_def),
+        }
+    }
+
+    pub fn codegen_extern_func(self: *Codegen, e: *ast.ExternDef) !void {
+        const ret_type = try self.get_type(e.kind.func.result);
+        const params = try self.codegen_params(e.kind.func.params);
+        defer self.allocator.free(params);
+        const params_len: c_uint = @intCast(e.kind.func.params.items.len);
+        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, 0);
+        const name = try self.allocator.dupeZ(u8, e.kind.func.name);
+        defer self.allocator.free(name);
+        const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
+        llvm.LLVMSetLinkage(func, llvm.LLVMExternalLinkage);
+        if (func != null) {
+            std.debug.print("add extern {s} to module\n", .{name});
+        }
+
+        // set function arg names
+        for (e.kind.func.params.items, 0..) |p, idx| {
+            const arg = llvm.LLVMGetParam(func, @intCast(idx));
+            llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
+        }
+    }
+
+    pub fn codegen_extern_proc(self: *Codegen, e: *ast.ExternDef) !void {
+        const ret_type = llvm.LLVMVoidType();
+        const params = try self.codegen_params(e.kind.proc.params);
+        defer self.allocator.free(params);
+        const params_len: c_uint = @intCast(e.kind.proc.params.items.len);
+        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, 0);
+        const name = try self.allocator.dupeZ(u8, e.kind.proc.name);
+        defer self.allocator.free(name);
+        const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
+        llvm.LLVMSetLinkage(func, llvm.LLVMExternalLinkage);
+        if (func != null) {
+            std.debug.print("add extern {s} to module\n", .{name});
+        }
+
+        // set function arg names
+        for (e.kind.proc.params.items, 0..) |p, idx| {
+            const arg = llvm.LLVMGetParam(func, @intCast(idx));
+            llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
+        }
     }
 
     pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !void {
