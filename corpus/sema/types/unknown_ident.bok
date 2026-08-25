@@ -1,0 +1,5 @@
+// should give unknown error and not type error
+func boo() -> i32
+    var age: i32 = missing_name;
+    return 0;
+end
