@@ -63,7 +63,24 @@ pub const Sema = struct {
             },
             .struct_def => {},
             .enum_def => {},
-            .extern_def => {},
+            .extern_def => |e_def| {
+                switch (e_def.kind) {
+                    .func => |f| {
+                        self.scope.declare(.{ .name = f.name, .kind = .func }) catch |e| {
+                            if (e == error.DuplicateName) {
+                                try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{f.name}, .Error, e_def.token);
+                            }
+                        };
+                    },
+                    .proc => |p| {
+                        self.scope.declare(.{ .name = p.name, .kind = .func }) catch |e| {
+                            if (e == error.DuplicateName) {
+                                try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{p.name}, .Error, e_def.token);
+                            }
+                        };
+                    },
+                }
+            },
             .var_def => |*v| {
                 self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |e| {
                     if (e == error.DuplicateName) {
