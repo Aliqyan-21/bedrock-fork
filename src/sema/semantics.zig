@@ -45,8 +45,22 @@ pub const Sema = struct {
     fn visit_item(self: *Sema, item: *ast.Item) !void {
         switch (item.*) {
             .import_def => {},
-            .function => |*f| try self.visit_function(f),
-            .proc => |*p| try self.visit_proc(p),
+            .function => |*f| {
+                self.scope.declare(.{ .name = f.name, .kind = .func }) catch |e| {
+                    if (e == error.DuplicateName) {
+                        try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{f.name}, .Error, f.token);
+                    }
+                };
+                try self.visit_function(f);
+            },
+            .proc => |*p| {
+                self.scope.declare(.{ .name = p.name, .kind = .func }) catch |e| {
+                    if (e == error.DuplicateName) {
+                        try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{p.name}, .Error, p.token);
+                    }
+                };
+                try self.visit_proc(p);
+            },
             .struct_def => {},
             .enum_def => {},
             .extern_def => {},

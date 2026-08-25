@@ -62,9 +62,10 @@ pub const Compiler = struct {
         self.ast = try p.parse();
         try self.ast.print();
 
-        // self.sema = sema.Sema.init(self);
-        // try self.sema.analyze();
-        // self.sema.deinit();
+        self.sema = sema.Sema.init(self);
+        try self.sema.analyze();
+        self.sema.deinit();
+        try self.emitErrors();
 
         var c = codegen.Codegen.init(self.allocator, self);
         self.mod = try c.codegen();
