@@ -1105,6 +1105,14 @@ pub const Parser = struct {
                     .token = tok,
                 } };
             },
+            .float => {
+                lhs = try self.allocator.create(ast.Expr);
+                lhs.* = .{ .literal = .{
+                    .kind = ast.LiteralKind.float,
+                    .raw = tok.val,
+                    .token = tok,
+                } };
+            },
             .ident => {
                 lhs = try self.allocator.create(ast.Expr);
                 // can be a call expression
