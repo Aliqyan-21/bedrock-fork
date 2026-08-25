@@ -3,20 +3,23 @@ const ast = @import("../ast.zig");
 const compiler = @import("../compiler.zig");
 const err = @import("../error.zig");
 const scope = @import("scope.zig");
+const types = @import("type_system.zig");
 
 pub const Sema = struct {
     compiler: *compiler.Compiler,
     scope: *scope.Scope,
+    types: types.TypeSystem,
 
     pub fn init(c: *compiler.Compiler) Sema {
         return .{
             .compiler = c,
             .scope = undefined,
+            .types = types.TypeSystem.init(c.allocator),
         };
     }
 
     pub fn deinit(self: *Sema) void {
-        _ = self;
+        self.types.deinit();
     }
 
     pub fn analyze(self: *Sema) !void {
@@ -82,20 +85,29 @@ pub const Sema = struct {
                 }
             },
             .var_def => |*v| {
-                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |e| {
+                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else .invalid);
+
+                if (dty != .invalid and aty != .invalid and aty != dty) {
+                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
+                }
+                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
                     }
                 };
-                try self.visit_expression(v.value);
             },
             .const_def => |*c| {
-                self.scope.declare(.{ .name = c.name, .kind = .constant }) catch |e| {
+                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else .invalid);
+                if (dty != .invalid and aty != .invalid and aty != dty) {
+                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
+                }
+                self.scope.declare(.{ .name = c.name, .kind = .constant, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
                     }
                 };
-                try self.visit_expression(c.value);
             },
         }
     }
@@ -168,25 +180,34 @@ pub const Sema = struct {
         switch (stmt.*) {
             .var_stmt => |*v| {
                 if (v.type_ann) |ty| try self.visit_type(ty);
-                try self.visit_expression(v.value);
-                self.scope.declare(.{ .name = v.name, .kind = .variable }) catch |e| {
+                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
+
+                if (dty != .invalid and aty != .invalid and aty != dty) {
+                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
+                }
+                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
                     if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
                 };
             },
             .const_stmt => |*c| {
                 if (c.type_ann) |ty| try self.visit_type(ty);
-                try self.visit_expression(c.value);
-                self.scope.declare(.{ .name = c.name, .kind = .variable }) catch |e| {
+                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
+                if (dty != .invalid and aty != .invalid and aty != dty) {
+                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
+                }
+                self.scope.declare(.{ .name = c.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
                     if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
                 };
             },
             .local_static_var_stmt => |lv| {
                 if (lv.type_ann) |ty| try self.visit_type(ty);
-                try self.visit_expression(lv.value);
+                _ = try self.visit_expression(lv.value, null);
             },
             .assign_stmt => |*a| {
-                try self.visit_expression(a.target);
-                try self.visit_expression(a.value);
+                _ = try self.visit_expression(a.target, null);
+                _ = try self.visit_expression(a.value, null);
             },
             .defer_stmt => |*d| {
                 try self.enter_scope(d.statement_list.items, .block);
@@ -196,10 +217,10 @@ pub const Sema = struct {
             },
             .control_flow_stmt => |*c| try self.visit_control_flow(c),
             .return_stmt => |*r| {
-                if (r.value) |value| try self.visit_expression(value);
+                _ = if (r.value) |value| try self.visit_expression(value, null);
             },
             .expr_stmt => |*e| {
-                if (e.value) |value| try self.visit_expression(value);
+                _ = if (e.value) |value| try self.visit_expression(value, null);
             },
             .break_stmt => |*b| {
                 if (self.scope.enclosing(.loop) == null) {
@@ -219,10 +240,10 @@ pub const Sema = struct {
         // std.debug.print("visiting control flow\n", .{});
         switch (stmt.*) {
             .if_expr => |*i| {
-                try self.visit_expression(i.cond);
+                _ = try self.visit_expression(i.cond, null);
                 try self.enter_scope(i.then_body.items, .block);
                 for (i.elifs.items) |*e| {
-                    try self.visit_expression(e.cond);
+                    _ = try self.visit_expression(e.cond, null);
                     try self.enter_scope(e.body.items, .block);
                 }
                 if (i.else_body) |*body| {
@@ -230,7 +251,7 @@ pub const Sema = struct {
                 }
             },
             .match_expr => |*m| {
-                try self.visit_expression(m.subject);
+                _ = try self.visit_expression(m.subject, null);
 
                 for (m.arms.items) |*arm| {
                     try self.enter_scope(arm.body.items, .block);
@@ -241,59 +262,74 @@ pub const Sema = struct {
                 }
             },
             .while_expr => |*w| {
-                try self.visit_expression(w.cond);
+                _ = try self.visit_expression(w.cond, null);
                 try self.enter_scope(w.body.items, .loop);
             },
             .for_expr => |*f| {
-                try self.visit_expression(f.iterable);
+                _ = try self.visit_expression(f.iterable, null);
                 try self.enter_scope(f.body.items, .loop);
             },
         }
     }
 
-    fn visit_expression(self: *Sema, expr: *ast.Expr) !void {
+    fn visit_expression(self: *Sema, expr: *ast.Expr, expected: ?types.TypeId) !types.TypeId {
         // std.debug.print("visiting expression\n", .{});
-        switch (expr.*) {
-            .literal => {},
-            .ident => |i| {
-                if (self.scope.resolve(i.name) == null) {
-                    try self.compiler.add_sem_error("Unknown identifier '{s}'", .{i.name}, .Error, i.token);
+        return switch (expr.*) {
+            .literal => |*lit| blk: {
+                if (expected) |exp| {
+                    if (lit.kind == .integer and self.types.is_numeric(exp)) break :blk exp;
                 }
+                break :blk try self.types.literal_type(lit.kind);
+            },
+            .ident => |i| blk: {
+                const sym = self.scope.resolve(i.name) orelse {
+                    try self.compiler.add_sem_error("Unknown identifier '{s}'", .{i.name}, .Error, i.token);
+                    break :blk .invalid;
+                };
+                break :blk sym.ty;
             },
             .binary => |*b| {
-                try self.visit_expression(b.lhs);
-                try self.visit_expression(b.rhs);
+                _ = try self.visit_expression(b.lhs, null);
+                _ = try self.visit_expression(b.rhs, null);
+                return .invalid; // todo: implement binary type
             },
             .unary => |*u| {
-                try self.visit_expression(u.operand);
+                _ = try self.visit_expression(u.operand, null);
+                return .invalid; // todo: implement unary type
             },
             .field_access => |*f| {
-                try self.visit_expression(f.target);
+                _ = try self.visit_expression(f.target, null);
+                return .invalid; // todo: implement field_access type?
             },
             .call => |*c| {
-                try self.visit_expression(c.callee);
+                _ = try self.visit_expression(c.callee, null);
                 for (c.args.items) |arg| {
-                    try self.visit_expression(arg.value);
+                    _ = try self.visit_expression(arg.value, null);
                 }
+                return .invalid; //todo: call type
             },
             .index => |*i| {
-                try self.visit_expression(i.target);
+                _ = try self.visit_expression(i.target, null);
                 for (i.args.items) |arg| {
-                    try self.visit_expression(arg);
+                    _ = try self.visit_expression(arg, null);
                 }
+                return .invalid; //todo: index type
             },
             .optional_unwrap => |*o| {
-                try self.visit_expression(o.operand);
+                _ = try self.visit_expression(o.operand, null);
+                return .invalid; //todo: optianal type
             },
             .array_literal => |*al| {
                 for (al.elements.items) |elem| {
-                    try self.visit_expression(elem);
+                    _ = try self.visit_expression(elem, null);
                 }
+                return .invalid; //todo: array type
             },
             .comptime_expr => |*ce| {
                 try self.enter_scope(ce.body.items, .block);
+                return .invalid; //todo: comptime type
             },
-        }
+        };
     }
 
     // note: so the structure is that we visit these different definitions and all the things

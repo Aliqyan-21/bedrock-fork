@@ -1,0 +1,8 @@
+// identifier types are also evaluating
+// x is i32 and putting in y: str
+func foo() -> i32
+    var x: i32 = 5;
+    var y: str = x;
+    return 0;
+end
+

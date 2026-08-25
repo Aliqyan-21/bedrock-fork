@@ -1,4 +1,5 @@
 const std = @import("std");
+const types = @import("type_system.zig");
 
 pub const SymbolKind = enum {
     variable,
@@ -11,8 +12,8 @@ pub const SymbolKind = enum {
 pub const Symbol = struct {
     name: []const u8,
     kind: SymbolKind,
+    ty: types.TypeId = .invalid,
     // here we keep growing accordingly,
-    // like storing types, etc.
 };
 
 pub const Scope = struct {
