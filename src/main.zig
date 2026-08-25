@@ -36,7 +36,7 @@ pub fn main(init: std.process.Init) !void {
 
     var c = compiler.Compiler.init(allocator, source, target);
     try c.run();
-    try c.emitErrors();
+    // try c.emitErrors();
     defer c.deinit();
 
     var tokens = try lexer.tokenize(allocator, source);
