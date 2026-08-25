@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const TypeId = enum(u32) {
     invalid = 0,
+    _,
 };
 
 pub const Primitive = enum {
@@ -31,10 +32,10 @@ pub const TypeSystem = struct {
     }
 
     pub fn deinit(self: *TypeSystem) void {
-        self.types.deinit(self.Allocator);
+        self.types.deinit(self.allocator);
     }
 
-    pub fn get(self: TypeSystem, id: TypeId) Type {
+    pub fn get(self: *TypeSystem, id: TypeId) *Type {
         std.debug.assert(id != .invalid);
         return &self.types.items[@intFromEnum(id) - 1];
     }
