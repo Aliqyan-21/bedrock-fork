@@ -1,5 +1,9 @@
 const std = @import("std");
 
+pub const TypeId = enum(u32) {
+    invalid = 0,
+};
+
 pub const Primitive = enum {
     // zig fmt: off
     bool, char, str,
@@ -12,4 +16,21 @@ pub const Primitive = enum {
 
 pub const Type = union(enum) {
     primitive: Primitive,
+    //todo: implement other types
+};
+
+pub const TypeSystem = struct {
+    allocator: std.mem.Allocator,
+    types: std.ArrayList(Type),
+
+    pub fn init(allocator: std.mem.Allocator) TypeSystem {
+        return .{
+            .allocator = allocator,
+            .types = .{},
+        };
+    }
+
+    pub fn deinit(self: *TypeSystem) void {
+        self.types.deinit(self.Allocator);
+    }
 };
