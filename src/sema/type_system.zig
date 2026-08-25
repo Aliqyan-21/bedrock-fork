@@ -33,4 +33,18 @@ pub const TypeSystem = struct {
     pub fn deinit(self: *TypeSystem) void {
         self.types.deinit(self.Allocator);
     }
+
+    pub fn get(self: TypeSystem, id: TypeId) Type {
+        std.debug.assert(id != .invalid);
+        return &self.types.items[@intFromEnum(id) - 1];
+    }
+
+    fn add(self: *TypeSystem, ty: Type) !TypeId {
+        try self.types.append(self.allocator, ty);
+        return @enumFromInt(self.types.items.len);
+    }
+
+    pub fn primitive(self: *TypeSystem, p: Primitive) !TypeId {
+        return self.add(.{ .primitive = p });
+    }
 };
