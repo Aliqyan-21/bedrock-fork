@@ -1,0 +1,6 @@
+extern func printf(msg: str) -> i32;
+
+func main() -> i32
+    printf("hello from ed!\n");
+    return 0;
+end
