@@ -88,7 +88,7 @@ pub const Sema = struct {
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
                 const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else .invalid);
 
-                if (dty != .invalid and aty != .invalid and aty != dty) {
+                if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
                 }
                 self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
@@ -100,7 +100,7 @@ pub const Sema = struct {
             .const_def => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
                 const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else .invalid);
-                if (dty != .invalid and aty != .invalid and aty != dty) {
+                if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
                 self.scope.declare(.{ .name = c.name, .kind = .constant, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
@@ -123,8 +123,8 @@ pub const Sema = struct {
         defer self.scope = saved;
 
         for (func.params.items) |*param| {
-            try self.visit_type(param.type);
-            func_scope.declare(.{ .name = param.name, .kind = .param }) catch |e| {
+            const param_ty = try self.types.resolve_type(param.type);
+            func_scope.declare(.{ .name = param.name, .kind = .param, .ty = param_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
             };
         }
@@ -179,11 +179,10 @@ pub const Sema = struct {
         // std.debug.print("visiting statement\n", .{});
         switch (stmt.*) {
             .var_stmt => |*v| {
-                if (v.type_ann) |ty| try self.visit_type(ty);
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
                 const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
-                if (dty != .invalid and aty != .invalid and aty != dty) {
+                if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
                 }
                 self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
@@ -191,10 +190,9 @@ pub const Sema = struct {
                 };
             },
             .const_stmt => |*c| {
-                if (c.type_ann) |ty| try self.visit_type(ty);
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
                 const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
-                if (dty != .invalid and aty != .invalid and aty != dty) {
+                if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
                 self.scope.declare(.{ .name = c.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
@@ -277,7 +275,7 @@ pub const Sema = struct {
         return switch (expr.*) {
             .literal => |*lit| blk: {
                 if (expected) |exp| {
-                    if (lit.kind == .integer and self.types.is_numeric(exp)) break :blk exp;
+                    if (self.types.literal_fits(lit.kind, exp)) break :blk exp;
                 }
                 break :blk try self.types.literal_type(lit.kind);
             },
