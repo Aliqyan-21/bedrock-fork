@@ -1,0 +1,15 @@
+func foo() -> f32
+  return 21;
+end
+
+func roo() -> i32
+  return;
+end
+
+proc boo()
+  return;
+end
+
+proc blue()
+  return 0;
+end

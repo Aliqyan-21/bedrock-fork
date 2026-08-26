@@ -114,9 +114,10 @@ pub const Sema = struct {
 
     fn visit_function(self: *Sema, func: *ast.FunctionDef) !void {
         // std.debug.print("visiting function\n", .{});
-        try self.visit_type(func.result);
+        const rty = try self.types.resolve_type(func.result);
 
         var func_scope = scope.Scope.init(self.compiler.allocator, .func, self.scope);
+        func_scope.fn_info = .{ .func = rty };
         defer func_scope.deinit();
         const saved = self.scope;
         self.scope = &func_scope;
@@ -135,6 +136,7 @@ pub const Sema = struct {
     fn visit_proc(self: *Sema, proc: *ast.ProcDef) !void {
         // std.debug.print("visiting proc\n", .{});
         var proc_scope = scope.Scope.init(self.compiler.allocator, .func, self.scope);
+        proc_scope.fn_info = .proc;
         defer proc_scope.deinit();
         const saved = self.scope;
         self.scope = &proc_scope;
@@ -215,6 +217,29 @@ pub const Sema = struct {
             },
             .control_flow_stmt => |*c| try self.visit_control_flow(c),
             .return_stmt => |*r| {
+                const fn_scope = self.scope.enclosing(.func);
+                // note: should we handle nil explicitly ??
+                if (fn_scope == null) {
+                    try self.compiler.add_sem_error("return used outside of function\n", .{}, .Error, r.token);
+                    _ = if (r.value) |val| try self.visit_expression(val, null);
+                } else if (fn_scope.?.fn_info) |i| switch (i) {
+                    .func => |rty| {
+                        if (r.value) |val| {
+                            const vty = try self.visit_expression(val, if (rty != .invalid) rty else null);
+                            if (rty != .invalid and !self.types.assignable(vty, rty)) {
+                                try self.compiler.add_sem_error("type mismatch expected {s}, found {s}", .{ self.types.name_of(rty), self.types.name_of(vty) }, .Error, r.token);
+                            }
+                        } else {
+                            try self.compiler.add_sem_error("return should return a value of type {s}", .{self.types.name_of(rty)}, .Error, r.token);
+                        }
+                    },
+                    .proc => {
+                        if (r.value) |val| {
+                            _ = try self.visit_expression(val, null);
+                            try self.compiler.add_sem_error("proc cannot return a value", .{}, .Error, r.token);
+                        }
+                    },
+                };
                 _ = if (r.value) |value| try self.visit_expression(value, null);
             },
             .expr_stmt => |*e| {
