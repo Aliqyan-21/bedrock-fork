@@ -106,11 +106,20 @@ pub const TypeSystem = struct {
         };
     }
 
-    pub fn is_numeric(self: *TypeSystem, id: TypeId) bool {
+    // does literal fits this type
+    pub fn literal_fits(self: *TypeSystem, kind: ast.LiteralKind, id: TypeId) bool {
         if (id == .invalid) return false;
-        return switch (self.get(id).*) {
-            .primitive => |p| switch (p) {
+        const p = switch (self.get(id).*) {
+            .primitive => |p| p,
+            else => return false,
+        };
+        return switch (kind) {
+            .integer => switch (p) {
                 .i8, .i16, .i32, .i64, .u8, .u16, .u32, .u64, .f32, .f64, .usize, .isize => true,
+                else => false,
+            },
+            .float => switch (p) {
+                .f32, .f64 => true,
                 else => false,
             },
             else => false,

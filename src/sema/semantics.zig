@@ -123,8 +123,8 @@ pub const Sema = struct {
         defer self.scope = saved;
 
         for (func.params.items) |*param| {
-            try self.visit_type(param.type);
-            func_scope.declare(.{ .name = param.name, .kind = .param }) catch |e| {
+            const param_ty = try self.types.resolve_type(param.type);
+            func_scope.declare(.{ .name = param.name, .kind = .param, .ty = param_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
             };
         }
@@ -275,7 +275,7 @@ pub const Sema = struct {
         return switch (expr.*) {
             .literal => |*lit| blk: {
                 if (expected) |exp| {
-                    if (lit.kind == .integer and self.types.is_numeric(exp)) break :blk exp;
+                    if (self.types.literal_fits(lit.kind, exp)) break :blk exp;
                 }
                 break :blk try self.types.literal_type(lit.kind);
             },
