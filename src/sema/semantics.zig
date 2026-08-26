@@ -131,6 +131,10 @@ pub const Sema = struct {
         }
 
         try self.enter_scope(func.body.items, .block);
+
+        if (rty != .invalid and !self.types.body_returns(func.body.items)) {
+            try self.compiler.add_sem_error("control reaches the end of the function", .{}, .Warn, func.token);
+        }
     }
 
     fn visit_proc(self: *Sema, proc: *ast.ProcDef) !void {

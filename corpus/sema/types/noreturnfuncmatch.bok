@@ -1,0 +1,18 @@
+// will give warning
+func boo() -> i32
+  const a: i32 = 0;
+  match (a)
+    case 0
+      return 10;
+    else
+      return 1;
+  end
+end
+
+func foo() -> i32
+  const a: i32 = 0;
+  match (a)
+    case 0
+      return 0;
+  end
+end

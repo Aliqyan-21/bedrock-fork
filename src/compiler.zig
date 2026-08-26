@@ -67,30 +67,30 @@ pub const Compiler = struct {
         self.sema.deinit();
         try self.emitErrors();
 
-        var c = codegen.Codegen.init(self.allocator, self);
-        self.mod = try c.codegen();
-        var error_message: [*c]u8 = null;
-        const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
-        if (res != 0) {
-            if (error_message) |msg| {
-                std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
-                llvm.LLVMDisposeMessage(msg);
-            }
-        }
-
-        // get thread safe context for jit
-        const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(c.ctx);
-        const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(c.mod, tsctx);
-        const jd = llvm.LLVMOrcLLJITGetMainJITDylib(jit);
-        _ = llvm.LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm);
-        var addr: llvm.LLVMOrcExecutorAddress = undefined;
-        _ = llvm.LLVMOrcLLJITLookup(jit, &addr, @ptrCast("main"));
-        const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
-        const result = Main();
-
-        std.debug.print("result = {}\n", .{result});
-
-        c.deinit();
+        // var c = codegen.Codegen.init(self.allocator, self);
+        // self.mod = try c.codegen();
+        // var error_message: [*c]u8 = null;
+        // const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
+        // if (res != 0) {
+        //     if (error_message) |msg| {
+        //         std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
+        //         llvm.LLVMDisposeMessage(msg);
+        //     }
+        // }
+        //
+        // // get thread safe context for jit
+        // const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(c.ctx);
+        // const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(c.mod, tsctx);
+        // const jd = llvm.LLVMOrcLLJITGetMainJITDylib(jit);
+        // _ = llvm.LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm);
+        // var addr: llvm.LLVMOrcExecutorAddress = undefined;
+        // _ = llvm.LLVMOrcLLJITLookup(jit, &addr, @ptrCast("main"));
+        // const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
+        // const result = Main();
+        //
+        // std.debug.print("result = {}\n", .{result});
+        //
+        // c.deinit();
         self.ast.deinit(self.allocator);
     }
 
