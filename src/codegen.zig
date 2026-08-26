@@ -171,10 +171,27 @@ pub const Codegen = struct {
                 .expr_stmt => |*e| try self.codegen_expression_statement(e),
                 .var_stmt => |*v| try self.codegen_var(v),
                 .const_stmt => |*c| try self.codegen_const(c),
+                .assign_stmt => |*a| try self.codegen_assign(a),
                 else => {
                     // TODO:
                 },
             }
+        }
+    }
+
+    pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !void {
+        const e = try self.codegen_expression(a.value);
+        // NOTE: currently only for var assign
+        switch (a.target.*) {
+            .ident => |*i| {
+                // lookup for var on stack
+                const alloca = self.stack_map.get(i.name).?;
+                _ = llvm.LLVMBuildStore(self.builder, e, alloca);
+            },
+            else => {
+                // TODO:
+                unreachable;
+            },
         }
     }
 
