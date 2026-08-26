@@ -18,7 +18,25 @@ pub const Primitive = enum {
 
 pub const Type = union(enum) {
     primitive: Primitive,
-    //todo: implement other types
+    pointer: struct {
+        child: TypeId,
+    },
+    array: struct {
+        child: TypeId,
+        len: u64,
+    },
+    slice: struct {
+        child: TypeId,
+    },
+    optional: TypeId,
+    error_union: TypeId,
+    function: struct {
+        params: std.ArrayList(TypeId),
+        result: TypeId,
+    },
+    procedure: struct {
+        params: std.ArrayList(TypeId),
+    },
 };
 
 pub const TypeSystem = struct {
@@ -58,6 +76,8 @@ pub const TypeSystem = struct {
         self.pids[idx] = id;
         return id;
     }
+
+    //todo: implment other types
 
     // this does same work as visit type but now returns the typeid too,
     // as it will become complete then there will be no need for visit_type, then
@@ -100,6 +120,4 @@ pub const TypeSystem = struct {
             .primitive => |p| @tagName(p),
         };
     }
-
-    //todo: implment more functions for other types
 };
