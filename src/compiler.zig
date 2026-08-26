@@ -74,7 +74,6 @@ pub const Compiler = struct {
         if (res != 0) {
             if (error_message) |msg| {
                 std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
-
                 llvm.LLVMDisposeMessage(msg);
             }
         }
@@ -90,6 +89,8 @@ pub const Compiler = struct {
         const result = Main();
 
         std.debug.print("result = {}\n", .{result});
+
+        c.deinit();
         self.ast.deinit(self.allocator);
     }
 
