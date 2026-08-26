@@ -169,11 +169,45 @@ pub const Codegen = struct {
             switch (stmt.*) {
                 .return_stmt => |*r| try self.codegen_return(r),
                 .expr_stmt => |*e| try self.codegen_expression_statement(e),
+                .var_stmt => |*v| try self.codegen_var(v),
+                .const_stmt => |*c| try self.codegen_const(c),
                 else => {
                     // TODO:
                 },
             }
         }
+    }
+
+    pub fn codegen_var(self: *Codegen, v: *ast.VarStmt) !void {
+        const alloca = try self.codegen_alloca_var(v);
+        const e = try self.codegen_expression(v.value);
+        // store value on stack space
+        _ = llvm.LLVMBuildStore(self.builder, e, alloca);
+        try self.stack_map.put(v.name, alloca);
+    }
+
+    pub fn codegen_const(self: *Codegen, v: *ast.ConstStmt) !void {
+        const alloca = try self.codegen_alloca_const(v);
+        const e = try self.codegen_expression(v.value);
+        // store value on stack space
+        _ = llvm.LLVMBuildStore(self.builder, e, alloca);
+        try self.stack_map.put(v.name, alloca);
+    }
+
+    pub fn codegen_alloca_var(self: *Codegen, v: *ast.VarStmt) !llvm.LLVMValueRef {
+        // NOTE: currently type is expected
+        const t = try self.get_type(v.type_ann.?);
+        const name = try self.allocator.dupeZ(u8, v.name);
+        defer self.allocator.free(name);
+        return llvm.LLVMBuildAlloca(self.builder, t, name);
+    }
+
+    pub fn codegen_alloca_const(self: *Codegen, v: *ast.ConstStmt) !llvm.LLVMValueRef {
+        // NOTE: currently type is expected
+        const t = try self.get_type(v.type_ann.?);
+        const name = try self.allocator.dupeZ(u8, v.name);
+        defer self.allocator.free(name);
+        return llvm.LLVMBuildAlloca(self.builder, t, name);
     }
 
     pub fn codegen_params(self: *Codegen, params: std.ArrayList(ast.Param)) ![]llvm.LLVMTypeRef {

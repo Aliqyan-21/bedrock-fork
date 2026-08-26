@@ -1,0 +1,11 @@
+ func add(x: i32, y: i32) -> i32
+    var a: i32 = 10;
+    var b: i32 = 10;
+    const c: i32 = y;
+    const e: i32 = x;
+    return x + y + a + b + c + e;
+end
+
+func main() -> i32
+    return add(10, 10);
+end
