@@ -108,8 +108,11 @@ pub const TypeSystem = struct {
 
     pub fn is_numeric(self: *TypeSystem, id: TypeId) bool {
         if (id == .invalid) return false;
-        return switch (self.get(id).primitive) {
-            .i8, .i16, .i32, .i64, .u8, .u16, .u32, .u64, .f32, .f64, .usize, .isize => true,
+        return switch (self.get(id).*) {
+            .primitive => |p| switch (p) {
+                .i8, .i16, .i32, .i64, .u8, .u16, .u32, .u64, .f32, .f64, .usize, .isize => true,
+                else => false,
+            },
             else => false,
         };
     }
@@ -118,6 +121,7 @@ pub const TypeSystem = struct {
         if (id == .invalid) return "<invalid>";
         return switch (self.get(id).*) {
             .primitive => |p| @tagName(p),
+            else => "not implemented",
         };
     }
 };

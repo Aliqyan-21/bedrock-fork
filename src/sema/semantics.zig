@@ -179,7 +179,6 @@ pub const Sema = struct {
         // std.debug.print("visiting statement\n", .{});
         switch (stmt.*) {
             .var_stmt => |*v| {
-                if (v.type_ann) |ty| try self.visit_type(ty);
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
                 const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
@@ -191,7 +190,6 @@ pub const Sema = struct {
                 };
             },
             .const_stmt => |*c| {
-                if (c.type_ann) |ty| try self.visit_type(ty);
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
                 const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and aty != dty) {
