@@ -9,6 +9,11 @@ pub const SymbolKind = enum {
     proc,
 };
 
+pub const FnInfo = union(enum) {
+    func: types.TypeId, // returns value so typeid
+    proc, // should never return a value, tho it could return from branches
+};
+
 pub const Symbol = struct {
     name: []const u8,
     kind: SymbolKind,
@@ -20,6 +25,7 @@ pub const Scope = struct {
     id: Id,
     parent: ?*Scope,
     symbols: std.StringHashMap(Symbol), // for O(1)
+    fn_info: ?FnInfo = null, // this used only for .func SymbolKind scopes
 
     pub const Id = enum {
         root, // root (var_def, const_def)
