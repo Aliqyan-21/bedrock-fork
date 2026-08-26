@@ -11,6 +11,7 @@ pub const Codegen = struct {
     mod: llvm.LLVMModuleRef,
     builder: llvm.LLVMBuilderRef,
     entry: llvm.LLVMBasicBlockRef,
+    stack_map: std.StringHashMap(llvm.LLVMValueRef),
 
     pub fn init(allocator: std.mem.Allocator, c: *compiler.Compiler) Codegen {
         return Codegen{
@@ -20,7 +21,12 @@ pub const Codegen = struct {
             .mod = undefined,
             .builder = llvm.LLVMCreateBuilder(),
             .entry = undefined,
+            .stack_map = std.StringHashMap(llvm.LLVMValueRef).init(allocator),
         };
+    }
+
+    pub fn deinit(self: *Codegen) void {
+        self.stack_map.deinit();
     }
 
     pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {
@@ -67,6 +73,21 @@ pub const Codegen = struct {
 
         self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+
+        // store params on stack
+        self.stack_map.clearRetainingCapacity();
+        for (function.params.items, 0..) |p, idx| {
+            // allocate the space on stack
+            const alloca = try self.codegen_alloca(main_func, p);
+            const arg = llvm.LLVMGetParam(main_func, @intCast(idx));
+            // store value on stack space
+            _ = llvm.LLVMBuildStore(self.builder, arg, alloca);
+            try self.stack_map.put(p.name, alloca);
+        }
+
+        // reset the builder position
+        // llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+
         try self.codegen_statements(function.body);
     }
 
@@ -165,6 +186,21 @@ pub const Codegen = struct {
         return p_types;
     }
 
+    pub fn codegen_alloca(self: *Codegen, func: llvm.LLVMValueRef, p: ast.Param) !llvm.LLVMValueRef {
+        // get the entry bb
+        const e_bb = llvm.LLVMGetEntryBasicBlock(func);
+        _ = e_bb;
+        // NOTE: no need for first inst only handles for params now
+        // get the first inst of entry bb and append the allocas here
+        // const i = llvm.LLVMGetFirstInstruction(e_bb);
+        // llvm.LLVMPositionBuilderBefore(self.builder, i);
+        // TODO: only handles int types for now
+        const t = try self.get_type(p.type);
+        const name = try self.allocator.dupeZ(u8, p.name);
+        defer self.allocator.free(name);
+        return llvm.LLVMBuildAlloca(self.builder, t, name);
+    }
+
     pub fn codegen_return(self: *Codegen, r: *ast.ReturnStmt) !void {
         if (r.value) |e| {
             const val = try self.codegen_expression(e);
@@ -184,9 +220,21 @@ pub const Codegen = struct {
             .binary => |*b| self.codegen_binary(b),
             .unary => |*u| self.codegen_unary(u),
             .call => |*c| self.codegen_call(c),
-            // .ident => |*i| self.codegen_ident(i),
+            .ident => |*i| self.codegen_ident(i),
             else => unreachable,
         };
+    }
+
+    pub fn codegen_ident(self: *Codegen, i: *ast.IdentExpr) !llvm.LLVMValueRef {
+        // load var from stack
+        if (self.stack_map.get(i.name)) |v| {
+            return llvm.LLVMBuildLoad2(self.builder, llvm.LLVMGetAllocatedType(v), v, "");
+        } else {
+            std.debug.print("variable not found\n", .{});
+        }
+
+        // TODO: error
+        unreachable;
     }
 
     pub fn codegen_call(self: *Codegen, c: *ast.CallExpr) !llvm.LLVMValueRef {
