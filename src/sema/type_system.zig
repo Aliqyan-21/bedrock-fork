@@ -18,25 +18,13 @@ pub const Primitive = enum {
 
 pub const Type = union(enum) {
     primitive: Primitive,
-    pointer: struct {
-        child: TypeId,
-    },
-    array: struct {
-        child: TypeId,
-        len: u64,
-    },
-    slice: struct {
-        child: TypeId,
-    },
+    pointer: struct { child: TypeId },
+    array: struct { child: TypeId, len: u64 },
+    slice: struct { child: TypeId },
     optional: TypeId,
     error_union: TypeId,
-    function: struct {
-        params: std.ArrayList(TypeId),
-        result: TypeId,
-    },
-    procedure: struct {
-        params: std.ArrayList(TypeId),
-    },
+    function: struct { params: std.ArrayList(TypeId), result: TypeId },
+    procedure: struct { params: std.ArrayList(TypeId) },
 };
 
 pub const TypeSystem = struct {
@@ -85,6 +73,7 @@ pub const TypeSystem = struct {
     pub fn resolve_type(self: *TypeSystem, ty: *ast.Type) !TypeId {
         return switch (ty.base) {
             .primitive => |p| try self.from_ast_primitive(p),
+            //todo: implement pointer after discussion.
             else => .invalid, // pointer,array,etc...
         };
     }
@@ -93,6 +82,18 @@ pub const TypeSystem = struct {
     pub fn from_ast_primitive(self: *TypeSystem, p: ast.PrimitiveType) !TypeId {
         const mapped = std.meta.stringToEnum(Primitive, @tagName(p)) orelse unreachable;
         return self.primitive(mapped);
+    }
+
+    // to check if an id (from) can be assign to another id (to)
+    // it's useful for type conversion checking.
+    pub fn assignable(self: *TypeSystem, from: TypeId, to: TypeId) bool {
+        if (from == .invalid or to == .invalid) return true;
+        if (from == to) return true;
+        return switch (self.get(to).*) {
+            .optional => |inner| from == inner or self.assignable(from, inner),
+            .error_union => |inner| from == inner or self.assignable(from, inner),
+            else => false,
+        };
     }
 
     // find type of literal "hi" -> string, 24 -> i32
