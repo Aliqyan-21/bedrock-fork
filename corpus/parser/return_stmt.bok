@@ -1,3 +1,11 @@
 func ml() -> i32
   return 69_69_69;
 end
+
+func foo() -> i32
+  return 100;
+end
+
+proc blue()
+  return;
+end

@@ -488,6 +488,10 @@ pub const Parser = struct {
 
     fn parse_return_stmt(self: *Parser) !ast.Stmt {
         const tok = try self.lexer.next();
+        if ((try self.lexer.peek_token()).type == .semicolon) {
+            _ = try self.lexer.next();
+            return ast.Stmt{ .return_stmt = .{ .value = null, .token = tok } };
+        }
         const value = try self.parse_expression();
         _ = try self.expect(.semicolon, "expected ';'");
         return ast.Stmt{ .return_stmt = .{ .value = value, .token = tok } };
