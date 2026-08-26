@@ -236,8 +236,6 @@ pub const Sema = struct {
                     .proc => {
                         if (r.value) |val| {
                             _ = try self.visit_expression(val, null);
-                            //todo: instead of going errorful here, have to implement that
-                            //we can use return just 'return;' for early return from branches.
                             try self.compiler.add_sem_error("proc cannot return a value", .{}, .Error, r.token);
                         }
                     },
