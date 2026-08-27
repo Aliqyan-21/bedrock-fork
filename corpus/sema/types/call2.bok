@@ -7,6 +7,10 @@ end
 
 proc main()
   foo();
+
   _ = foo();
+
   boo();
+
+  var a = boo();
 end

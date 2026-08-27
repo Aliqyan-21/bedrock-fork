@@ -424,7 +424,7 @@ pub const Sema = struct {
                                 }
                             }
                         }
-                        // note: is "a = foo(...)", where foo is a proc should be legal?
+                        try self.compiler.add_sem_error("the call is of a proc, and there's no return value to store", .{}, .Error, c.token);
                         break :result .invalid;
                     },
                     else => result: {
