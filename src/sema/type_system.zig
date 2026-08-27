@@ -84,6 +84,28 @@ pub const TypeSystem = struct {
         return self.primitive(mapped);
     }
 
+    pub fn body_returns(self: TypeSystem, stms: []ast.Stmt) bool {
+        if (stms.len == 0) return false;
+        return switch (stms[stms.len - 1]) {
+            .return_stmt => true,
+            .control_flow_stmt => |cf| switch (cf) {
+                .if_expr => |i| blk: {
+                    const eb = i.else_body orelse break :blk false;
+                    if (!self.body_returns(i.then_body.items)) break :blk false;
+                    for (i.elifs.items) |e| if (!self.body_returns(e.body.items)) break :blk false;
+                    break :blk self.body_returns(eb.items);
+                },
+                .match_expr => |m| blk: {
+                    const eb = m.else_body orelse break :blk false;
+                    for (m.arms.items) |arm| if (!self.body_returns(arm.body.items)) break :blk false;
+                    break :blk self.body_returns(eb.items);
+                },
+                else => false,
+            },
+            else => false,
+        };
+    }
+
     // to check if an id (from) can be assign to another id (to)
     // it's useful for type conversion checking.
     pub fn assignable(self: *TypeSystem, from: TypeId, to: TypeId) bool {
