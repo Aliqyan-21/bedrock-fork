@@ -324,7 +324,9 @@ pub const Sema = struct {
                 switch (u.op) {
                     .neg => {
                         const ty = try self.visit_expression(u.operand, expected);
-                        //todo: check numeric
+                        if (ty != .invalid and !self.types.literal_fits(.integer, ty)) {
+                            try self.compiler.add_sem_error("cannot negate non-numeric type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                        }
                         break :blk ty;
                     },
                     .not => {
@@ -335,11 +337,9 @@ pub const Sema = struct {
                         break :blk try self.types.primitive(.bool);
                     },
                     .bit_not => {
-                        const ty = try self.visit_expression(u.operand, try self.types.primitive(.bool));
-                        if (ty != .invalid and !self.types.assignable(ty, try self.types.primitive(.bool))) {
-                            try self.compiler.add_sem_error("expected a bool, but found {s}", .{self.types.name_of(ty)}, .Error, u.token);
-                        }
-                        break :blk try self.types.primitive(.bool);
+                        const ty = try self.visit_expression(u.operand, expected);
+                        //todo: check for only integer types...(float could not work here)
+                        break :blk ty;
                     },
                     .addr_of => {
                         //todo: implement when pointer is implemented
