@@ -320,8 +320,38 @@ pub const Sema = struct {
                 _ = try self.visit_expression(b.rhs, null);
                 return .invalid; // todo: implement binary type
             },
-            .unary => |*u| {
-                _ = try self.visit_expression(u.operand, null);
+            .unary => |*u| blk: {
+                switch (u.op) {
+                    .neg => {
+                        const ty = try self.visit_expression(u.operand, expected);
+                        //todo: check numeric
+                        break :blk ty;
+                    },
+                    .not => {
+                        const ty = try self.visit_expression(u.operand, try self.types.primitive(.bool));
+                        if (ty != .invalid and !self.types.assignable(ty, try self.types.primitive(.bool))) {
+                            try self.compiler.add_sem_error("expected a bool, but found {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                        }
+                        break :blk try self.types.primitive(.bool);
+                    },
+                    .bit_not => {
+                        const ty = try self.visit_expression(u.operand, try self.types.primitive(.bool));
+                        if (ty != .invalid and !self.types.assignable(ty, try self.types.primitive(.bool))) {
+                            try self.compiler.add_sem_error("expected a bool, but found {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                        }
+                        break :blk try self.types.primitive(.bool);
+                    },
+                    .addr_of => {
+                        //todo: implement when pointer is implemented
+                        _ = try self.visit_expression(u.operand, null);
+                        break :blk .invalid;
+                    },
+                    .deref => {
+                        //todo: implement when pointer is implemented
+                        _ = try self.visit_expression(u.operand, null);
+                        break :blk .invalid;
+                    },
+                }
                 return .invalid; // todo: implement unary type
             },
             .field_access => |*f| {
