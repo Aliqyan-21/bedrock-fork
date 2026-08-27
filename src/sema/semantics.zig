@@ -221,8 +221,13 @@ pub const Sema = struct {
                 _ = try self.visit_expression(lv.value, null);
             },
             .assign_stmt => |*a| {
-                _ = try self.visit_expression(a.target, null);
-                _ = try self.visit_expression(a.value, null);
+                const is_discard = a.target.* == .ident and std.mem.eql(u8, a.target.ident.name, "_");
+                if (is_discard) {
+                    _ = try self.visit_expression(a.value, null);
+                } else {
+                    _ = try self.visit_expression(a.target, null);
+                    _ = try self.visit_expression(a.value, null);
+                }
             },
             .defer_stmt => |*d| {
                 try self.enter_scope(d.statement_list.items, .block);
@@ -258,7 +263,14 @@ pub const Sema = struct {
                 _ = if (r.value) |value| try self.visit_expression(value, null);
             },
             .expr_stmt => |*e| {
-                _ = if (e.value) |value| try self.visit_expression(value, null);
+                if (e.value) |val| {
+                    const ty = try self.visit_expression(val, null);
+                    // info: I could check here func/proc as func have
+                    // to always return a value and proc could never
+                    // but .invalid already does that shit if u think of it
+                    const is_wrong = ty != .invalid and val.* == .call;
+                    if (is_wrong) try self.compiler.add_sem_error("unused return value: use '_ = ...' to discard", .{}, .Error, val.call.token);
+                }
             },
             .break_stmt => |*b| {
                 if (self.scope.enclosing(.loop) == null) {
