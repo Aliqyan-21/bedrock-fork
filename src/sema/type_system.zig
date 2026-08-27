@@ -42,6 +42,13 @@ pub const TypeSystem = struct {
     }
 
     pub fn deinit(self: *TypeSystem) void {
+        for (self.types.items) |*ty| {
+            switch (ty.*) {
+                .function => |*f| f.params.deinit(self.allocator),
+                .procedure => |*p| p.params.deinit(self.allocator),
+                else => {},
+            }
+        }
         self.types.deinit(self.allocator);
     }
 
@@ -50,7 +57,7 @@ pub const TypeSystem = struct {
         return &self.types.items[@intFromEnum(id) - 1];
     }
 
-    fn add(self: *TypeSystem, ty: Type) !TypeId {
+    pub fn add(self: *TypeSystem, ty: Type) !TypeId {
         try self.types.append(self.allocator, ty);
         return @enumFromInt(self.types.items.len);
     }

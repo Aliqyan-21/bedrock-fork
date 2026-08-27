@@ -380,12 +380,46 @@ pub const Sema = struct {
                 _ = try self.visit_expression(f.target, null);
                 return .invalid; // todo: implement field_access type?
             },
-            .call => |*c| {
-                _ = try self.visit_expression(c.callee, null);
+            .call => |*c| blk: {
+                const cty = try self.visit_expression(c.callee, null);
                 for (c.args.items) |arg| {
                     _ = try self.visit_expression(arg.value, null);
                 }
-                return .invalid; //todo: call type
+                if (cty == .invalid) break :blk .invalid;
+
+                break :blk switch (self.types.get(cty).*) {
+                    .function => |fnty| result: {
+                        if (c.args.items.len != fnty.params.items.len) {
+                            try self.compiler.add_sem_error("expected {d} arguments, found {d}", .{ fnty.params.items.len, c.args.items.len }, .Error, c.token);
+                            break :result fnty.result;
+                        }
+                        for (c.args.items, fnty.params.items) |arg, pty| {
+                            const argty = try self.visit_expression(arg.value, pty);
+                            if (argty != .invalid and !self.types.assignable(argty, pty)) {
+                                try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(pty), self.types.name_of(argty) }, .Error, c.token);
+                            }
+                        }
+                        break :result fnty.result;
+                    },
+                    .procedure => |prty| result: {
+                        if (c.args.items.len != prty.params.items.len) {
+                            try self.compiler.add_sem_error("expected {d} arguments, found {d}", .{ prty.params.items.len, c.args.items.len }, .Error, c.token);
+                        } else {
+                            for (c.args.items, prty.params.items) |arg, pty| {
+                                const argty = try self.visit_expression(arg.value, pty);
+                                if (argty != .invalid and !self.types.assignable(argty, pty)) {
+                                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(pty), self.types.name_of(argty) }, .Error, c.token);
+                                }
+                            }
+                        }
+                        // note: is "a = foo(...)", where foo is a proc should be legal?
+                        break :result .invalid;
+                    },
+                    else => result: {
+                        try self.compiler.add_sem_error("cannot call non-function type {s}", .{self.types.name_of(cty)}, .Error, c.token);
+                        break :result .invalid;
+                    },
+                };
             },
             .index => |*i| {
                 _ = try self.visit_expression(i.target, null);
