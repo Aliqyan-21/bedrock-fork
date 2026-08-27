@@ -338,7 +338,18 @@ pub const Sema = struct {
                     },
                     .bit_not => {
                         const ty = try self.visit_expression(u.operand, expected);
-                        //todo: check for only integer types...(float could not work here)
+                        if (ty != .invalid) {
+                            const is_int = switch (self.types.get(ty).*) {
+                                .primitive => |p| switch (p) {
+                                    .i8, .i16, .i32, .i64, .u8, .u16, .u32, .u64, .f32, .f64, .usize, .isize => true,
+                                    else => false,
+                                },
+                                else => false,
+                            };
+                            if (!is_int) {
+                                try self.compiler.add_sem_error("cannot bitwise-not non-integer type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                            }
+                        }
                         break :blk ty;
                     },
                     .addr_of => {

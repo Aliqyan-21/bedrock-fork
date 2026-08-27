@@ -1,0 +1,4 @@
+proc main()
+  var a = 'a';
+  const x = -a;
+end
