@@ -1,0 +1,14 @@
+func control(x: i32, y: i32) -> i32
+    var a: i32 = 20;
+    if a > y
+        a = a + x;
+    else
+        a = a + y;
+    end
+
+    return a;
+end
+
+func main() -> i32
+    return control(10, 15);
+end

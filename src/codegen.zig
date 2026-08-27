@@ -88,7 +88,7 @@ pub const Codegen = struct {
         // reset the builder position
         // llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
 
-        try self.codegen_statements(function.body);
+        _ = try self.codegen_statements(function.body);
     }
 
     pub fn codegen_proc(self: *Codegen, proc: *ast.ProcDef) !void {
@@ -112,7 +112,7 @@ pub const Codegen = struct {
 
         self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
-        try self.codegen_statements(proc.body);
+        _ = try self.codegen_statements(proc.body);
     }
 
     pub fn codegen_extern(self: *Codegen, e_def: *ast.ExternDef) !void {
@@ -164,30 +164,29 @@ pub const Codegen = struct {
         }
     }
 
-    pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !void {
+    pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !llvm.LLVMValueRef {
+        var last_value: llvm.LLVMValueRef = undefined;
         for (stmts.items) |*stmt| {
-            switch (stmt.*) {
+            last_value = switch (stmt.*) {
                 .return_stmt => |*r| try self.codegen_return(r),
                 .expr_stmt => |*e| try self.codegen_expression_statement(e),
                 .var_stmt => |*v| try self.codegen_var(v),
                 .const_stmt => |*c| try self.codegen_const(c),
                 .assign_stmt => |*a| try self.codegen_assign(a),
+                .control_flow_stmt => |*c| try self.codegen_control_flow(c),
                 else => {
                     // TODO:
+                    unreachable;
                 },
-            }
+            };
         }
+
+        return last_value;
     }
 
-    pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !void {
-        const e = try self.codegen_expression(a.value);
-        // NOTE: currently only for var assign
-        switch (a.target.*) {
-            .ident => |*i| {
-                // lookup for var on stack
-                const alloca = self.stack_map.get(i.name).?;
-                _ = llvm.LLVMBuildStore(self.builder, e, alloca);
-            },
+    pub fn codegen_control_flow(self: *Codegen, cf: *ast.ControlFlowStmt) anyerror!llvm.LLVMValueRef {
+        switch (cf.*) {
+            .if_expr => |*i| return try self.codegen_if(i),
             else => {
                 // TODO:
                 unreachable;
@@ -195,20 +194,76 @@ pub const Codegen = struct {
         }
     }
 
-    pub fn codegen_var(self: *Codegen, v: *ast.VarStmt) !void {
+    pub fn codegen_if(self: *Codegen, i: *ast.IfExpr) !llvm.LLVMValueRef {
+        const cond = try self.codegen_expression(i.cond);
+
+        // get the parent function for block insertion
+        const func = llvm.LLVMGetBasicBlockParent(self.entry);
+        // TODO: no elif for now
+        const then_bb = llvm.LLVMAppendBasicBlock(func, "then");
+        const else_bb = llvm.LLVMAppendBasicBlock(func, "else");
+        const merge_bb = llvm.LLVMAppendBasicBlock(func, "merge");
+
+        // build cmp condition
+        _ = llvm.LLVMBuildCondBr(self.builder, cond, then_bb, else_bb);
+
+        // set new insert point for then_bb codegen
+        llvm.LLVMPositionBuilderAtEnd(self.builder, then_bb);
+        const then_val = try self.codegen_statements(i.then_body);
+        _ = llvm.LLVMBuildBr(self.builder, merge_bb);
+
+        // reset the insert pos
+        llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+
+        // set new insert point for else_bb codegen
+        llvm.LLVMPositionBuilderAtEnd(self.builder, else_bb);
+        const else_val = try self.codegen_statements(i.else_body.?);
+        _ = llvm.LLVMBuildBr(self.builder, merge_bb);
+
+        // codegen merge block
+        llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
+        // const phi = llvm.LLVMBuildPhi(self.builder, llvm.LLVMInt32Type(), "");
+        _ = [_]llvm.LLVMValueRef{ then_val, else_val };
+        _ = [_]llvm.LLVMBasicBlockRef{ then_bb, else_bb };
+        // _ = llvm.LLVMAddIncoming(phi, @ptrCast(@constCast(&values)), @ptrCast(@constCast(&blocks)), 2);
+
+        return else_val;
+    }
+
+    pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {
+        const e = try self.codegen_expression(a.value);
+        // NOTE: currently only for var assign
+        switch (a.target.*) {
+            .ident => |*i| {
+                // lookup for var on stack
+                const alloca = self.stack_map.get(i.name).?;
+                _ = llvm.LLVMBuildStore(self.builder, e, alloca);
+                return alloca;
+            },
+            else => {
+                // TODO:
+                return null;
+                // unreachable;
+            },
+        }
+    }
+
+    pub fn codegen_var(self: *Codegen, v: *ast.VarStmt) !llvm.LLVMValueRef {
         const alloca = try self.codegen_alloca_var(v);
         const e = try self.codegen_expression(v.value);
         // store value on stack space
         _ = llvm.LLVMBuildStore(self.builder, e, alloca);
         try self.stack_map.put(v.name, alloca);
+        return e;
     }
 
-    pub fn codegen_const(self: *Codegen, v: *ast.ConstStmt) !void {
+    pub fn codegen_const(self: *Codegen, v: *ast.ConstStmt) !llvm.LLVMValueRef {
         const alloca = try self.codegen_alloca_const(v);
         const e = try self.codegen_expression(v.value);
         // store value on stack space
         _ = llvm.LLVMBuildStore(self.builder, e, alloca);
         try self.stack_map.put(v.name, alloca);
+        return e;
     }
 
     pub fn codegen_alloca_var(self: *Codegen, v: *ast.VarStmt) !llvm.LLVMValueRef {
@@ -252,17 +307,19 @@ pub const Codegen = struct {
         return llvm.LLVMBuildAlloca(self.builder, t, name);
     }
 
-    pub fn codegen_return(self: *Codegen, r: *ast.ReturnStmt) !void {
+    pub fn codegen_return(self: *Codegen, r: *ast.ReturnStmt) !llvm.LLVMValueRef {
         if (r.value) |e| {
             const val = try self.codegen_expression(e);
-            _ = llvm.LLVMBuildRet(self.builder, val);
+            return llvm.LLVMBuildRet(self.builder, val);
         }
+        unreachable;
     }
 
-    pub fn codegen_expression_statement(self: *Codegen, e_stmt: *ast.ExprStmt) !void {
+    pub fn codegen_expression_statement(self: *Codegen, e_stmt: *ast.ExprStmt) !llvm.LLVMValueRef {
         if (e_stmt.value) |e| {
-            _ = try self.codegen_expression(e);
+            return try self.codegen_expression(e);
         }
+        unreachable;
     }
 
     pub fn codegen_expression(self: *Codegen, e: *ast.Expr) !llvm.LLVMValueRef {
