@@ -1,0 +1,14 @@
+func foo(a: i32, b: char) -> i32
+  return 12;
+end
+
+proc boo(a: i32, b: char)
+  return 12;
+end
+
+proc main()
+  foo();
+  foo(2.39801, "a");
+  boo();
+  boo(2.39801, "a");
+end
