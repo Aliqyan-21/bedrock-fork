@@ -260,7 +260,8 @@ pub const Codegen = struct {
             },
             else => {
                 // TODO:
-                unreachable;
+                return null;
+                // unreachable;
             },
         }
     }

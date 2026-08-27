@@ -1,0 +1,26 @@
+proc foo()
+  var a = 'a';
+  const x = -a;
+end
+
+proc boo()
+  var b = 10;
+  // b is not bool so error
+  if (!b)
+  end
+
+  var c = true
+  // no error here
+  if (!c)
+  end
+end
+
+proc bar()
+  var a = 10;
+  // no error here
+  var res = ~a;
+
+  var b = 10.321;
+  // error here
+  res = ~b;
+end
