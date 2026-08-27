@@ -341,7 +341,7 @@ pub const Sema = struct {
                         if (ty != .invalid) {
                             const is_int = switch (self.types.get(ty).*) {
                                 .primitive => |p| switch (p) {
-                                    .i8, .i16, .i32, .i64, .u8, .u16, .u32, .u64, .f32, .f64, .usize, .isize => true,
+                                    .i8, .i16, .i32, .i64, .u8, .u16, .u32, .u64, .usize, .isize => true,
                                     else => false,
                                 },
                                 else => false,
