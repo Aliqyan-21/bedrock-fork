@@ -86,12 +86,12 @@ pub const Sema = struct {
             },
             .var_def => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
-                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else .invalid);
+                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
                 }
-                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
                     }
@@ -99,11 +99,11 @@ pub const Sema = struct {
             },
             .const_def => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
-                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else .invalid);
+                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
-                self.scope.declare(.{ .name = c.name, .kind = .constant, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = c.name, .kind = .constant, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
                     }
@@ -191,7 +191,7 @@ pub const Sema = struct {
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
                 }
-                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
                 };
             },
@@ -201,7 +201,7 @@ pub const Sema = struct {
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
-                self.scope.declare(.{ .name = c.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = c.name, .kind = .variable, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
                 };
             },
