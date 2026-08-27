@@ -86,12 +86,12 @@ pub const Sema = struct {
             },
             .var_def => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
-                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else .invalid);
+                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
                 }
-                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
                     }
@@ -99,11 +99,11 @@ pub const Sema = struct {
             },
             .const_def => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
-                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else .invalid);
+                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
-                self.scope.declare(.{ .name = c.name, .kind = .constant, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = c.name, .kind = .constant, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
                     }
@@ -191,7 +191,7 @@ pub const Sema = struct {
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
                 }
-                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = v.name, .kind = .variable, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{v.name}, .Error, v.token);
                 };
             },
@@ -201,7 +201,7 @@ pub const Sema = struct {
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
-                self.scope.declare(.{ .name = c.name, .kind = .variable, .ty = if (dty != .invalid) dty else .invalid }) catch |e| {
+                self.scope.declare(.{ .name = c.name, .kind = .variable, .ty = if (dty != .invalid) dty else aty }) catch |e| {
                     if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{c.name}, .Error, c.token);
                 };
             },
@@ -320,8 +320,49 @@ pub const Sema = struct {
                 _ = try self.visit_expression(b.rhs, null);
                 return .invalid; // todo: implement binary type
             },
-            .unary => |*u| {
-                _ = try self.visit_expression(u.operand, null);
+            .unary => |*u| blk: {
+                switch (u.op) {
+                    .neg => {
+                        const ty = try self.visit_expression(u.operand, expected);
+                        if (ty != .invalid and !self.types.literal_fits(.integer, ty)) {
+                            try self.compiler.add_sem_error("cannot negate non-numeric type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                        }
+                        break :blk ty;
+                    },
+                    .not => {
+                        const ty = try self.visit_expression(u.operand, try self.types.primitive(.bool));
+                        if (ty != .invalid and !self.types.assignable(ty, try self.types.primitive(.bool))) {
+                            try self.compiler.add_sem_error("expected a bool, but found {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                        }
+                        break :blk try self.types.primitive(.bool);
+                    },
+                    .bit_not => {
+                        const ty = try self.visit_expression(u.operand, expected);
+                        if (ty != .invalid) {
+                            const is_int = switch (self.types.get(ty).*) {
+                                .primitive => |p| switch (p) {
+                                    .i8, .i16, .i32, .i64, .u8, .u16, .u32, .u64, .usize, .isize => true,
+                                    else => false,
+                                },
+                                else => false,
+                            };
+                            if (!is_int) {
+                                try self.compiler.add_sem_error("cannot bitwise-not non-integer type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                            }
+                        }
+                        break :blk ty;
+                    },
+                    .addr_of => {
+                        //todo: implement when pointer is implemented
+                        _ = try self.visit_expression(u.operand, null);
+                        break :blk .invalid;
+                    },
+                    .deref => {
+                        //todo: implement when pointer is implemented
+                        _ = try self.visit_expression(u.operand, null);
+                        break :blk .invalid;
+                    },
+                }
                 return .invalid; // todo: implement unary type
             },
             .field_access => |*f| {
