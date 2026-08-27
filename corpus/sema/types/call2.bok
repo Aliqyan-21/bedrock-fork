@@ -1,0 +1,12 @@
+func foo() -> i32
+  return 12;
+end
+
+proc boo()
+end
+
+proc main()
+  foo();
+  _ = foo();
+  boo();
+end
