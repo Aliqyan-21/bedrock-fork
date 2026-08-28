@@ -158,38 +158,13 @@ pub const Sema = struct {
         defer self.scope = saved;
 
         for (proc.params.items) |*param| {
-            try self.visit_type(param.type);
-            proc_scope.declare(.{ .name = param.name, .kind = .param }) catch |e| {
+            const param_ty = try self.types.resolve_type(param.type);
+            proc_scope.declare(.{ .name = param.name, .kind = .param, .ty = param_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
             };
         }
 
         try self.enter_scope(proc.body.items, .block);
-    }
-
-    fn visit_type(self: *Sema, ty: *ast.Type) !void {
-        // std.debug.print("visiting type\n", .{});
-        switch (ty.base) {
-            .primitive => {},
-            .pointer => |inner| try self.visit_type(inner),
-            .array => |a| try self.visit_type(a.elem),
-            .slice => |s| try self.visit_type(s.elem),
-            .named => |*named| {
-                for (named.args) |arg| {
-                    try self.visit_type(arg);
-                }
-            },
-            .func => |*func| {
-                for (func.params.items) |p| {
-                    try self.visit_type(p);
-                }
-            },
-            .proc => |*proc| {
-                for (proc.params.items) |p| {
-                    try self.visit_type(p);
-                }
-            },
-        }
     }
 
     fn visit_statement(self: *Sema, stmt: *ast.Stmt) anyerror!void {
@@ -217,8 +192,14 @@ pub const Sema = struct {
                 };
             },
             .local_static_var_stmt => |lv| {
-                if (lv.type_ann) |ty| try self.visit_type(ty);
-                _ = try self.visit_expression(lv.value, null);
+                const dty: types.TypeId = if (lv.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const aty = try self.visit_expression(lv.value, if (dty != .invalid) dty else null);
+                if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
+                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, lv.token);
+                }
+                self.scope.declare(.{ .name = lv.name, .kind = .variable, .ty = if (dty != .invalid) dty else aty }) catch |e| {
+                    if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{lv.name}, .Error, lv.token);
+                };
             },
             .assign_stmt => |*a| {
                 const is_discard = a.target.* == .ident and std.mem.eql(u8, a.target.ident.name, "_");
