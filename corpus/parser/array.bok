@@ -1,4 +1,5 @@
 proc main()
   const arr: [3]i32 = [21,42,63];
   const a: i32 = arr[0];
+  a[0];
 end
