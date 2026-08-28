@@ -112,7 +112,25 @@ pub const Codegen = struct {
 
         self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+
+        // store params on stack
+        self.stack_map.clearRetainingCapacity();
+        for (proc.params.items, 0..) |p, idx| {
+            // allocate the space on stack
+            const alloca = try self.codegen_alloca(main_func, p);
+            const arg = llvm.LLVMGetParam(main_func, @intCast(idx));
+            // store value on stack space
+            _ = llvm.LLVMBuildStore(self.builder, arg, alloca);
+            try self.stack_map.put(p.name, alloca);
+        }
+
+        // reset the builder position
+        // llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+
         _ = try self.codegen_statements(proc.body);
+
+        // end proc with void return
+        _ = llvm.LLVMBuildRetVoid(self.builder);
     }
 
     pub fn codegen_extern(self: *Codegen, e_def: *ast.ExternDef) !void {
