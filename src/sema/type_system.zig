@@ -78,15 +78,44 @@ pub const TypeSystem = struct {
     // as it will become complete then there will be no need for visit_type, then
     // just resolve_type will be used everywhere then we can remove visit_type
     pub fn resolve_type(self: *TypeSystem, ty: *ast.Type) !TypeId {
-        return switch (ty.base) {
+        var id: TypeId = switch (ty.base) {
             .primitive => |p| try self.from_ast_primitive(p),
-            //todo: implement pointer after discussion.
-            else => .invalid, // pointer,array,etc...
+            .pointer => |inner| blk: {
+                const cid = try self.resolve_type(inner);
+                break :blk try self.intern(.{ .pointer = .{ .child = cid } });
+            },
+            .slice => |*s| blk: {
+                const cid = try self.resolve_type(s.elem);
+                break :blk try self.intern(.{ .slice = .{ .child = cid } });
+            },
+            .array => |*a| blk: {
+                const cid = try self.resolve_type(a.elem);
+                break :blk switch (a.size) {
+                    .fixed => |d| self.intern(.{ .array = .{ .child = cid, .len = std.fmt.parseInt(u64, d, 10) catch return .invalid } }) catch return .invalid,
+                    .inferred => .invalid,
+                };
+            },
+            .func => |*f| blk: {
+                var params: std.ArrayList(TypeId) = .empty;
+                for (f.params.items) |p| try params.append(self.allocator, try self.resolve_type(p));
+                const rid = try self.resolve_type(f.result);
+                break :blk try self.intern(.{ .function = .{ .params = params, .result = rid } });
+            },
+            .proc => |*pr| blk: {
+                var params: std.ArrayList(TypeId) = .empty;
+                for (pr.params.items) |p| try params.append(self.allocator, try self.resolve_type(p));
+                break :blk try self.intern(.{ .procedure = .{ .params = params } });
+            },
+            .named => .invalid,
         };
+
+        if (ty.is_optional) id = try self.intern(.{ .optional = id });
+        if (ty.is_error_union) id = try self.intern(.{ .error_union = id });
+        return id;
     }
 
     fn is_type_eql(a: Type, b: Type) bool {
-        if (@as(std.meta.Tag(Type), a) != @as(std.meta.Tag(Type), b)) false;
+        if (@as(std.meta.Tag(Type), a) != @as(std.meta.Tag(Type), b)) return false;
         return switch (a) {
             .primitive => a.primitive == b.primitive,
             .pointer => a.pointer.child == b.pointer.child,
