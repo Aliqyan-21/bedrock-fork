@@ -1170,6 +1170,37 @@ pub const Parser = struct {
                     .token = tok,
                 } };
             },
+            .l_bracket => {
+                var elems: std.ArrayList(*ast.Expr) = .empty;
+                var nxt = try self.lexer.peek_token();
+                if (nxt.type != .r_bracket) {
+                    while (true) {
+                        try elems.append(self.allocator, try self.parse_expression_bp(0));
+                        const sep = try self.lexer.next();
+                        switch (sep.type) {
+                            .r_bracket => break,
+                            .comma => {
+                                nxt = try self.lexer.peek_token();
+                                if (nxt.type == .r_bracket) {
+                                    _ = try self.lexer.next();
+                                    break;
+                                }
+                                continue;
+                            },
+                            else => {
+                                try self.compiler.addError("expected ',' or ']'", err.Severity.Error, sep);
+                                try self.sync(&.{ .r_bracket, .semicolon });
+                                break;
+                            },
+                        }
+                    }
+                } else {
+                    // empty '[]' literal
+                    _ = try self.lexer.next();
+                }
+                lhs = try self.allocator.create(ast.Expr);
+                lhs.* = .{ .array_literal = .{ .elements = elems, .token = tok } };
+            },
             else => {
                 // TODO:
             },
@@ -1185,7 +1216,7 @@ pub const Parser = struct {
                 .amp_amp, .pipe_pipe,
                 .amp, .pipe, .caret,
                 .shl, .shr, .dot,
-                .l_paren => tok.type,
+                .l_paren, .l_bracket => tok.type,
                 // zig fmt: on
                 else => break,
             };
@@ -1202,6 +1233,25 @@ pub const Parser = struct {
                     const tmp = lhs;
                     lhs = try self.allocator.create(ast.Expr);
                     lhs.* = .{ .field_access = .{ .target = tmp, .field = f.val, .token = f } };
+                } else if (tok.type == .l_bracket) {
+                    _ = try self.lexer.next();
+                    var args: std.ArrayList(*ast.Expr) = .empty;
+                    while (true) {
+                        try args.append(self.allocator, try self.parse_expression_bp(0));
+                        const sep = try self.lexer.next();
+                        switch (sep.type) {
+                            .r_bracket => break,
+                            .comma => continue,
+                            else => {
+                                try self.compiler.addError("expected ',' or ']'", err.Severity.Error, sep);
+                                try self.sync(&.{ .r_bracket, .semicolon });
+                                break;
+                            },
+                        }
+                    }
+                    const tmp = lhs;
+                    lhs = try self.allocator.create(ast.Expr);
+                    lhs.* = .{ .index = .{ .target = tmp, .args = args, .token = tok } };
                 }
                 continue;
             }
@@ -1253,7 +1303,7 @@ fn prefix_binding_power(op: token.TokenType) [2]usize {
 
 fn postfix_binding_power(op: token.TokenType) ?[2]usize {
     return switch (op) {
-        .l_paren, .dot => .{ 21, 22 },
+        .l_paren, .dot, .l_bracket => .{ 21, 22 },
         else => null,
     };
 }
