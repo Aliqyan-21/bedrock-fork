@@ -85,6 +85,33 @@ pub const TypeSystem = struct {
         };
     }
 
+    fn is_type_eql(a: Type, b: Type) bool {
+        if (@as(std.meta.Tag(Type), a) != @as(std.meta.Tag(Type), b)) false;
+        return switch (a) {
+            .primitive => a.primitive == b.primitive,
+            .pointer => a.pointer.child == b.pointer.child,
+            .array => a.array.child == b.array.child,
+            .slice => a.slice.child == b.slice.child,
+            .optional => a.optional == b.optional,
+            .error_union => a.error_union == b.error_union,
+            .function => (a.function.result == b.function.result) and
+                std.mem.eql(TypeId, a.function.params.items, b.function.params.items),
+            .procedure => std.mem.eql(TypeId, a.function.params.items, b.function.params.items),
+        };
+    }
+
+    // function for helping in adding type to
+    // our types if it does not exisit already
+    // for use in resolve_type
+    fn intern(self: *TypeSystem, ty: Type) !TypeId {
+        for (self.types.items, 0..) |e, i| {
+            if (is_type_eql(e, ty)) {
+                return @enumFromInt(i + 1);
+            }
+        }
+        return self.add(ty);
+    }
+
     // for mapping ast primitive to sema primitive
     pub fn from_ast_primitive(self: *TypeSystem, p: ast.PrimitiveType) !TypeId {
         const mapped = std.meta.stringToEnum(Primitive, @tagName(p)) orelse unreachable;
