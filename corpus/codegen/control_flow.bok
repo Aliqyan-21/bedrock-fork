@@ -6,6 +6,7 @@ func control(x: i32, y: i32) -> i32
         a = a + y;
     end
 
+    a = a + 10;
     return a;
 end
 

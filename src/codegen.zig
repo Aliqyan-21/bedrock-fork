@@ -11,6 +11,7 @@ pub const Codegen = struct {
     mod: llvm.LLVMModuleRef,
     builder: llvm.LLVMBuilderRef,
     entry: llvm.LLVMBasicBlockRef,
+    opt: bool,
     stack_map: std.StringHashMap(llvm.LLVMValueRef),
 
     pub fn init(allocator: std.mem.Allocator, c: *compiler.Compiler) Codegen {
@@ -21,6 +22,7 @@ pub const Codegen = struct {
             .mod = undefined,
             .builder = llvm.LLVMCreateBuilder(),
             .entry = undefined,
+            .opt = false,
             .stack_map = std.StringHashMap(llvm.LLVMValueRef).init(allocator),
         };
     }
@@ -34,8 +36,10 @@ pub const Codegen = struct {
         try self.codegen_program(self.compiler.ast.program);
 
         // set the pass managers
-        const options: llvm.LLVMPassBuilderOptionsRef = llvm.LLVMCreatePassBuilderOptions();
-        _ = llvm.LLVMRunPasses(self.mod, "function(sroa,instcombine,simplifycfg)", null, options);
+        if (self.opt) {
+            const options: llvm.LLVMPassBuilderOptionsRef = llvm.LLVMCreatePassBuilderOptions();
+            _ = llvm.LLVMRunPasses(self.mod, "function(sroa,instcombine,simplifycfg)", null, options);
+        }
 
         return self.mod;
     }
@@ -210,11 +214,37 @@ pub const Codegen = struct {
     pub fn codegen_control_flow(self: *Codegen, cf: *ast.ControlFlowStmt) anyerror!llvm.LLVMValueRef {
         switch (cf.*) {
             .if_expr => |*i| return try self.codegen_if(i),
+            .while_expr => |*w| return try self.codegen_while(w),
             else => {
                 // TODO:
                 unreachable;
             },
         }
+    }
+
+    pub fn codegen_while(self: *Codegen, w: *ast.WhileExpr) !llvm.LLVMValueRef {
+        // jmp to while condition block
+        const func = llvm.LLVMGetBasicBlockParent(self.entry);
+
+        const cond_bb = llvm.LLVMAppendBasicBlock(func, "cond_bb");
+        const while_bb = llvm.LLVMAppendBasicBlock(func, "while_bb");
+        const merge_bb = llvm.LLVMAppendBasicBlock(func, "merge");
+
+        _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+        llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
+
+        const cond = try self.codegen_expression(w.cond);
+        _ = llvm.LLVMBuildCondBr(self.builder, cond, while_bb, merge_bb);
+
+        // reset the insert pos
+        llvm.LLVMPositionBuilderAtEnd(self.builder, while_bb);
+        const while_val = try self.codegen_statements(w.body);
+        _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+
+        // reset the insert pos
+        llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
+
+        return while_val;
     }
 
     pub fn codegen_if(self: *Codegen, i: *ast.IfExpr) !llvm.LLVMValueRef {
