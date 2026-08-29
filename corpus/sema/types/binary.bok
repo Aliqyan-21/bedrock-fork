@@ -1,0 +1,6 @@
+proc main()
+  const a = true && false;
+  const b = true || false;
+  const c = 1 && false;
+  const d = 1 && 2;
+end
