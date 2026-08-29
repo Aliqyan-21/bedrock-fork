@@ -132,7 +132,7 @@ pub const TypeSystem = struct {
     // function for helping in adding type to
     // our types if it does not exisit already
     // for use in resolve_type
-    fn intern(self: *TypeSystem, ty: Type) !TypeId {
+    pub fn intern(self: *TypeSystem, ty: Type) !TypeId {
         for (self.types.items, 0..) |e, i| {
             if (is_type_eql(e, ty)) {
                 return @enumFromInt(i + 1);
@@ -216,6 +216,8 @@ pub const TypeSystem = struct {
         if (id == .invalid) return "<invalid>";
         return switch (self.get(id).*) {
             .primitive => |p| @tagName(p),
+            .array => |a| std.fmt.allocPrint(self.allocator, "[{d}]{s}", .{ a.len, self.name_of(a.child) }) catch "<oom>",
+            .slice => |s| std.fmt.allocPrint(self.allocator, "[]{s}", .{self.name_of(s.child)}) catch "<oom>",
             else => "not implemented",
         };
     }

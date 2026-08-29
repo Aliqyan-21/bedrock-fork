@@ -435,11 +435,42 @@ pub const Sema = struct {
                 _ = try self.visit_expression(o.operand, null);
                 return .invalid; //todo: optianal type
             },
-            .array_literal => |*al| {
-                for (al.elements.items) |elem| {
-                    _ = try self.visit_expression(elem, null);
+            .array_literal => |*al| blk: {
+                // if [1,2,3] then I am taking them as f64 here instead of i32 or i64, as it could be
+                // that later there is [1,2,3,4.876] so there it should not do type mismatch here, as
+                // any integer number could represent float as well
+                const hint: ?types.TypeId = if (expected) |exp| switch (self.types.get(exp).*) {
+                    .array => |a| a.child,
+                    .slice => |s| s.child,
+                    else => null,
+                } else null;
+
+                if (hint) |h| {
+                    std.debug.print("hint: {s}\n", .{self.types.name_of(h)});
                 }
-                return .invalid; //todo: array type
+
+                if (al.elements.items.len == 0) {
+                    break :blk if (hint) |h|
+                        try self.types.intern(.{ .array = .{ .child = h, .len = 0 } })
+                    else
+                        .invalid; // like const a = []; note: :) should it error?
+                }
+
+                var elemty: types.TypeId = hint orelse .invalid;
+
+                for (al.elements.items) |elem| {
+                    const ety = try self.visit_expression(elem, hint);
+                    if (ety == .invalid) continue;
+                    if (elemty == .invalid) {
+                        elemty = ety;
+                        continue;
+                    }
+                }
+
+                if (elemty == .invalid) break :blk .invalid;
+
+                std.debug.print("array: {s} {d}", .{ self.types.name_of(elemty), al.elements.items.len });
+                break :blk try self.types.intern(.{ .array = .{ .child = elemty, .len = @intCast(al.elements.items.len) } });
             },
             .comptime_expr => |*ce| {
                 try self.enter_scope(ce.body.items, .block);
