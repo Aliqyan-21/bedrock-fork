@@ -3,4 +3,6 @@ proc main()
   const b = true || false;
   const c = 1 && false;
   const d = 1 && 2;
+  const e = 10 + 3.412;
+  const f = 10 == 8;
 end
