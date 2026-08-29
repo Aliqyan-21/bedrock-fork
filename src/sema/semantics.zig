@@ -4,6 +4,7 @@ const compiler = @import("../compiler.zig");
 const err = @import("../error.zig");
 const scope = @import("scope.zig");
 const types = @import("type_system.zig");
+const Token = @import("../token.zig").Token;
 
 pub const Sema = struct {
     compiler: *compiler.Compiler,
@@ -319,10 +320,40 @@ pub const Sema = struct {
                 };
                 break :blk sym.ty;
             },
-            .binary => |*b| {
-                _ = try self.visit_expression(b.lhs, null);
-                _ = try self.visit_expression(b.rhs, null);
-                return .invalid; // todo: implement binary type
+            .binary => |*b| blk: {
+                const is_logical = switch (b.op) {
+                    .logical_and, .logical_or => true,
+                    else => false,
+                };
+                const is_comparison = switch (b.op) {
+                    .eq, .ne, .lt, .gt, .le, .ge => true,
+                    else => false,
+                };
+
+                // todo: right now type conversions are not thought yet (implicit/explicit,
+                // and more) so 10 + 3.12 is error for now as type mismatch.
+                if (is_logical) {
+                    const boolty = try self.types.primitive(.bool);
+                    const lty = try self.visit_expression(b.lhs, boolty);
+                    const rty = try self.visit_expression(b.rhs, boolty);
+                    if (lty != .invalid and !self.types.assignable(lty, boolty)) {
+                        try self.compiler.add_sem_error("expected bool, found {s}", .{self.types.name_of(lty)}, .Error, b.lhs.token_of());
+                    }
+                    if (lty != .invalid and !self.types.assignable(rty, boolty)) {
+                        try self.compiler.add_sem_error("expected bool, found {s}", .{self.types.name_of(rty)}, .Error, b.rhs.token_of());
+                    }
+                    break :blk boolty;
+                }
+
+                const lty = try self.visit_expression(b.lhs, expected);
+                const rty = try self.visit_expression(b.rhs, if (lty != .invalid) lty else expected);
+
+                if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
+                    try self.compiler.add_sem_error("type mismatch in binary expression {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
+                    break :blk .invalid;
+                }
+
+                break :blk if (is_comparison) try self.types.primitive(.bool) else if (lty != .invalid) lty else rty;
             },
             .unary => |*u| blk: {
                 switch (u.op) {

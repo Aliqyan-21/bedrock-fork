@@ -1089,6 +1089,22 @@ pub const Expr = union(enum) {
             else => try std.fmt.allocPrint(allocator, "", .{}),
         };
     }
+
+    // return token of subexpression
+    pub fn token_of(self: *Expr) Token {
+        return switch (self.*) {
+            .literal => self.literal.token,
+            .ident => self.ident.token,
+            .binary => self.binary.token,
+            .unary => self.unary.token,
+            .field_access => self.field_access.token,
+            .call => self.call.token,
+            .index => self.index.token,
+            .optional_unwrap => self.optional_unwrap.token,
+            .array_literal => self.array_literal.token,
+            .comptime_expr => self.comptime_expr.token,
+        };
+    }
 };
 
 // break;
