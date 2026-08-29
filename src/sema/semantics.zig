@@ -435,11 +435,43 @@ pub const Sema = struct {
                 _ = try self.visit_expression(o.operand, null);
                 return .invalid; //todo: optianal type
             },
-            .array_literal => |*al| {
-                for (al.elements.items) |elem| {
-                    _ = try self.visit_expression(elem, null);
+            .array_literal => |*al| blk: {
+                // note: if [1,2,3] becomes i32, and if we have [1,2,3,4.5] it gives error, so if
+                // want floats array have to do explicitly 'const a = [1.0, 2.0, 3.0]'
+                const hint: ?types.TypeId = if (expected) |exp| switch (self.types.get(exp).*) {
+                    .array => |*a| a.child,
+                    .slice => |s| s.child,
+                    else => null,
+                } else null;
+
+                if (al.elements.items.len == 0) {
+                    if (hint) |h| break :blk try self.types.intern(.{ .array = .{ .child = h, .len = 0 } });
+                    try self.compiler.add_sem_error("cannot infer type or size of empty array literal", .{}, .Error, al.token);
+                    break :blk .invalid;
                 }
-                return .invalid; //todo: array type
+
+                var elemty: types.TypeId = hint orelse .invalid;
+
+                for (al.elements.items) |elem| {
+                    const ety = try self.visit_expression(elem, hint);
+                    if (ety == .invalid) continue;
+                    if (elemty == .invalid) {
+                        elemty = ety;
+                        continue;
+                    }
+                    if (!self.types.assignable(ety, elemty)) {
+                        try self.compiler.add_sem_error(
+                            "array elements must have the same type: expected {s}, found {s}",
+                            .{ self.types.name_of(elemty), self.types.name_of(ety) },
+                            .Error,
+                            al.token,
+                        );
+                    }
+                }
+
+                if (elemty == .invalid) break :blk .invalid;
+
+                break :blk try self.types.intern(.{ .array = .{ .child = elemty, .len = @intCast(al.elements.items.len) } });
             },
             .comptime_expr => |*ce| {
                 try self.enter_scope(ce.body.items, .block);
