@@ -1,0 +1,12 @@
+func main() -> i32
+    var a: i32 = 0;
+    var res: i32 = 0;
+
+    while a < 5
+        res = res + 10;
+        a = a + 1;
+    end
+
+    res = res + 10;
+    return res;
+end
