@@ -414,12 +414,22 @@ pub const Sema = struct {
                     },
                 };
             },
-            .index => |*i| {
-                _ = try self.visit_expression(i.target, null);
-                for (i.args.items) |arg| {
-                    _ = try self.visit_expression(arg, null);
-                }
-                return .invalid; //todo: index type
+            .index => |*i| blk: {
+                const tty = try self.visit_expression(i.target, null);
+                for (i.args.items) |arg| _ = try self.visit_expression(arg, null);
+
+                if (i.args.items.len != 1) break :blk .invalid; //todo: generics
+
+                if (tty == .invalid) break :blk .invalid;
+
+                break :blk switch (self.types.get(tty).*) {
+                    .array => |a| a.child,
+                    .slice => |s| s.child,
+                    else => res: {
+                        try self.compiler.add_sem_error("cannot index type {s}", .{self.types.name_of(tty)}, .Error, i.token);
+                        break :res .invalid;
+                    },
+                };
             },
             .optional_unwrap => |*o| {
                 _ = try self.visit_expression(o.operand, null);
