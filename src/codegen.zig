@@ -32,6 +32,11 @@ pub const Codegen = struct {
     pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {
         self.mod = llvm.LLVMModuleCreateWithNameInContext("module", self.ctx);
         try self.codegen_program(self.compiler.ast.program);
+
+        // set the pass managers
+        const options: llvm.LLVMPassBuilderOptionsRef = llvm.LLVMCreatePassBuilderOptions();
+        _ = llvm.LLVMRunPasses(self.mod, "function(sroa,instcombine,simplifycfg)", null, options);
+
         return self.mod;
     }
 
