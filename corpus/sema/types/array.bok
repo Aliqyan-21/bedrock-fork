@@ -1,0 +1,19 @@
+proc main()
+  var arr: [_]i32 = [1,2,3];
+  var lar: [4]i32 = [1,2,3];
+
+  var pig = [1,2,3];
+  var fig = [1.0,2.0,3.0];
+  var mig = ['a','b','c'];
+  var sig = ["a","b","c"];
+
+  // gives sema error
+  var lig = [1,2,3,'4'];
+
+  // gives error that we can't inference this
+  const foo = [];
+  const bar: [_]i32 = [];
+
+  // not give error as explicitly defined
+  const par: [10]i32 = [];
+end

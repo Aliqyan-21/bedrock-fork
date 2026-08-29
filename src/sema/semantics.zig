@@ -439,16 +439,15 @@ pub const Sema = struct {
                 // note: if [1,2,3] becomes i32, and if we have [1,2,3,4.5] it gives error, so if
                 // want floats array have to do explicitly 'const a = [1.0, 2.0, 3.0]'
                 const hint: ?types.TypeId = if (expected) |exp| switch (self.types.get(exp).*) {
-                    .array => |a| a.child,
+                    .array => |*a| a.child,
                     .slice => |s| s.child,
                     else => null,
                 } else null;
 
                 if (al.elements.items.len == 0) {
-                    break :blk if (hint) |h|
-                        try self.types.intern(.{ .array = .{ .child = h, .len = 0 } })
-                    else
-                        .invalid; // like const a = []; note: :) should it error?
+                    if (hint) |h| break :blk try self.types.intern(.{ .array = .{ .child = h, .len = 0 } });
+                    try self.compiler.add_sem_error("cannot infer type or size of empty array literal", .{}, .Error, al.token);
+                    break :blk .invalid;
                 }
 
                 var elemty: types.TypeId = hint orelse .invalid;
