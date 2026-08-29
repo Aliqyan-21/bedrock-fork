@@ -14,6 +14,7 @@ pub const Compiler = struct {
     source: []const u8,
     ast: ast.AST,
     sema: sema.Sema,
+    ctx: llvm.LLVMContextRef,
     mod: llvm.LLVMModuleRef,
     target: []const u8,
 
@@ -25,11 +26,12 @@ pub const Compiler = struct {
             .ast = undefined,
             .sema = undefined,
             .mod = undefined,
+            .ctx = undefined,
             .target = target,
         };
     }
 
-    pub fn run(self: *Compiler) !void {
+    pub fn jit(self: *Compiler) !void {
         // jit compilation
         if (std.mem.eql(u8, self.target, "aarch64")) {
             llvm.LLVMInitializeAArch64TargetInfo();
@@ -51,13 +53,27 @@ pub const Compiler = struct {
             std.debug.print("failed to create LLJIT builder\n", .{});
             return;
         }
-        var jit: llvm.LLVMOrcLLJITRef = null;
-        _ = llvm.LLVMOrcCreateLLJIT(&jit, builder);
-        if (jit == null) {
+        var j: llvm.LLVMOrcLLJITRef = null;
+        _ = llvm.LLVMOrcCreateLLJIT(&j, builder);
+        if (j == null) {
             std.debug.print("LLVM failed to create LLJIT\n", .{});
             return;
         }
 
+        // get thread safe context for jit
+        const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(self.ctx);
+        const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(self.mod, tsctx);
+        const jd = llvm.LLVMOrcLLJITGetMainJITDylib(j);
+        _ = llvm.LLVMOrcLLJITAddLLVMIRModule(j, jd, tsm);
+        var addr: llvm.LLVMOrcExecutorAddress = undefined;
+        _ = llvm.LLVMOrcLLJITLookup(j, &addr, @ptrCast("main"));
+        const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
+        const result = Main();
+
+        std.debug.print("result = {}\n", .{result});
+    }
+
+    pub fn run(self: *Compiler) !void {
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
         try self.ast.print();
@@ -69,6 +85,7 @@ pub const Compiler = struct {
 
         var c = codegen.Codegen.init(self.allocator, self);
         self.mod = try c.codegen();
+        self.ctx = c.ctx;
         var error_message: [*c]u8 = null;
         const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
         if (res != 0) {
@@ -78,18 +95,7 @@ pub const Compiler = struct {
             }
         }
 
-        // get thread safe context for jit
-        const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(c.ctx);
-        const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(c.mod, tsctx);
-        const jd = llvm.LLVMOrcLLJITGetMainJITDylib(jit);
-        _ = llvm.LLVMOrcLLJITAddLLVMIRModule(jit, jd, tsm);
-        var addr: llvm.LLVMOrcExecutorAddress = undefined;
-        _ = llvm.LLVMOrcLLJITLookup(jit, &addr, @ptrCast("main"));
-        const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
-        const result = Main();
-
-        std.debug.print("result = {}\n", .{result});
-
+        try self.jit();
         c.deinit();
         self.ast.deinit(self.allocator);
     }
