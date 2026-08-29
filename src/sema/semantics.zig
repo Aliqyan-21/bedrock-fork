@@ -436,9 +436,8 @@ pub const Sema = struct {
                 return .invalid; //todo: optianal type
             },
             .array_literal => |*al| blk: {
-                // if [1,2,3] then I am taking them as f64 here instead of i32 or i64, as it could be
-                // that later there is [1,2,3,4.876] so there it should not do type mismatch here, as
-                // any integer number could represent float as well
+                // if [1,2,3] becomes i32, and if we have [1,2,3,4.5] it gives error, so if
+                // want floats array have to do explicitly 'const a = [1.0, 2.0, 3.0]'
                 const hint: ?types.TypeId = if (expected) |exp| switch (self.types.get(exp).*) {
                     .array => |a| a.child,
                     .slice => |s| s.child,
