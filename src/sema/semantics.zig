@@ -436,17 +436,13 @@ pub const Sema = struct {
                 return .invalid; //todo: optianal type
             },
             .array_literal => |*al| blk: {
-                // if [1,2,3] becomes i32, and if we have [1,2,3,4.5] it gives error, so if
+                // note: if [1,2,3] becomes i32, and if we have [1,2,3,4.5] it gives error, so if
                 // want floats array have to do explicitly 'const a = [1.0, 2.0, 3.0]'
                 const hint: ?types.TypeId = if (expected) |exp| switch (self.types.get(exp).*) {
                     .array => |a| a.child,
                     .slice => |s| s.child,
                     else => null,
                 } else null;
-
-                if (hint) |h| {
-                    std.debug.print("hint: {s}\n", .{self.types.name_of(h)});
-                }
 
                 if (al.elements.items.len == 0) {
                     break :blk if (hint) |h|
@@ -464,11 +460,18 @@ pub const Sema = struct {
                         elemty = ety;
                         continue;
                     }
+                    if (!self.types.assignable(ety, elemty)) {
+                        try self.compiler.add_sem_error(
+                            "array elements must have the same type: expected {s}, found {s}",
+                            .{ self.types.name_of(elemty), self.types.name_of(ety) },
+                            .Error,
+                            al.token,
+                        );
+                    }
                 }
 
                 if (elemty == .invalid) break :blk .invalid;
 
-                std.debug.print("array: {s} {d}", .{ self.types.name_of(elemty), al.elements.items.len });
                 break :blk try self.types.intern(.{ .array = .{ .child = elemty, .len = @intCast(al.elements.items.len) } });
             },
             .comptime_expr => |*ce| {
