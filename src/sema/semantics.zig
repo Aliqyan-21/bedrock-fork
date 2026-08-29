@@ -49,7 +49,13 @@ pub const Sema = struct {
         switch (item.*) {
             .import_def => {},
             .function => |*f| {
-                self.scope.declare(.{ .name = f.name, .kind = .func }) catch |e| {
+                var param_tys = std.ArrayList(types.TypeId).empty;
+                for (f.params.items) |*param| {
+                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                }
+                const rty = try self.types.resolve_type(f.result);
+                const fnty = try self.types.add(.{ .function = .{ .params = param_tys, .result = rty } });
+                self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{f.name}, .Error, f.token);
                     }
@@ -57,7 +63,12 @@ pub const Sema = struct {
                 try self.visit_function(f);
             },
             .proc => |*p| {
-                self.scope.declare(.{ .name = p.name, .kind = .func }) catch |e| {
+                var param_tys = std.ArrayList(types.TypeId).empty;
+                for (p.params.items) |*param| {
+                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                }
+                const prty = try self.types.add(.{ .procedure = .{ .params = param_tys } });
+                self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{p.name}, .Error, p.token);
                     }
@@ -210,8 +221,13 @@ pub const Sema = struct {
                 _ = try self.visit_expression(lv.value, null);
             },
             .assign_stmt => |*a| {
-                _ = try self.visit_expression(a.target, null);
-                _ = try self.visit_expression(a.value, null);
+                const is_discard = a.target.* == .ident and std.mem.eql(u8, a.target.ident.name, "_");
+                if (is_discard) {
+                    _ = try self.visit_expression(a.value, null);
+                } else {
+                    _ = try self.visit_expression(a.target, null);
+                    _ = try self.visit_expression(a.value, null);
+                }
             },
             .defer_stmt => |*d| {
                 try self.enter_scope(d.statement_list.items, .block);
@@ -247,7 +263,14 @@ pub const Sema = struct {
                 _ = if (r.value) |value| try self.visit_expression(value, null);
             },
             .expr_stmt => |*e| {
-                _ = if (e.value) |value| try self.visit_expression(value, null);
+                if (e.value) |val| {
+                    const ty = try self.visit_expression(val, null);
+                    // info: I could check here func/proc as func have
+                    // to always return a value and proc could never
+                    // but .invalid already does that shit if u think of it
+                    const is_wrong = ty != .invalid and val.* == .call;
+                    if (is_wrong) try self.compiler.add_sem_error("unused return value: use '_ = ...' to discard", .{}, .Error, val.call.token);
+                }
             },
             .break_stmt => |*b| {
                 if (self.scope.enclosing(.loop) == null) {
@@ -369,12 +392,46 @@ pub const Sema = struct {
                 _ = try self.visit_expression(f.target, null);
                 return .invalid; // todo: implement field_access type?
             },
-            .call => |*c| {
-                _ = try self.visit_expression(c.callee, null);
+            .call => |*c| blk: {
+                const cty = try self.visit_expression(c.callee, null);
                 for (c.args.items) |arg| {
                     _ = try self.visit_expression(arg.value, null);
                 }
-                return .invalid; //todo: call type
+                if (cty == .invalid) break :blk .invalid;
+
+                break :blk switch (self.types.get(cty).*) {
+                    .function => |fnty| result: {
+                        if (c.args.items.len != fnty.params.items.len) {
+                            try self.compiler.add_sem_error("expected {d} arguments, found {d}", .{ fnty.params.items.len, c.args.items.len }, .Error, c.token);
+                            break :result fnty.result;
+                        }
+                        for (c.args.items, fnty.params.items) |arg, pty| {
+                            const argty = try self.visit_expression(arg.value, pty);
+                            if (argty != .invalid and !self.types.assignable(argty, pty)) {
+                                try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(pty), self.types.name_of(argty) }, .Error, c.token);
+                            }
+                        }
+                        break :result fnty.result;
+                    },
+                    .procedure => |prty| result: {
+                        if (c.args.items.len != prty.params.items.len) {
+                            try self.compiler.add_sem_error("expected {d} arguments, found {d}", .{ prty.params.items.len, c.args.items.len }, .Error, c.token);
+                        } else {
+                            for (c.args.items, prty.params.items) |arg, pty| {
+                                const argty = try self.visit_expression(arg.value, pty);
+                                if (argty != .invalid and !self.types.assignable(argty, pty)) {
+                                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(pty), self.types.name_of(argty) }, .Error, c.token);
+                                }
+                            }
+                        }
+                        try self.compiler.add_sem_error("the call is of a proc, and there's no return value to store", .{}, .Error, c.token);
+                        break :result .invalid;
+                    },
+                    else => result: {
+                        try self.compiler.add_sem_error("cannot call non-function type {s}", .{self.types.name_of(cty)}, .Error, c.token);
+                        break :result .invalid;
+                    },
+                };
             },
             .index => |*i| {
                 _ = try self.visit_expression(i.target, null);
