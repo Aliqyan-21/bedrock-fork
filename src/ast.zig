@@ -783,6 +783,12 @@ pub const IndexExpr = struct {
         try self.target.print(indent + 4);
         for (self.args.items) |arg| try arg.print(indent + 4);
     }
+
+    pub fn deinit(self: *IndexExpr, allocator: std.mem.Allocator) void {
+        self.target.deinit(allocator);
+        for (self.args.items) |arg| arg.deinit(allocator);
+        self.args.deinit(allocator);
+    }
 };
 
 // ?
@@ -806,6 +812,11 @@ pub const ArrayLiteralExpr = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("array literal\n", .{});
         for (self.elements.items) |elem| try elem.print(indent + 4);
+    }
+
+    pub fn deinit(self: *ArrayLiteralExpr, allocator: std.mem.Allocator) void {
+        for (self.elements.items) |e| e.deinit(allocator);
+        self.elements.deinit(allocator);
     }
 };
 
@@ -1054,6 +1065,14 @@ pub const Expr = union(enum) {
             },
             .call => |*c| {
                 c.deinit(allocator);
+                allocator.destroy(self);
+            },
+            .index => |*i| {
+                i.deinit(allocator);
+                allocator.destroy(self);
+            },
+            .array_literal => |*a| {
+                a.deinit(allocator);
                 allocator.destroy(self);
             },
             else => {
