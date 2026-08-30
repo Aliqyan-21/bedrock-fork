@@ -464,6 +464,10 @@ pub const Codegen = struct {
                 const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
                 return llvm.LLVMConstInt(try self.llvm_int_type_of(ty), i, 1);
             },
+            .float => {
+                const f = try std.fmt.parseFloat(f64, l.raw);
+                return llvm.LLVMConstReal(try self.llvm_float_type_of(ty), f);
+            },
             .string => {
                 const name = try self.allocator.dupeZ(u8, l.raw);
                 defer self.allocator.free(name);
@@ -489,6 +493,19 @@ pub const Codegen = struct {
                 else => llvm.LLVMInt32Type(),
             },
             else => llvm.LLVMInt32Type(),
+        };
+    }
+
+    fn llvm_float_type_of(self: *Codegen, ty: types.TypeId) !llvm.LLVMTypeRef {
+        if (ty == .invalid) return llvm.LLVMInt32Type();
+
+        return switch (self.compiler.sema.types.get(ty).*) {
+            .primitive => |p| switch (p) {
+                .f32 => llvm.LLVMFloatType(),
+                .f64 => llvm.LLVMDoubleType(),
+                else => llvm.LLVMDoubleType(),
+            },
+            else => llvm.LLVMDoubleType(),
         };
     }
 

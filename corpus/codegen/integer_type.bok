@@ -7,4 +7,6 @@ proc main()
   var f: u32 = 10;
   var g: i64 = 10;
   var h: u64 = 10;
+  var i: f32 = 3.14;
+  var j: f64 = 3.14215;
 end
