@@ -468,15 +468,14 @@ pub const Codegen = struct {
                 const f = try std.fmt.parseFloat(f64, l.raw);
                 return llvm.LLVMConstReal(try self.llvm_float_type_of(ty), f);
             },
+            .bool_true => return llvm.LLVMConstInt(llvm.LLVMInt1Type(), 1, 0),
+            .bool_false => return llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0),
+            .char => return llvm.LLVMConstInt(llvm.LLVMInt8Type(), l.raw[0], 0),
             .string => {
                 const name = try self.allocator.dupeZ(u8, l.raw);
                 defer self.allocator.free(name);
                 // TODO: maintain the global string table
                 return llvm.LLVMBuildGlobalString(self.builder, name, ".str0");
-            },
-            else => {
-                // TODO:
-                unreachable;
             },
         }
     }
