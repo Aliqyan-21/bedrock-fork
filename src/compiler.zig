@@ -90,9 +90,9 @@ pub const Compiler = struct {
 
         if (self.opt.emit_ast) try self.ast.print();
 
-        self.sema = sema.Sema.init(self);
-        try self.sema.analyze();
         if (self.opt.sema) {
+            self.sema = sema.Sema.init(self);
+            try self.sema.analyze();
             try self.emitErrors();
         }
 
