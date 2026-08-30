@@ -373,6 +373,40 @@ pub const ConstDef = struct {
     }
 };
 
+pub const FieldInit = struct {
+    name: []const u8,
+    value: *Expr,
+    token: Token,
+
+    pub fn print(self: *FieldInit, indent: usize) anyerror!void {
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("{s}: ", .{self.name});
+        try self.value.print(indent + 4);
+    }
+
+    pub fn deinit(self: *StructLiteral, allocator: std.mem.Allocator) void {
+        self.value.deinit(allocator);
+    }
+};
+
+pub const StructLiteral = struct {
+    field_inits: std.ArrayList(FieldInit),
+    token: Token,
+
+    pub fn print(self: *StructLiteral, indent: usize) anyerror!void {
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("struct literal:\n", .{});
+        try self.value.print(indent + 4);
+    }
+
+    pub fn deinit(self: *StructLiteral, allocator: std.mem.Allocator) void {
+        for (self.field_inits.items) |*f| {
+            f.deinit(allocator);
+        }
+        self.field_inits.deinit(allocator);
+    }
+};
+
 // struct_field = ["pub"] IDENT ":" type
 pub const StructField = struct {
     is_pub: bool,
