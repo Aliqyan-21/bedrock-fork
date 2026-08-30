@@ -3,6 +3,7 @@ const llvm = @import("llvm");
 const compiler = @import("compiler.zig");
 const ast = @import("ast.zig");
 const token = @import("token.zig");
+const types = @import("sema/type_system.zig");
 
 pub const Codegen = struct {
     allocator: std.mem.Allocator,
@@ -535,5 +536,9 @@ pub const Codegen = struct {
                 unreachable;
             },
         }
+    }
+
+    fn expr_types(self: *Codegen, e: *ast.Expr) types.TypeId {
+        return self.compiler.sema.expr_types.get(e) orelse .invalid;
     }
 };
