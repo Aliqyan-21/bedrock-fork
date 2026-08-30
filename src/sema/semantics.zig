@@ -241,7 +241,6 @@ pub const Sema = struct {
                         }
                     },
                 };
-                _ = if (r.value) |value| try self.visit_expression(value, null);
             },
             .expr_stmt => |*e| {
                 if (e.value) |val| {
@@ -507,7 +506,18 @@ pub const Sema = struct {
                 try self.enter_scope(ce.body.items, .block);
                 return .invalid; //todo: comptime type
             },
-            .nil => return .invalid, //todo: nil
+            .nil => |*n| blk: {
+                const fits = if (expected) |exp| switch (self.types.get(exp).*) {
+                    .optional => true,
+                    .error_union => |inner| self.types.get(inner).* == .optional,
+                    else => false,
+                } else false;
+
+                if (fits) break :blk expected.?;
+
+                try self.compiler.add_sem_error("cannot infer type of nil without context", .{}, .Error, n.token);
+                break :blk .invalid;
+            },
         };
     }
 

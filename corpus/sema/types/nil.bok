@@ -1,0 +1,15 @@
+// give error because returning nil on non optional return value
+func foo() -> i32
+  return nil;
+end
+
+// no error
+func bar() -> ?i32
+  return nil;
+end
+
+proc main()
+  var a: ?i32 = nil;
+  var b = nil; // error because we can't get nil's type
+  var c = a == nil;
+end
