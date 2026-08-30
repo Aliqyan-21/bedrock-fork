@@ -7,6 +7,7 @@ const parser = @import("parser.zig");
 const ast = @import("ast.zig");
 const codegen = @import("codegen.zig");
 const sema = @import("sema/semantics.zig");
+const Options = @import("cli.zig").Options;
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
@@ -16,9 +17,9 @@ pub const Compiler = struct {
     sema: sema.Sema,
     ctx: llvm.LLVMContextRef,
     mod: llvm.LLVMModuleRef,
-    target: []const u8,
+    opt: Options,
 
-    pub fn init(allocator: std.mem.Allocator, source: []const u8, target: []const u8) Compiler {
+    pub fn init(allocator: std.mem.Allocator, source: []const u8, opt: Options) Compiler {
         return Compiler{
             .allocator = allocator,
             .errors = .empty,
@@ -27,24 +28,24 @@ pub const Compiler = struct {
             .sema = undefined,
             .mod = undefined,
             .ctx = undefined,
-            .target = target,
+            .opt = opt,
         };
     }
 
     pub fn jit(self: *Compiler) !void {
         // jit compilation
-        if (std.mem.eql(u8, self.target, "aarch64")) {
+        if (std.mem.eql(u8, self.opt.target, "aarch64")) {
             llvm.LLVMInitializeAArch64TargetInfo();
             llvm.LLVMInitializeAArch64Target();
             llvm.LLVMInitializeAArch64TargetMC();
             llvm.LLVMInitializeAArch64AsmPrinter();
-        } else if (std.mem.eql(u8, self.target, "x86")) {
+        } else if (std.mem.eql(u8, self.opt.target, "x86")) {
             llvm.LLVMInitializeX86TargetInfo();
             llvm.LLVMInitializeX86Target();
             llvm.LLVMInitializeX86TargetMC();
             llvm.LLVMInitializeX86AsmPrinter();
         } else {
-            std.debug.print("{s} target is not currently supported\n", .{self.target});
+            std.debug.print("{s} target is not currently supported\n", .{self.opt.target});
             return;
         }
 
@@ -76,27 +77,37 @@ pub const Compiler = struct {
     pub fn run(self: *Compiler) !void {
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
-        try self.ast.print();
 
-        self.sema = sema.Sema.init(self);
-        try self.sema.analyze();
-        self.sema.deinit();
-        try self.emitErrors();
+        if (self.opt.emit_ast) try self.ast.print();
 
-        var c = codegen.Codegen.init(self.allocator, self);
-        self.mod = try c.codegen();
-        self.ctx = c.ctx;
-        var error_message: [*c]u8 = null;
-        const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
-        if (res != 0) {
-            if (error_message) |msg| {
-                std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
-                llvm.LLVMDisposeMessage(msg);
-            }
+        if (self.opt.sema) {
+            self.sema = sema.Sema.init(self);
+            try self.sema.analyze();
+            self.sema.deinit();
+            try self.emitErrors();
         }
 
-        try self.jit();
-        c.deinit();
+        if (self.opt.run_jit) {
+            var c = codegen.Codegen.init(self.allocator, self);
+            self.mod = try c.codegen();
+            self.ctx = c.ctx;
+            var error_message: [*c]u8 = null;
+            const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
+            if (res != 0) {
+                if (error_message) |msg| {
+                    std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
+                    llvm.LLVMDisposeMessage(msg);
+                }
+            }
+
+            if (self.opt.emit_ir) {
+                const mod_str = llvm.LLVMPrintModuleToString(self.mod);
+                std.debug.print("{s}\n", .{mod_str});
+            }
+
+            try self.jit();
+            c.deinit();
+        }
         self.ast.deinit(self.allocator);
     }
 
