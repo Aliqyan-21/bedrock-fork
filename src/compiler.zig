@@ -75,6 +75,16 @@ pub const Compiler = struct {
     }
 
     pub fn run(self: *Compiler) !void {
+        if (self.opt.emit_tokens) {
+            var tokens = try lexer.tokenize(self.allocator, self.source);
+            defer tokens.deinit(self.allocator);
+
+            std.debug.print("\nTokens:\n", .{});
+            for (tokens.items) |tok| {
+                std.debug.print("{d}:{d:<3} {s:<12} '{s}'\n", .{ tok.line, tok.col, @tagName(tok.type), tok.val });
+            }
+        }
+
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
 

@@ -3,6 +3,7 @@ const std = @import("std");
 pub const Options = struct {
     file: []const u8,
     target: []const u8,
+    emit_tokens: bool = false,
     emit_ast: bool = false,
     emit_ir: bool = false,
     sema: bool = false,
@@ -38,6 +39,8 @@ pub fn parse(args: anytype) !Options {
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--emit-ast")) {
             options.emit_ast = true;
+        } else if (std.mem.eql(u8, arg, "--emit-tokens")) {
+            options.emit_tokens = true;
         } else if (std.mem.eql(u8, arg, "--emit-ir")) {
             options.emit_ir = true;
         } else if (std.mem.eql(u8, arg, "--sema")) {
@@ -90,4 +93,3 @@ pub fn printUsage() void {
         \\
     , .{});
 }
-
