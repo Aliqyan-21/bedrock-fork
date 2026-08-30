@@ -546,12 +546,15 @@ pub const Codegen = struct {
     pub fn get_primitive_type(self: *Codegen, p: *ast.PrimitiveType) !llvm.LLVMTypeRef {
         _ = self;
         switch (p.*) {
-            .i32 => return llvm.LLVMInt32Type(),
+            .i8, .u8 => return llvm.LLVMInt8Type(),
+            .i16, .u16 => return llvm.LLVMInt16Type(),
+            .i32, .u32 => return llvm.LLVMInt32Type(),
+            .i64, .u64, .usize, .isize => return llvm.LLVMInt64Type(),
+            .f32 => return llvm.LLVMFloatType(),
+            .f64 => return llvm.LLVMDoubleType(),
+            .bool => return llvm.LLVMInt1Type(),
+            .char => return llvm.LLVMInt8Type(),
             .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
-            else => {
-                // TODO:
-                unreachable;
-            },
         }
     }
 
