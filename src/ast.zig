@@ -380,11 +380,11 @@ pub const FieldInit = struct {
 
     pub fn print(self: *FieldInit, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("{s}: ", .{self.name});
+        std.debug.print("{s}:\n", .{self.name});
         try self.value.print(indent + 4);
     }
 
-    pub fn deinit(self: *StructLiteral, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *FieldInit, allocator: std.mem.Allocator) void {
         self.value.deinit(allocator);
     }
 };
@@ -396,7 +396,9 @@ pub const StructLiteral = struct {
     pub fn print(self: *StructLiteral, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("struct literal:\n", .{});
-        try self.value.print(indent + 4);
+        for (self.field_inits.items) |*f| {
+            try f.print(indent + 4);
+        }
     }
 
     pub fn deinit(self: *StructLiteral, allocator: std.mem.Allocator) void {
@@ -1128,6 +1130,7 @@ pub const Expr = union(enum) {
     optional_unwrap: OptionalUnwrapExpr,
     array_literal: ArrayLiteralExpr,
     comptime_expr: ComptimeExpr,
+    struct_literal: StructLiteral,
     nil: Nil,
 
     pub fn print(self: *Expr, indent: usize) anyerror!void {
@@ -1142,6 +1145,7 @@ pub const Expr = union(enum) {
             .optional_unwrap => |*o| try o.print(indent),
             .array_literal => |*a| try a.print(indent),
             .comptime_expr => |*c| try c.print(indent),
+            .struct_literal => |*s| try s.print(indent),
             .nil => |*n| try n.print(indent),
         }
     }
@@ -1174,6 +1178,10 @@ pub const Expr = union(enum) {
                 a.deinit(allocator);
                 allocator.destroy(self);
             },
+            .struct_literal => |*s| {
+                s.deinit(allocator);
+                allocator.destroy(self);
+            },
             .nil => allocator.destroy(self),
             else => {
                 // TODO:
@@ -1203,6 +1211,7 @@ pub const Expr = union(enum) {
             .optional_unwrap => self.optional_unwrap.token,
             .array_literal => self.array_literal.token,
             .comptime_expr => self.comptime_expr.token,
+            .struct_literal => self.struct_literal.token,
             .nil => self.nil.token,
         };
     }

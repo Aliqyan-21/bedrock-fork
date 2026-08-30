@@ -308,6 +308,18 @@ pub const Parser = struct {
         return sf;
     }
 
+    pub fn parse_struct_literal(self: *Parser) anyerror!ast.FieldInit {
+        const tok = try self.lexer.peek_token();
+        _ = try self.lexer.next();
+        const name = tok.val;
+        // expect '='
+        _ = try self.expect(.eq, "expected '='") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+
+        const e = try self.parse_expression();
+
+        return .{ .name = name, .value = e, .token = tok };
+    }
+
     pub fn parse_extern_def(self: *Parser) !ast.ExternDef {
         var tok = try self.lexer.next();
         const ktok = try self.lexer.next(); // func or proc
@@ -1092,8 +1104,13 @@ pub const Parser = struct {
         _ = try self.expect(.eq, "expected '='");
         const_def.value = try self.parse_expression();
 
-        // extect ';'
-        _ = try self.expect(.semicolon, "expected ';'");
+        // extect ';' if not struct literal
+        switch (const_def.value.*) {
+            .struct_literal => {},
+            else => {
+                _ = try self.expect(.semicolon, "expected ';'");
+            },
+        }
 
         return const_def;
     }
@@ -1124,8 +1141,13 @@ pub const Parser = struct {
         _ = try self.expect(.eq, "expected '='");
         var_def.value = try self.parse_expression();
 
-        // extect ';'
-        _ = try self.expect(.semicolon, "expected ';'");
+        // extect ';' if not struct literal
+        switch (var_def.value.*) {
+            .struct_literal => {},
+            else => {
+                _ = try self.expect(.semicolon, "expected ';'");
+            },
+        }
 
         return var_def;
     }
@@ -1322,7 +1344,9 @@ pub const Parser = struct {
                 .amp_amp, .pipe_pipe,
                 .amp, .pipe, .caret,
                 .shl, .shr, .dot,
-                .l_paren, .l_bracket => tok.type,
+                .l_paren, .l_bracket,
+                .kw_where => tok.type,
+
                 // zig fmt: on
                 else => break,
             };
@@ -1358,6 +1382,34 @@ pub const Parser = struct {
                     const tmp = lhs;
                     lhs = try self.allocator.create(ast.Expr);
                     lhs.* = .{ .index = .{ .target = tmp, .args = args, .token = tok } };
+                } else if (tok.type == .kw_where) {
+                    var st_lit = ast.StructLiteral{ .field_inits = .empty, .token = tok };
+                    tok = try self.lexer.next();
+                    while (true) {
+                        tok = try self.lexer.peek_token();
+                        switch (tok.type) {
+                            .ident => {
+                                const f = try self.parse_struct_literal();
+                                try st_lit.field_inits.append(self.allocator, f);
+                                _ = try self.expect(.comma, "expected ','") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+                            },
+                            .kw_end => {
+                                _ = try self.lexer.next();
+                                break;
+                            },
+                            else => {
+                                try self.compiler.addError("expected struct initializer fileds here", err.Severity.Error, tok);
+                                try self.sync(&.{ .kw_end, .kw_const, .kw_var });
+                                break;
+                            },
+                        }
+                    }
+
+                    // we dont need the ident here for struct literal
+                    const prev_lhs = lhs;
+                    self.allocator.destroy(prev_lhs);
+                    lhs = try self.allocator.create(ast.Expr);
+                    lhs.* = .{ .struct_literal = st_lit };
                 }
                 continue;
             }
@@ -1409,7 +1461,7 @@ fn prefix_binding_power(op: token.TokenType) [2]usize {
 
 fn postfix_binding_power(op: token.TokenType) ?[2]usize {
     return switch (op) {
-        .l_paren, .dot, .l_bracket => .{ 21, 22 },
+        .l_paren, .dot, .l_bracket, .kw_where => .{ 21, 22 },
         else => null,
     };
 }

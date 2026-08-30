@@ -93,7 +93,7 @@ pub const Compiler = struct {
         if (self.opt.sema) {
             self.sema = sema.Sema.init(self);
             try self.sema.analyze();
-            try self.emitErrors();
+            self.sema.deinit();
         }
 
         if (self.opt.run_jit) {
@@ -118,7 +118,7 @@ pub const Compiler = struct {
             c.deinit();
         }
 
-        self.sema.deinit();
+        try self.emitErrors();
         self.ast.deinit(self.allocator);
     }
 
