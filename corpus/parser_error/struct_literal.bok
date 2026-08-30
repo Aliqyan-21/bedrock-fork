@@ -1,0 +1,5 @@
+var p = Person where
+    name = "Alice",
+    age = 20,
+
+var a = 10;

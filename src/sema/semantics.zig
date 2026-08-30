@@ -521,6 +521,9 @@ pub const Sema = struct {
                 try self.compiler.add_sem_error("cannot infer type of nil without context", .{}, .Error, n.token);
                 break :blk .invalid;
             },
+            .struct_literal => {
+                return .invalid;
+            },
         };
         try self.expr_types.put(self.compiler.allocator, expr, ty);
         return ty;
