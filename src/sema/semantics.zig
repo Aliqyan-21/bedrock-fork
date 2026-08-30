@@ -10,17 +10,20 @@ pub const Sema = struct {
     compiler: *compiler.Compiler,
     scope: *scope.Scope,
     types: types.TypeSystem,
+    expr_types: std.AutoHashMapUnmanaged(*ast.Expr, types.TypeId) = .{},
 
     pub fn init(c: *compiler.Compiler) Sema {
         return .{
             .compiler = c,
             .scope = undefined,
             .types = types.TypeSystem.init(c.allocator),
+            .expr_types = .{},
         };
     }
 
     pub fn deinit(self: *Sema) void {
         self.types.deinit();
+        self.expr_types.deinit(self.compiler.allocator);
     }
 
     pub fn analyze(self: *Sema) !void {
@@ -304,7 +307,7 @@ pub const Sema = struct {
 
     fn visit_expression(self: *Sema, expr: *ast.Expr, expected: ?types.TypeId) !types.TypeId {
         // std.debug.print("visiting expression\n", .{});
-        return switch (expr.*) {
+        const ty = switch (expr.*) {
             .literal => |*lit| blk: {
                 if (expected) |exp| {
                     if (self.types.literal_fits(lit.kind, exp)) break :blk exp;
@@ -519,6 +522,8 @@ pub const Sema = struct {
                 break :blk .invalid;
             },
         };
+        try self.expr_types.put(self.compiler.allocator, expr, ty);
+        return ty;
     }
 
     // note: so the structure is that we visit these different definitions and all the things
