@@ -262,14 +262,20 @@ pub const Parser = struct {
         var tok = try self.lexer.peek_token();
         // parse struct fields
         while (true) {
-            if (tok.type == .kw_end) {
-                _ = try self.lexer.next();
-                break;
+            switch (tok.type) {
+                .kw_end => break,
+                .ident, .kw_pub => {
+                    const f = try self.parse_struct_fields();
+                    try s.fields.append(self.allocator, f);
+                    _ = try self.expect(.comma, "expected ','") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+                    tok = try self.lexer.peek_token();
+                },
+                else => {
+                    try self.compiler.addError("expected struct fileds or struct member here ", err.Severity.Error, tok);
+                    try self.sync(&.{ .kw_import, .kw_func, .kw_const, .kw_var, .kw_type, .kw_extern, .kw_pub, .kw_proc });
+                    break;
+                },
             }
-            const f = try self.parse_struct_fields();
-            try s.fields.append(self.allocator, f);
-            _ = try self.expect(.comma, "expected ','") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
-            tok = try self.lexer.peek_token();
         }
     }
 
@@ -296,6 +302,8 @@ pub const Parser = struct {
 
         // parse type
         sf.type = try self.parse_type();
+
+        tok = try self.lexer.peek_token();
 
         return sf;
     }
