@@ -51,6 +51,7 @@ pub fn parse(args: anytype) !Options {
                 std.debug.print("error: invalid target '{s}'\n", .{value});
             } else {
                 options.run_jit = true;
+                options.sema = true;
                 options.target = value;
             }
         } else {
