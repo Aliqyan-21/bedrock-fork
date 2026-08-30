@@ -6,8 +6,7 @@ pub const Item = union(enum) {
     import_def: ImportDef,
     function: FunctionDef,
     proc: ProcDef,
-    struct_def: StructDef,
-    enum_def: EnumDef,
+    type_def: TypeDef,
     extern_def: ExternDef,
     var_def: VarDef,
     const_def: ConstDef,
@@ -17,8 +16,7 @@ pub const Item = union(enum) {
             .import_def => |*i| try i.print(indent),
             .function => |*f| try f.print(indent),
             .proc => |*p| try p.print(indent),
-            .struct_def => |*s| try s.print(indent),
-            .enum_def => |*e| try e.print(indent),
+            .type_def => |*t| try t.print(indent),
             .extern_def => |*e| try e.print(indent),
             .var_def => |*v| try v.print(indent),
             .const_def => |*c| try c.print(indent),
@@ -150,6 +148,42 @@ pub const ProcDef = struct {
     }
 };
 
+pub const TypeVariant = union(enum) {
+    struct_def: StructDef,
+    enum_def: EnumDef,
+
+    pub fn print(self: *TypeVariant, indent: usize) anyerror!void {
+        switch (self.*) {
+            .struct_def => |*s| try s.print(indent),
+            .enum_def => |*e| try e.print(indent),
+        }
+    }
+
+    pub fn deinit(self: *TypeVariant, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .struct_def => |*s| s.deinit(allocator),
+            .enum_def => |*e| e.deinit(allocator),
+        }
+    }
+};
+
+// type_def = "type" IDENT [ type_params ] "=" ( "struct" [ struct_members ] "end"
+//                                                     | "enum" [ enum_variants ] "end"
+//                                                     | type ";" )
+pub const TypeDef = struct {
+    is_pub: bool,
+    is_global: bool,
+    variant: TypeVariant,
+
+    pub fn print(self: *TypeDef, indent: usize) anyerror!void {
+        try self.variant.print(indent);
+    }
+
+    pub fn deinit(self: *TypeDef, allocator: std.mem.Allocator) void {
+        self.variant.deinit(allocator);
+    }
+};
+
 // struct_def = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
 pub const StructDef = struct {
     is_pub: bool,
@@ -160,11 +194,19 @@ pub const StructDef = struct {
     token: Token,
 
     pub fn print(self: *StructDef, indent: usize) anyerror!void {
-        for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("struct: {s}\n", .{self.name});
+        std.debug.print("StructDef: {s}\n", .{self.name});
         for (self.type_params.items) |*tp| try tp.print(indent + 4);
         for (self.fields.items) |*f| try f.print(indent + 4);
         for (self.methods.items) |*m| try m.print(indent + 4);
+    }
+
+    pub fn deinit(self: *StructDef, allocator: std.mem.Allocator) void {
+        self.type_params.deinit(allocator);
+        for (self.fields.items) |*f| {
+            f.deinit(allocator);
+        }
+        self.fields.deinit(allocator);
+        self.methods.deinit(allocator);
     }
 };
 
@@ -193,6 +235,10 @@ pub const EnumDef = struct {
         std.debug.print("enum: {s}\n", .{self.name});
         for (self.type_params.items) |*tp| try tp.print(indent + 4);
         for (self.variants.items) |*v| try v.print(indent + 4);
+    }
+
+    pub fn deinit(self: *EnumDef, allocator: std.mem.Allocator) void {
+        self.type_params.deinit(allocator);
     }
 };
 
@@ -336,7 +382,14 @@ pub const StructField = struct {
 
     pub fn print(self: *StructField, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
+        if (self.is_pub) std.debug.print("pub ", .{});
         std.debug.print("struct field: {s}\n", .{self.name});
+        try self.type.print(indent + 4);
+    }
+
+    pub fn deinit(self: *StructField, allocator: std.mem.Allocator) void {
+        self.type.deinit(allocator);
+        allocator.destroy(self.type);
     }
 };
 
@@ -1400,9 +1453,7 @@ pub const AST = struct {
                 .var_def => |*v_def| v_def.deinit(allocator),
                 .proc => |*p_def| p_def.deinit(allocator),
                 .extern_def => |*e_def| e_def.deinit(allocator),
-                else => {
-                    // TODO:
-                },
+                .type_def => |*t_def| t_def.deinit(allocator),
             }
         }
         self.program.items.deinit(allocator);

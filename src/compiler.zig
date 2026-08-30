@@ -78,25 +78,25 @@ pub const Compiler = struct {
         self.ast = try p.parse();
         try self.ast.print();
 
-        self.sema = sema.Sema.init(self);
-        try self.sema.analyze();
-        self.sema.deinit();
-        try self.emitErrors();
-
-        var c = codegen.Codegen.init(self.allocator, self);
-        self.mod = try c.codegen();
-        self.ctx = c.ctx;
-        var error_message: [*c]u8 = null;
-        const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
-        if (res != 0) {
-            if (error_message) |msg| {
-                std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
-                llvm.LLVMDisposeMessage(msg);
-            }
-        }
-
-        try self.jit();
-        c.deinit();
+        // self.sema = sema.Sema.init(self);
+        // try self.sema.analyze();
+        // self.sema.deinit();
+        // try self.emitErrors();
+        //
+        // var c = codegen.Codegen.init(self.allocator, self);
+        // self.mod = try c.codegen();
+        // self.ctx = c.ctx;
+        // var error_message: [*c]u8 = null;
+        // const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
+        // if (res != 0) {
+        //     if (error_message) |msg| {
+        //         std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
+        //         llvm.LLVMDisposeMessage(msg);
+        //     }
+        // }
+        //
+        // try self.jit();
+        // c.deinit();
         self.ast.deinit(self.allocator);
     }
 
