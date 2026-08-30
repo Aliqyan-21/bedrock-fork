@@ -1,0 +1,18 @@
+const a = 10;
+
+type Person = struct
+end
+
+type Person = struct
+    name: str,
+    age: usize,
+    adult: bool,
+end
+
+type Person = struct
+    pub name: str,
+    age: usize,
+    adult: bool,
+end
+
+const b = 10;

@@ -112,7 +112,10 @@ pub const Parser = struct {
                 },
                 .kw_type => {
                     //todo: error if is_inline set (struct/enum defs take no "inline")
-                    //todo:implement parse_type_item
+                    var type_def = try self.parse_type_def();
+                    type_def.is_pub = is_pub;
+                    type_def.is_global = true;
+                    try items.append(self.allocator, ast.Item{ .type_def = type_def });
                 },
                 .kw_extern => {
                     const extern_def = try self.parse_extern_def();
@@ -205,13 +208,112 @@ pub const Parser = struct {
         return proc_def;
     }
 
+    pub fn parse_type_def(self: *Parser) !ast.TypeDef {
+        var type_def = ast.TypeDef{
+            .is_pub = false,
+            .is_global = false,
+            .variant = undefined,
+        };
+        // NOTE: no type params for now
+        var tok = try self.lexer.next();
+        // ident
+        const name = try self.lexer.next();
+        _ = name;
+        _ = try self.expect(.eq, "expected '='");
+
+        tok = try self.lexer.next();
+        switch (tok.type) {
+            .kw_struct => {
+                const s = try self.parse_struct();
+                type_def.variant = .{ .struct_def = s };
+            },
+            .kw_enum => {
+                // TODO:
+            },
+            else => {
+                // error
+            },
+        }
+
+        return type_def;
+    }
+
+    pub fn parse_struct(self: *Parser) !ast.StructDef {
+        var tok = try self.lexer.peek_token();
+        var s = ast.StructDef{
+            .is_pub = false,
+            .name = "",
+            .type_params = .empty,
+            .fields = .empty,
+            .methods = .empty,
+            .token = tok,
+        };
+
+        try self.parse_struct_members(&s);
+
+        tok = try self.lexer.peek_token();
+        // expect end
+        _ = try self.expect(.kw_end, "expected 'end'") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+
+        return s;
+    }
+
+    pub fn parse_struct_members(self: *Parser, s: *ast.StructDef) !void {
+        var tok = try self.lexer.peek_token();
+        // parse struct fields
+        while (true) {
+            switch (tok.type) {
+                .kw_end => break,
+                .ident, .kw_pub => {
+                    const f = try self.parse_struct_fields();
+                    try s.fields.append(self.allocator, f);
+                    _ = try self.expect(.comma, "expected ','") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+                    tok = try self.lexer.peek_token();
+                },
+                else => {
+                    try self.compiler.addError("expected struct fileds or struct member here ", err.Severity.Error, tok);
+                    try self.sync(&.{ .kw_import, .kw_func, .kw_const, .kw_var, .kw_type, .kw_extern, .kw_pub, .kw_proc });
+                    break;
+                },
+            }
+        }
+    }
+
+    pub fn parse_struct_fields(self: *Parser) !ast.StructField {
+        var sf = ast.StructField{
+            .is_pub = false,
+            .name = "",
+            .type = undefined,
+            .token = undefined,
+        };
+
+        // check for pub
+        var tok = try self.lexer.peek_token();
+        if (tok.type == .kw_pub) {
+            sf.is_pub = true;
+            _ = try self.lexer.next();
+        }
+
+        tok = try self.lexer.next();
+        sf.name = tok.val;
+
+        // expect ':'
+        _ = try self.expect(.colon, "expected ':'") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+
+        // parse type
+        sf.type = try self.parse_type();
+
+        tok = try self.lexer.peek_token();
+
+        return sf;
+    }
+
     pub fn parse_extern_def(self: *Parser) !ast.ExternDef {
         var tok = try self.lexer.next();
         const ktok = try self.lexer.next(); // func or proc
 
         switch (ktok.type) {
             .kw_func => {
-                tok = try self.expect(.ident, "expected function name") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
                 _ = try self.expect(.l_paren, "expected '('");
                 const params = try self.parse_params();
                 _ = try self.expect(.arrow, "expected '->'");
