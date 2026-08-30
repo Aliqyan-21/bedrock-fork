@@ -379,7 +379,7 @@ pub const Codegen = struct {
     pub fn codegen_expression(self: *Codegen, e: *ast.Expr) !llvm.LLVMValueRef {
         return switch (e.*) {
             .literal => |*l| self.codegen_literal(l, e),
-            .binary => |*b| self.codegen_binary(b, e),
+            .binary => |*b| self.codegen_binary(b),
             .unary => |*u| self.codegen_unary(u),
             .call => |*c| self.codegen_call(c),
             .ident => |*i| self.codegen_ident(i),
@@ -480,7 +480,7 @@ pub const Codegen = struct {
     fn llvm_int_type_of(self: *Codegen, ty: types.TypeId) !llvm.LLVMTypeRef {
         if (ty == .invalid) return llvm.LLVMInt32Type();
 
-        return switch (self.compiler.sema.types().get(ty).*) {
+        return switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| switch (p) {
                 .i8, .u8 => llvm.LLVMInt8Type(),
                 .i16, .u16 => llvm.LLVMInt16Type(),
