@@ -378,8 +378,8 @@ pub const Codegen = struct {
 
     pub fn codegen_expression(self: *Codegen, e: *ast.Expr) !llvm.LLVMValueRef {
         return switch (e.*) {
-            .literal => |*l| self.codegen_literal(l),
-            .binary => |*b| self.codegen_binary(b),
+            .literal => |*l| self.codegen_literal(l, e),
+            .binary => |*b| self.codegen_binary(b, e),
             .unary => |*u| self.codegen_unary(u),
             .call => |*c| self.codegen_call(c),
             .ident => |*i| self.codegen_ident(i),
@@ -456,11 +456,13 @@ pub const Codegen = struct {
 
     // pub fn codegen_ident(self: *codegen, i: *ast.IdentExpr) !llvm.LLVMValueRef {}
 
-    pub fn codegen_literal(self: *Codegen, l: *ast.LiteralExpr) !llvm.LLVMValueRef {
+    pub fn codegen_literal(self: *Codegen, l: *ast.LiteralExpr, e: *ast.Expr) !llvm.LLVMValueRef {
+        const ty = self.expr_type(e);
+
         switch (l.kind) {
             .integer => {
                 const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
-                return llvm.LLVMConstInt(llvm.LLVMInt32Type(), i, 1);
+                return llvm.LLVMConstInt(try self.llvm_int_type_of(ty), i, 1);
             },
             .string => {
                 const name = try self.allocator.dupeZ(u8, l.raw);
@@ -473,6 +475,21 @@ pub const Codegen = struct {
                 unreachable;
             },
         }
+    }
+
+    fn llvm_int_type_of(self: *Codegen, ty: types.TypeId) !llvm.LLVMTypeRef {
+        if (ty == .invalid) return llvm.LLVMInt32Type();
+
+        return switch (self.compiler.sema.types().get(ty).*) {
+            .primitive => |p| switch (p) {
+                .i8, .u8 => llvm.LLVMInt8Type(),
+                .i16, .u16 => llvm.LLVMInt16Type(),
+                .i32, .u32 => llvm.LLVMInt32Type(),
+                .i64, .u64, .usize, .isize => llvm.LLVMInt64Type(),
+                else => llvm.LLVMInt32Type(),
+            },
+            else => llvm.LLVMInt32Type(),
+        };
     }
 
     pub fn codegen_binary(self: *Codegen, b: *ast.BinaryExpr) anyerror!llvm.LLVMValueRef {
@@ -538,7 +555,7 @@ pub const Codegen = struct {
         }
     }
 
-    fn expr_types(self: *Codegen, e: *ast.Expr) types.TypeId {
+    fn expr_type(self: *Codegen, e: *ast.Expr) types.TypeId {
         return self.compiler.sema.expr_types.get(e) orelse .invalid;
     }
 };
