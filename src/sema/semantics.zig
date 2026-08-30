@@ -76,8 +76,7 @@ pub const Sema = struct {
                 };
                 try self.visit_proc(p);
             },
-            .struct_def => {},
-            .enum_def => {},
+            .type_def => {},
             .extern_def => |e_def| {
                 switch (e_def.kind) {
                     .func => |f| {
