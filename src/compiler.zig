@@ -90,9 +90,11 @@ pub const Compiler = struct {
 
         if (self.opt.emit_ast) try self.ast.print();
 
+        var s_run = false;
         if (self.opt.sema) {
             self.sema = sema.Sema.init(self);
             try self.sema.analyze();
+            s_run = true;
         }
 
         if (self.opt.run_jit) {
@@ -115,8 +117,12 @@ pub const Compiler = struct {
 
             self.sema.deinit();
             try self.jit();
+            s_run = false;
+            self.sema.deinit();
             c.deinit();
         }
+
+        if (s_run) self.sema.deinit();
 
         try self.emitErrors();
         self.ast.deinit(self.allocator);
