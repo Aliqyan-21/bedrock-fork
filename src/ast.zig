@@ -713,6 +713,7 @@ pub const BinaryOp = enum {
     shl,
     shr,
     range,
+    range_incl,
     add,
     sub,
     mul,
