@@ -328,7 +328,7 @@ pub const Parser = struct {
             .kw_func => {
                 tok = try self.expect(.ident, "expected function name") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
                 _ = try self.expect(.l_paren, "expected '('");
-                const params = try self.parse_params();
+                const parsed = try self.parse_extern_params();
                 _ = try self.expect(.arrow, "expected '->'");
                 const result = try self.parse_type();
                 _ = try self.expect(.semicolon, "expected ';'");
@@ -337,9 +337,9 @@ pub const Parser = struct {
                     .kind = .{
                         .func = .{
                             .name = tok.val,
-                            .params = params,
+                            .params = parsed.params,
                             .result = result,
-                            .is_variadic = false, //todo: implement this '...'
+                            .is_variadic = parsed.is_variadic, //todo: implement this '...'
                         },
                     },
                     .token = tok,
@@ -348,15 +348,15 @@ pub const Parser = struct {
             .kw_proc => {
                 tok = try self.expect(.ident, "expected proc name") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
                 _ = try self.expect(.l_paren, "expected '('");
-                const params = try self.parse_params();
+                const parsed = try self.parse_extern_params();
                 _ = try self.expect(.semicolon, "expected ';'");
 
                 return ast.ExternDef{
                     .kind = .{
                         .proc = .{
                             .name = tok.val,
-                            .params = params,
-                            .is_variadic = false,
+                            .params = parsed.params,
+                            .is_variadic = parsed.is_variadic,
                         },
                     },
                     .token = tok,
@@ -416,6 +416,62 @@ pub const Parser = struct {
         }
 
         return params;
+    }
+
+    // extern_params   = extern_param { "," extern_param } [ "," "..." ]
+    pub fn parse_extern_params(self: *Parser) !struct { params: std.ArrayList(ast.Param), is_variadic: bool } {
+        var params: std.ArrayList(ast.Param) = .empty;
+        var is_variadic = false;
+
+        const first = try self.lexer.peek_token();
+        if (first.type == token.TokenType.r_paren) {
+            _ = try self.lexer.next();
+            return .{ .params = params, .is_variadic = is_variadic };
+        }
+
+        if (first.type == token.TokenType.dot_dot_dot) {
+            _ = try self.lexer.next();
+            is_variadic = true;
+            _ = try self.expect(.r_paren, "expected ')'");
+            return .{ .params = params, .is_variadic = is_variadic };
+        }
+
+        while (true) {
+            try params.append(self.allocator, try self.parse_param());
+            const tok = try self.lexer.next();
+            switch (tok.type) {
+                .r_paren => break,
+                .comma => {
+                    const nxt = try self.lexer.peek_token();
+                    if (nxt.type == token.TokenType.r_paren) {
+                        _ = try self.lexer.next();
+                        break;
+                    }
+                    if (nxt.type == token.TokenType.dot_dot_dot) {
+                        _ = try self.lexer.next();
+                        is_variadic = true;
+                        _ = try self.expect(.r_paren, "expected ')'");
+                        break;
+                    }
+                    continue;
+                },
+                else => {
+                    try self.compiler.addError("expected ',' or ')'", err.Severity.Error, tok);
+                    try self.sync(&.{ .comma, .r_paren });
+                    const peek_tok = try self.lexer.peek_token();
+                    if (peek_tok.type == .comma) {
+                        _ = try self.lexer.next();
+                        continue;
+                    } else if (peek_tok.type == .r_paren) {
+                        _ = try self.lexer.next();
+                        break;
+                    } else {
+                        break;
+                    }
+                },
+            }
+        }
+        return .{ .params = params, .is_variadic = is_variadic };
     }
 
     pub fn parse_param(self: *Parser) !ast.Param {
