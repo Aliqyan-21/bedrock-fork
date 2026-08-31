@@ -304,8 +304,28 @@ pub const Sema = struct {
                 try self.enter_scope(w.body.items, .loop);
             },
             .for_expr => |*f| {
-                _ = try self.visit_expression(f.iterable, null);
-                try self.enter_scope(f.body.items, .loop);
+                const ity = try self.visit_expression(f.iterable, null);
+                const elemty: types.TypeId = if (ity == .invalid) .invalid else switch (self.types.get(ity).*) {
+                    .range => |r| r.elem,
+                    .array => |a| a.child,
+                    .slice => |s| s.child,
+                    else => blk: {
+                        try self.compiler.add_sem_error("cannot iterate over type {s}", .{self.types.name_of(ity)}, .Error, f.token);
+                        break :blk .invalid;
+                    },
+                };
+
+                var loop_scope = scope.Scope.init(self.compiler.allocator, .loop, self.scope);
+                defer loop_scope.deinit();
+                loop_scope.declare(.{ .name = f.binding, .kind = .variable, .ty = elemty }) catch |e| {
+                    if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}", .{f.binding}, .Error, f.token);
+                };
+
+                const tmp = self.scope;
+                self.scope = &loop_scope;
+                defer self.scope = tmp;
+
+                for (f.body.items) |*s| try self.visit_statement(s);
             },
         }
     }
@@ -327,6 +347,19 @@ pub const Sema = struct {
                 break :blk sym.ty;
             },
             .binary => |*b| blk: {
+                if (b.op == .range) {
+                    const lty = try self.visit_expression(b.lhs, expected);
+                    const rty = try self.visit_expression(b.rhs, expected);
+                    if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
+                        try self.compiler.add_sem_error("range bounds must have the same type: {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
+                        break :blk .invalid;
+                    }
+                    const elemty = if (lty != .invalid) lty else rty;
+                    break :blk if (elemty == .invalid) .invalid else try self.types.intern(.{ .range = .{ .elem = elemty } });
+                }
+                if (b.op == .orelse_op) {
+                    break :blk .invalid; //todo: oresle unwrap
+                }
                 const is_logical = switch (b.op) {
                     .logical_and, .logical_or => true,
                     else => false,
@@ -352,7 +385,7 @@ pub const Sema = struct {
                 }
 
                 const lty = try self.visit_expression(b.lhs, expected);
-                const rty = try self.visit_expression(b.rhs, if (lty != .invalid) lty else expected);
+                const rty = try self.visit_expression(b.rhs, expected);
 
                 if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
                     try self.compiler.add_sem_error("type mismatch in binary expression {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
