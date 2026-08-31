@@ -56,6 +56,9 @@ pub fn parse(args: anytype) !Options {
             options.emit_ir = true;
         } else if (std.mem.eql(u8, arg, "--sema")) {
             options.sema = true;
+        } else if (std.mem.eql(u8, arg, "--jit")) {
+            options.run_jit = true;
+            options.sema = true;
         } else if (std.mem.startsWith(u8, arg, "--target=")) {
             const value = arg["--target=".len..];
             if (!std.mem.eql(u8, value, "aarch64") and !std.mem.eql(u8, value, "x86")) {
@@ -99,6 +102,7 @@ pub fn printUsage() void {
         \\  --emit-ast              emit AST
         \\  --emit-ir               emit LLVM IR
         \\  --sema                  run semantic analysis
+        \\  --jit                   compilation target
         \\  --target=<target>       compilation target
         \\                          aarch64 | x86
         \\  --help                  show this help
