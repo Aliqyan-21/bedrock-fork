@@ -1344,7 +1344,7 @@ pub const Parser = struct {
                 .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt,
                 .amp_amp, .pipe_pipe,
                 .amp, .pipe, .caret,
-                .shl, .shr, .dot,
+                .shl, .shr, .dot, .dot_dot,
                 .l_paren, .l_bracket,
                 .kw_where => tok.type,
 
@@ -1473,6 +1473,7 @@ fn get_binary_op(op: token.TokenType) ast.BinaryOp {
         .minus => ast.BinaryOp.sub,
         .star => ast.BinaryOp.mul,
         .slash => ast.BinaryOp.div,
+        .percent => ast.BinaryOp.mod,
         .eq_eq => ast.BinaryOp.eq,
         .gt_eq => ast.BinaryOp.ge,
         .lt_eq => ast.BinaryOp.le,
@@ -1486,6 +1487,7 @@ fn get_binary_op(op: token.TokenType) ast.BinaryOp {
         .pipe_pipe => ast.BinaryOp.logical_or,
         .shl => ast.BinaryOp.shl,
         .shr => ast.BinaryOp.shr,
+        .dot_dot => ast.BinaryOp.range,
         else => unreachable,
     };
 }

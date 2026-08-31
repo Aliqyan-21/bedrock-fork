@@ -25,6 +25,7 @@ pub const Type = union(enum) {
     error_union: TypeId,
     function: struct { params: std.ArrayList(TypeId), result: TypeId },
     procedure: struct { params: std.ArrayList(TypeId) },
+    range: struct { elem: TypeId },
 };
 
 pub const TypeSystem = struct {
@@ -126,6 +127,7 @@ pub const TypeSystem = struct {
             .function => (a.function.result == b.function.result) and
                 std.mem.eql(TypeId, a.function.params.items, b.function.params.items),
             .procedure => std.mem.eql(TypeId, a.function.params.items, b.function.params.items),
+            .range => a.range.elem == b.range.elem,
         };
     }
 
