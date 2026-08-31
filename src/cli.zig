@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const Options = struct {
     file: []const u8,
@@ -12,9 +13,18 @@ pub const Options = struct {
 };
 
 pub fn parse(args: anytype) !Options {
+    var t: []const u8 = "";
+    switch (builtin.os.tag) {
+        .linux => t = "x86",
+        .macos => t = "aarch64",
+        else => {
+            return error.targetNotSupported;
+        },
+    }
+
     var options = Options{
         .file = "",
-        .target = "",
+        .target = t,
     };
 
     _ = args.next();
@@ -46,15 +56,9 @@ pub fn parse(args: anytype) !Options {
             options.emit_ir = true;
         } else if (std.mem.eql(u8, arg, "--sema")) {
             options.sema = true;
-        } else if (std.mem.startsWith(u8, arg, "--target=")) {
-            const value = arg["--target=".len..];
-            if (!std.mem.eql(u8, value, "aarch64") and !std.mem.eql(u8, value, "x86")) {
-                std.debug.print("error: invalid target '{s}'\n", .{value});
-            } else {
-                options.run_jit = true;
-                options.sema = true;
-                options.target = value;
-            }
+        } else if (std.mem.eql(u8, arg, "--jit")) {
+            options.run_jit = true;
+            options.sema = true;
         } else {
             std.debug.print("error: unknown argument '{s}'\n", .{arg});
             return error.UnknownArgument;
@@ -89,8 +93,7 @@ pub fn printUsage() void {
         \\  --emit-ast              emit AST
         \\  --emit-ir               emit LLVM IR
         \\  --sema                  run semantic analysis
-        \\  --target=<target>       compilation target
-        \\                          aarch64 | x86
+        \\  --jit                   compilation target
         \\  --help                  show this help
         \\
     , .{});
