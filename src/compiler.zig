@@ -93,7 +93,6 @@ pub const Compiler = struct {
         if (self.opt.sema) {
             self.sema = sema.Sema.init(self);
             try self.sema.analyze();
-            self.sema.deinit();
         }
 
         if (self.opt.run_jit) {
@@ -114,6 +113,7 @@ pub const Compiler = struct {
                 std.debug.print("{s}\n", .{mod_str});
             }
 
+            self.sema.deinit();
             try self.jit();
             c.deinit();
         }

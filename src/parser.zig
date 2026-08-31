@@ -326,6 +326,7 @@ pub const Parser = struct {
 
         switch (ktok.type) {
             .kw_func => {
+                tok = try self.expect(.ident, "expected function name") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
                 _ = try self.expect(.l_paren, "expected '('");
                 const params = try self.parse_params();
                 _ = try self.expect(.arrow, "expected '->'");
