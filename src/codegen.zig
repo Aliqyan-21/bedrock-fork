@@ -72,7 +72,7 @@ pub const Codegen = struct {
         defer self.allocator.free(name);
         const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         if (main_func != null) {
-            std.debug.print("add function {s} to module\n", .{name});
+            // std.debug.print("add function {s} to module\n", .{name});
         }
 
         // set function arg names
@@ -111,7 +111,7 @@ pub const Codegen = struct {
         defer self.allocator.free(name);
         const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         if (main_func != null) {
-            std.debug.print("add proc {s} to module\n", .{name});
+            // std.debug.print("add proc {s} to module\n", .{name});
         }
 
         // set function arg names
@@ -161,7 +161,7 @@ pub const Codegen = struct {
         const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         llvm.LLVMSetLinkage(func, llvm.LLVMExternalLinkage);
         if (func != null) {
-            std.debug.print("add extern {s} to module\n", .{name});
+            // std.debug.print("add extern {s} to module\n", .{name});
         }
 
         // set function arg names
@@ -182,7 +182,7 @@ pub const Codegen = struct {
         const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         llvm.LLVMSetLinkage(func, llvm.LLVMExternalLinkage);
         if (func != null) {
-            std.debug.print("add extern {s} to module\n", .{name});
+            // std.debug.print("add extern {s} to module\n", .{name});
         }
 
         // set function arg names

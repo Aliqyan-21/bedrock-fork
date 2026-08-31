@@ -1,0 +1,2 @@
+extern func foo(a: i32, b: i32) -> i32;
+extern proc bar(a: i32, b: i32);

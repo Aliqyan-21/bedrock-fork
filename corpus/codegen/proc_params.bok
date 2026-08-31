@@ -1,3 +1,4 @@
+// output: 0
 proc add(x: i32, y: i32)
     var res: i32 = x + y;
 end

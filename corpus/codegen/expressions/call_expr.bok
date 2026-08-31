@@ -1,3 +1,4 @@
+// output: 0
 proc void_proc()
     10 + 10;
 end
@@ -8,6 +9,6 @@ end
 
 func main() -> i32
     void_proc();
-    void_func();
+    const a: i32 = void_func();
     return 0;
 end

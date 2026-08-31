@@ -55,16 +55,36 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "llvm", .module = translate_llvm.createModule() },
+        },
     });
+
+    const test_root = b.createModule(.{
+        .root_source_file = b.path("tests/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "bedrock", .module = bedrock_mod },
+        },
+    });
+
+    test_root.linkSystemLibrary("LLVM", .{});
+
     const all_tests = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/root.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "bedrock", .module = bedrock_mod },
-            },
-        }),
+        .root_module = test_root,
     });
+    // const all_tests = b.addTest(.{
+    //     .root_module = b.createModule(.{
+    //         .root_source_file = b.path("tests/root.zig"),
+    //         .target = target,
+    //         .optimize = optimize,
+    //         .imports = &.{
+    //             .{ .name = "bedrock", .module = bedrock_mod },
+    //         },
+    //     }),
+    // });
     test_step.dependOn(&b.addRunArtifact(all_tests).step);
 }

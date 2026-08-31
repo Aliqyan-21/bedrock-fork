@@ -8,6 +8,7 @@ pub const Options = struct {
     emit_ir: bool = false,
     sema: bool = false,
     run_jit: bool = false,
+    testing: bool = false,
 };
 
 pub fn parse(args: anytype) !Options {

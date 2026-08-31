@@ -1,0 +1,10 @@
+// output: 20
+func add(x: i32, y: i32) -> i32
+    var res: i32 = x + y;
+    return res;
+end
+
+func main() -> i32
+    var a: i32 = add(10, 10);
+    return a;
+end
