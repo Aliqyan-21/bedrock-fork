@@ -325,16 +325,14 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_alloca_var(self: *Codegen, v: *ast.VarStmt) !llvm.LLVMValueRef {
-        // NOTE: currently type is expected
-        const t = try self.get_type(v.type_ann.?);
+        const t = if (v.type_ann) |ann| try self.get_type(ann) else try self.get_llvm_type_of(self.expr_type(v.value));
         const name = try self.allocator.dupeZ(u8, v.name);
         defer self.allocator.free(name);
         return llvm.LLVMBuildAlloca(self.builder, t, name);
     }
 
     pub fn codegen_alloca_const(self: *Codegen, v: *ast.ConstStmt) !llvm.LLVMValueRef {
-        // NOTE: currently type is expected
-        const t = try self.get_type(v.type_ann.?);
+        const t = if (v.type_ann) |ann| try self.get_type(ann) else try self.get_llvm_type_of(self.expr_type(v.value));
         const name = try self.allocator.dupeZ(u8, v.name);
         defer self.allocator.free(name);
         return llvm.LLVMBuildAlloca(self.builder, t, name);
@@ -466,11 +464,11 @@ pub const Codegen = struct {
         switch (l.kind) {
             .integer => {
                 const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
-                return llvm.LLVMConstInt(try self.llvm_int_type_of(ty), i, 1);
+                return llvm.LLVMConstInt(try self.get_llvm_type_of(ty), i, 1);
             },
             .float => {
                 const f = try std.fmt.parseFloat(f64, l.raw);
-                return llvm.LLVMConstReal(try self.llvm_float_type_of(ty), f);
+                return llvm.LLVMConstReal(try self.get_llvm_type_of(ty), f);
             },
             .bool_true => return llvm.LLVMConstInt(llvm.LLVMInt1Type(), 1, 0),
             .bool_false => return llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0),
@@ -588,6 +586,28 @@ pub const Codegen = struct {
             .char => return llvm.LLVMInt8Type(),
             .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
         }
+    }
+
+    pub fn get_llvm_type_of(self: *Codegen, ty: types.TypeId) !llvm.LLVMTypeRef {
+        if (ty == .invalid) return llvm.LLVMInt32Type(); // note: for temp if some types are not managed in sema for now
+
+        return switch (self.compiler.sema.types.get(ty).*) {
+            .primitive => |p| switch (p) {
+                .i8, .u8 => return llvm.LLVMInt8Type(),
+                .i16, .u16 => return llvm.LLVMInt16Type(),
+                .i32, .u32 => return llvm.LLVMInt32Type(),
+                .i64, .u64, .usize, .isize => return llvm.LLVMInt64Type(),
+                .f32 => return llvm.LLVMFloatType(),
+                .f64 => return llvm.LLVMDoubleType(),
+                .bool => return llvm.LLVMInt1Type(),
+                .char => return llvm.LLVMInt8Type(),
+                .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
+            },
+            else => {
+                //todo: other typse
+                unreachable;
+            },
+        };
     }
 
     fn expr_type(self: *Codegen, e: *ast.Expr) types.TypeId {
