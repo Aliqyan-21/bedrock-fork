@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const bedrock = @import("bedrock");
 const ast = bedrock.ast;
 const compiler = bedrock.compiler;
@@ -50,13 +51,22 @@ test "codegen-test" {
     const codegen_dir = try std.Io.Dir.cwd().openDir(io, "corpus/codegen/", .{ .iterate = true });
     defer codegen_dir.close(io);
 
+    var target: []const u8 = "";
+    switch (builtin.os.tag) {
+        .linux => target = "x86",
+        .macos => target = "aarch64",
+        else => {
+            return error.targetNotSupported;
+        },
+    }
+
     var codegen_files: std.ArrayList([]const u8) = .empty;
     defer codegen_files.deinit(allocator);
     try collect_files(allocator, io, codegen_dir, &codegen_files, "corpus/codegen/");
 
     var options = cli.Options{
         .file = "",
-        .target = "aarch64",
+        .target = target,
         .emit_tokens = false,
         .emit_ast = false,
         .emit_ir = false,

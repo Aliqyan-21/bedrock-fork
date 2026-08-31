@@ -72,19 +72,14 @@ pub fn build(b: *std.Build) void {
     });
 
     test_root.linkSystemLibrary("LLVM", .{});
-
     const all_tests = b.addTest(.{
         .root_module = test_root,
     });
-    // const all_tests = b.addTest(.{
-    //     .root_module = b.createModule(.{
-    //         .root_source_file = b.path("tests/root.zig"),
-    //         .target = target,
-    //         .optimize = optimize,
-    //         .imports = &.{
-    //             .{ .name = "bedrock", .module = bedrock_mod },
-    //         },
-    //     }),
-    // });
-    test_step.dependOn(&b.addRunArtifact(all_tests).step);
+
+    const run_tests = b.addRunArtifact(all_tests);
+    if (b.args) |args| {
+        run_tests.addArgs(args);
+    }
+
+    test_step.dependOn(&run_tests.step);
 }
