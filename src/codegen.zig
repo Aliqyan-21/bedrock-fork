@@ -216,6 +216,7 @@ pub const Codegen = struct {
         switch (cf.*) {
             .if_expr => |*i| return try self.codegen_if(i),
             .while_expr => |*w| return try self.codegen_while(w),
+            .for_expr => |*f| return try self.codegen_for(f),
             else => {
                 // TODO:
                 unreachable;
@@ -286,6 +287,67 @@ pub const Codegen = struct {
         // _ = llvm.LLVMAddIncoming(phi, @ptrCast(@constCast(&values)), @ptrCast(@constCast(&blocks)), 2);
 
         return if (else_val != null) else_val else then_val;
+    }
+
+    pub fn codegen_for(self: *Codegen, f: *ast.ForExpr) !llvm.LLVMValueRef {
+        // note: only range based iterations are lowerd right now
+        // todo: array and slices based iterations
+        const rangety = self.expr_type(f.iterable);
+        const elemty = switch (self.compiler.sema.types.get(rangety).*) {
+            .range => |r| r.elem,
+            else => unreachable, // sema sambhal lega
+        };
+        const llvm_ty = try self.get_llvm_type_of(elemty);
+
+        const b = &f.iterable.binary;
+        const lo = try self.codegen_expression(b.lhs);
+        const hi = try self.codegen_expression(b.rhs);
+
+        const func = llvm.LLVMGetBasicBlockParent(self.entry);
+        const cond_bb = llvm.LLVMAppendBasicBlock(func, "for_cond");
+        const body_bb = llvm.LLVMAppendBasicBlock(func, "for_body");
+        const merge_bb = llvm.LLVMAppendBasicBlock(func, "for_merge");
+
+        const name = try self.allocator.dupeZ(u8, f.binding);
+        defer self.allocator.free(name);
+        const i_alloca = llvm.LLVMBuildAlloca(self.builder, llvm_ty, name);
+        _ = llvm.LLVMBuildStore(self.builder, lo, i_alloca);
+        try self.stack_map.put(f.binding, i_alloca);
+
+        _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+        llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
+
+        const is_float = switch (self.compiler.sema.types.get(elemty).*) {
+            .primitive => |p| p == .f32 or p == .f64,
+            else => false,
+        };
+        const is_signed = switch (self.compiler.sema.types.get(elemty).*) {
+            .primitive => |p| switch (p) {
+                .i8, .i16, .i32, .i64, .isize => true,
+                else => false,
+            },
+            else => false,
+        };
+        const i_val = llvm.LLVMBuildLoad2(self.builder, llvm_ty, i_alloca, "");
+        const cond = if (is_float)
+            llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOLT, i_val, hi, "for_cmp")
+        else
+            llvm.LLVMBuildICmp(self.builder, if (is_signed) llvm.LLVMIntSLT else llvm.LLVMIntULT, i_val, hi, "for_cmp");
+
+        _ = llvm.LLVMBuildCondBr(self.builder, cond, body_bb, merge_bb);
+
+        llvm.LLVMPositionBuilderAtEnd(self.builder, body_bb);
+        _ = try self.codegen_statements(f.body);
+
+        // do the i = i + 1
+        const cur = llvm.LLVMBuildLoad2(self.builder, llvm_ty, i_alloca, "");
+        const one = if (is_float) llvm.LLVMConstReal(llvm_ty, 1.0) else llvm.LLVMConstInt(llvm_ty, 1, 0);
+        const next = if (is_float) llvm.LLVMBuildFAdd(self.builder, cur, one, "for_inc") else llvm.LLVMBuildAdd(self.builder, cur, one, "for_inc");
+        _ = llvm.LLVMBuildStore(self.builder, next, i_alloca);
+        _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+
+        llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
+        return i_alloca;
     }
 
     pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {
