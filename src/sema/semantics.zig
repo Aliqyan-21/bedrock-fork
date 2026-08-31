@@ -358,7 +358,7 @@ pub const Sema = struct {
                 break :blk sym.ty;
             },
             .binary => |*b| blk: {
-                if (b.op == .range) {
+                if (b.op == .range or b.op == .range_incl) {
                     const lty = try self.visit_expression(b.lhs, expected);
                     const rty = try self.visit_expression(b.rhs, expected);
                     if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
