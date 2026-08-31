@@ -327,6 +327,19 @@ pub const Sema = struct {
                 break :blk sym.ty;
             },
             .binary => |*b| blk: {
+                if (b.op == .range) {
+                    const lty = try self.visit_expression(b.lhs, expected);
+                    const rty = try self.visit_expression(b.rhs, if (lty != .invalid) lty else expected);
+                    if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
+                        try self.compiler.add_sem_error("range bounds must have the same type: {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
+                        break :blk .invalid;
+                    }
+                    const elemty = if (lty != .invalid) lty else rty;
+                    break :blk if (elemty == .invalid) .invalid else try self.types.intern(.{ .range = .{ .elem = elemty } });
+                }
+                if (b.op == .orelse_op) {
+                    break :blk .invalid; //todo: oresle unwrap
+                }
                 const is_logical = switch (b.op) {
                     .logical_and, .logical_or => true,
                     else => false,
