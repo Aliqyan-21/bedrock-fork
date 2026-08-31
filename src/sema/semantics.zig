@@ -11,6 +11,7 @@ pub const Sema = struct {
     scope: *scope.Scope,
     types: types.TypeSystem,
     expr_types: std.AutoHashMapUnmanaged(*ast.Expr, types.TypeId) = .{},
+    discard: bool = false, // this is for dicarded values check, like in proc
 
     pub fn init(c: *compiler.Compiler) Sema {
         return .{
@@ -58,7 +59,7 @@ pub const Sema = struct {
                     try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
                 }
                 const rty = try self.types.resolve_type(f.result);
-                const fnty = try self.types.add(.{ .function = .{ .params = param_tys, .result = rty } });
+                const fnty = try self.types.intern(.{ .function = .{ .params = param_tys, .result = rty } });
                 self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{f.name}, .Error, f.token);
@@ -71,7 +72,7 @@ pub const Sema = struct {
                 for (p.params.items) |*param| {
                     try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
                 }
-                const prty = try self.types.add(.{ .procedure = .{ .params = param_tys } });
+                const prty = try self.types.intern(.{ .procedure = .{ .params = param_tys } });
                 self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {
                     if (e == error.DuplicateName) {
                         try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{p.name}, .Error, p.token);
@@ -247,6 +248,10 @@ pub const Sema = struct {
             },
             .expr_stmt => |*e| {
                 if (e.value) |val| {
+                    const tmp = self.discard;
+                    self.discard = true;
+                    defer self.discard = tmp;
+
                     const ty = try self.visit_expression(val, null);
                     // info: I could check here func/proc as func have
                     // to always return a value and proc could never
@@ -406,6 +411,9 @@ pub const Sema = struct {
                 return .invalid; // todo: implement field_access type?
             },
             .call => |*c| blk: {
+                const tmp = self.discard;
+                self.discard = false;
+
                 const cty = try self.visit_expression(c.callee, null);
                 for (c.args.items) |arg| {
                     _ = try self.visit_expression(arg.value, null);
@@ -437,7 +445,7 @@ pub const Sema = struct {
                                 }
                             }
                         }
-                        try self.compiler.add_sem_error("the call is of a proc, and there's no return value to store", .{}, .Error, c.token);
+                        if (!tmp) try self.compiler.add_sem_error("the call is of a proc, and there's no return value to store", .{}, .Error, c.token);
                         break :result .invalid;
                     },
                     else => result: {
