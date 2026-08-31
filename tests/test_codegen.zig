@@ -91,7 +91,6 @@ test "codegen-test" {
             try std.testing.expectEqual(c.errors.items.len, 0);
             try std.testing.expectEqualStrings(expected.?, res_dup);
 
-            std.debug.print("file: '{s}' test passes ✅\n", .{options.file});
             defer allocator.free(res_dup);
             defer c.deinit();
         }
