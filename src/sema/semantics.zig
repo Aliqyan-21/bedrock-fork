@@ -466,7 +466,6 @@ pub const Sema = struct {
 
                 break :blk switch (self.types.get(cty).*) {
                     .function => |fnty| result: {
-                        std.debug.print("is variadic: {}\n", .{fnty.is_variadic});
                         if (fnty.is_variadic) {
                             if (c.args.items.len < fnty.params.items.len) {
                                 try self.compiler.add_sem_error("expected atleast {d} arguments, found {d}", .{ fnty.params.items.len, c.args.items.len }, .Error, c.token);
