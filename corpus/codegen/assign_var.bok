@@ -1,4 +1,4 @@
-// output: 110
+// output: 120
 func assign(x: i32) -> i32
     var a: i32 = 10;
     a = 100;

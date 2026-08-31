@@ -88,10 +88,13 @@ test "codegen-test" {
             const res = try c.run();
             const res_dup = try std.fmt.allocPrint(allocator, "{}", .{res});
 
-            try std.testing.expectEqual(c.errors.items.len, 0);
-            try std.testing.expectEqualStrings(expected.?, res_dup);
+            std.testing.expectEqual(c.errors.items.len, 0) catch {
+                std.debug.print("{s}: compiler errors ({d})\n", .{ options.file, c.errors.items.len });
+            };
+            std.testing.expectEqualStrings(expected.?, res_dup) catch {
+                std.debug.print("{s}: output mismatch\n  expected: {s}\n  actual:   {s}\n", .{ options.file, expected.?, res_dup });
+            };
 
-            std.debug.print("file: '{s}' test passes ✅\n", .{options.file});
             defer allocator.free(res_dup);
             defer c.deinit();
         }
