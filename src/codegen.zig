@@ -264,24 +264,28 @@ pub const Codegen = struct {
         // set new insert point for then_bb codegen
         llvm.LLVMPositionBuilderAtEnd(self.builder, then_bb);
         const then_val = try self.codegen_statements(i.then_body);
-        _ = llvm.LLVMBuildBr(self.builder, merge_bb);
-
-        // reset the insert pos
-        llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+        if (llvm.LLVMGetBasicBlockTerminator(then_bb) == null) {
+            _ = llvm.LLVMBuildBr(self.builder, merge_bb);
+        }
 
         // set new insert point for else_bb codegen
         llvm.LLVMPositionBuilderAtEnd(self.builder, else_bb);
-        const else_val = try self.codegen_statements(i.else_body.?);
-        _ = llvm.LLVMBuildBr(self.builder, merge_bb);
+        var else_val: llvm.LLVMValueRef = null;
+        if (i.else_body) |*body| {
+            else_val = try self.codegen_statements(body.*);
+        }
+        if (llvm.LLVMGetBasicBlockTerminator(else_bb) == null) {
+            _ = llvm.LLVMBuildBr(self.builder, merge_bb);
+        }
 
         // codegen merge block
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
         // const phi = llvm.LLVMBuildPhi(self.builder, llvm.LLVMInt32Type(), "");
-        _ = [_]llvm.LLVMValueRef{ then_val, else_val };
-        _ = [_]llvm.LLVMBasicBlockRef{ then_bb, else_bb };
+        // _ = [_]llvm.LLVMValueRef{ then_val, else_val };
+        // _ = [_]llvm.LLVMBasicBlockRef{ then_bb, else_bb };
         // _ = llvm.LLVMAddIncoming(phi, @ptrCast(@constCast(&values)), @ptrCast(@constCast(&blocks)), 2);
 
-        return else_val;
+        return if (else_val != null) else_val else then_val;
     }
 
     pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {
