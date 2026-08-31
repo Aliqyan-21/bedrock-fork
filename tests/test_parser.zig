@@ -3,6 +3,7 @@ const bedrock = @import("bedrock");
 const ast = bedrock.ast;
 const compiler = bedrock.compiler;
 const parser = bedrock.parser;
+const cli = bedrock.cli;
 
 const StmtResult = struct {
     stmt: ast.Stmt,
@@ -26,15 +27,36 @@ const TypeResult = struct {
 };
 
 fn parse_type(allocator: std.mem.Allocator, source: []const u8) !TypeResult {
+    const options = cli.Options{
+        .file = "",
+        .target = "",
+        .emit_tokens = false,
+        .emit_ast = false,
+        .emit_ir = false,
+        .sema = false,
+        .run_jit = false,
+        .testing = false,
+    };
     const c = try allocator.create(compiler.Compiler);
-    c.* = compiler.Compiler.init(allocator, source);
+    c.* = compiler.Compiler.init(allocator, source, options);
     var p = parser.Parser.init(allocator, source, c);
     const ty = try p.parse_type();
     return .{ .ty = ty, .c = c };
 }
 
 fn parse_expression(allocator: std.mem.Allocator, source: []const u8) ![]const u8 {
-    var c = compiler.Compiler.init(allocator, source);
+    const options = cli.Options{
+        .file = "",
+        .target = "",
+        .emit_tokens = false,
+        .emit_ast = false,
+        .emit_ir = false,
+        .sema = false,
+        .run_jit = false,
+        .testing = false,
+    };
+
+    var c = compiler.Compiler.init(allocator, source, options);
     var p = parser.Parser.init(allocator, source, &c);
     var expr = try p.parse_expression();
     const buf = try expr.to_string(allocator);
@@ -44,8 +66,19 @@ fn parse_expression(allocator: std.mem.Allocator, source: []const u8) ![]const u
 }
 
 fn parse_stmt(allocator: std.mem.Allocator, source: []const u8) !StmtResult {
+    const options = cli.Options{
+        .file = "",
+        .target = "",
+        .emit_tokens = false,
+        .emit_ast = false,
+        .emit_ir = false,
+        .sema = false,
+        .run_jit = false,
+        .testing = false,
+    };
+
     const c = try allocator.create(compiler.Compiler);
-    c.* = compiler.Compiler.init(allocator, source);
+    c.* = compiler.Compiler.init(allocator, source, options);
     var p = parser.Parser.init(allocator, source, c);
     const stmt = try p.parse_statement();
     return .{ .stmt = stmt, .c = c };
