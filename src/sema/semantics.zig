@@ -28,7 +28,7 @@ pub const Sema = struct {
     }
 
     pub fn analyze(self: *Sema) !void {
-        std.debug.print("\n-------\nanalyzing semantics!\n--------\n", .{});
+        // std.debug.print("\n-------\nanalyzing semantics!\n--------\n", .{});
         var root = scope.Scope.init(self.compiler.allocator, .root, null);
         defer root.deinit();
         self.scope = &root;
