@@ -212,6 +212,32 @@ pub const Codegen = struct {
         return last_value;
     }
 
+    pub fn codegen_array(self: *Codegen, a: *ast.ArrayLiteralExpr, e: *ast.Expr) anyerror!llvm.LLVMValueRef {
+        const array_ty = try self.get_llvm_type_of(self.expr_type(e));
+        const arr = llvm.LLVMBuildAlloca(self.builder, array_ty, "");
+        var indices = [2]llvm.LLVMValueRef{
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+        };
+
+        for (a.elements.items, 0..) |ele, idx| {
+            indices[1] = llvm.LLVMConstInt(llvm.LLVMInt64Type(), idx, 0);
+            const value = try self.codegen_expression(ele);
+            const gep = llvm.LLVMBuildGEPWithNoWrapFlags(
+                self.builder,
+                array_ty,
+                arr,
+                &indices,
+                2,
+                "",
+                0,
+            );
+
+            _ = llvm.LLVMBuildStore(self.builder, value, gep);
+        }
+        return arr;
+    }
+
     pub fn codegen_control_flow(self: *Codegen, cf: *ast.ControlFlowStmt) anyerror!llvm.LLVMValueRef {
         switch (cf.*) {
             .if_expr => |*i| return try self.codegen_if(i),
@@ -307,21 +333,39 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_var(self: *Codegen, v: *ast.VarStmt) !llvm.LLVMValueRef {
-        const alloca = try self.codegen_alloca_var(v);
-        const e = try self.codegen_expression(v.value);
-        // store value on stack space
-        _ = llvm.LLVMBuildStore(self.builder, e, alloca);
-        try self.stack_map.put(v.name, alloca);
-        return e;
+        switch (v.value.*) {
+            .array_literal => {
+                const arr = try self.codegen_expression(v.value);
+                try self.stack_map.put(v.name, arr);
+                return arr;
+            },
+            else => {
+                const alloca = try self.codegen_alloca_var(v);
+                const e = try self.codegen_expression(v.value);
+                // store value on stack space
+                _ = llvm.LLVMBuildStore(self.builder, e, alloca);
+                try self.stack_map.put(v.name, alloca);
+                return e;
+            },
+        }
     }
 
     pub fn codegen_const(self: *Codegen, v: *ast.ConstStmt) !llvm.LLVMValueRef {
-        const alloca = try self.codegen_alloca_const(v);
-        const e = try self.codegen_expression(v.value);
-        // store value on stack space
-        _ = llvm.LLVMBuildStore(self.builder, e, alloca);
-        try self.stack_map.put(v.name, alloca);
-        return e;
+        switch (v.value.*) {
+            .array_literal => {
+                const arr = try self.codegen_expression(v.value);
+                try self.stack_map.put(v.name, arr);
+                return arr;
+            },
+            else => {
+                const alloca = try self.codegen_alloca_const(v);
+                const e = try self.codegen_expression(v.value);
+                // store value on stack space
+                _ = llvm.LLVMBuildStore(self.builder, e, alloca);
+                try self.stack_map.put(v.name, alloca);
+                return e;
+            },
+        }
     }
 
     pub fn codegen_alloca_var(self: *Codegen, v: *ast.VarStmt) !llvm.LLVMValueRef {
@@ -385,8 +429,45 @@ pub const Codegen = struct {
             .unary => |*u| self.codegen_unary(u),
             .call => |*c| self.codegen_call(c),
             .ident => |*i| self.codegen_ident(i),
+            .array_literal => |*a| try self.codegen_array(a, e),
+            .index => |*i| try self.codegen_index(i),
             else => unreachable,
         };
+    }
+
+    pub fn codegen_index(self: *Codegen, i: *ast.IndexExpr) anyerror!llvm.LLVMValueRef {
+        // Currently only support one-dimensional arrays.
+        if (i.args.items.len != 1) {
+            return error.InvalidIndex;
+        }
+
+        const arr = switch (i.target.*) {
+            .ident => |ident| self.stack_map.get(ident.name) orelse return error.UnknownVariable,
+
+            else => try self.codegen_expression(i.target),
+        };
+        // Generate the index expression.
+        const index = try self.codegen_expression(i.args.items[0]);
+        const array_ty = try self.get_llvm_type_of(self.expr_type(i.target));
+        var indices = [2]llvm.LLVMValueRef{
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            index,
+        };
+
+        const element_ptr = llvm.LLVMBuildGEPWithNoWrapFlags(
+            self.builder,
+            array_ty,
+            arr,
+            &indices,
+            2,
+            "",
+            0,
+        );
+
+        const element_ty = llvm.LLVMGetElementType(array_ty);
+        const ld = llvm.LLVMBuildLoad2(self.builder, element_ty, element_ptr, "");
+
+        return ld;
     }
 
     pub fn codegen_ident(self: *Codegen, i: *ast.IdentExpr) !llvm.LLVMValueRef {
@@ -562,10 +643,20 @@ pub const Codegen = struct {
         };
     }
 
-    pub fn get_type(self: *Codegen, ret_type: *ast.Type) !llvm.LLVMTypeRef {
+    pub fn get_type(self: *Codegen, ret_type: *ast.Type) anyerror!llvm.LLVMTypeRef {
         // TODO: handle optionals and errors
         switch (ret_type.base) {
             .primitive => |*p| return self.get_primitive_type(p),
+            .array => |*a| {
+                const ele_ty = try self.get_type(a.elem);
+                const sz = switch (a.size) {
+                    .fixed => |s| try std.fmt.parseInt(c_uint, s, 10),
+                    else => {
+                        unreachable;
+                    },
+                };
+                return llvm.LLVMArrayType(ele_ty, sz);
+            },
             else => {
                 // TODO:
                 unreachable;
@@ -588,7 +679,7 @@ pub const Codegen = struct {
         }
     }
 
-    pub fn get_llvm_type_of(self: *Codegen, ty: types.TypeId) !llvm.LLVMTypeRef {
+    pub fn get_llvm_type_of(self: *Codegen, ty: types.TypeId) anyerror!llvm.LLVMTypeRef {
         if (ty == .invalid) return llvm.LLVMInt32Type(); // note: for temp if some types are not managed in sema for now
 
         return switch (self.compiler.sema.types.get(ty).*) {
@@ -602,6 +693,11 @@ pub const Codegen = struct {
                 .bool => return llvm.LLVMInt1Type(),
                 .char => return llvm.LLVMInt8Type(),
                 .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
+            },
+            .array => |a| {
+                const ele_ty = try self.get_llvm_type_of(a.child);
+                const sz: c_uint = @intCast(a.len);
+                return llvm.LLVMArrayType(ele_ty, sz);
             },
             else => {
                 //todo: other typse
