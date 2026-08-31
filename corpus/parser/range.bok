@@ -1,0 +1,17 @@
+proc main()
+  //error of type mismatch in range
+  for i in 0.5..10
+    // hehe
+  end
+
+  // array range
+  var elems: [_]i32 = [1,2,3];
+  for e in elems
+    // do something
+  end
+
+  // error for duplicate declaration
+  for i in 0..10
+    var i = 7;
+  end
+end
