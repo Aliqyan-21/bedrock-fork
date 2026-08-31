@@ -59,15 +59,6 @@ pub fn parse(args: anytype) !Options {
         } else if (std.mem.eql(u8, arg, "--jit")) {
             options.run_jit = true;
             options.sema = true;
-        } else if (std.mem.startsWith(u8, arg, "--target=")) {
-            const value = arg["--target=".len..];
-            if (!std.mem.eql(u8, value, "aarch64") and !std.mem.eql(u8, value, "x86")) {
-                std.debug.print("error: invalid target '{s}'\n", .{value});
-            } else {
-                options.run_jit = true;
-                options.sema = true;
-                options.target = value;
-            }
         } else {
             std.debug.print("error: unknown argument '{s}'\n", .{arg});
             return error.UnknownArgument;
@@ -103,8 +94,6 @@ pub fn printUsage() void {
         \\  --emit-ir               emit LLVM IR
         \\  --sema                  run semantic analysis
         \\  --jit                   compilation target
-        \\  --target=<target>       compilation target
-        \\                          aarch64 | x86
         \\  --help                  show this help
         \\
     , .{});
