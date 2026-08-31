@@ -115,7 +115,6 @@ pub const Compiler = struct {
                 std.debug.print("{s}\n", .{mod_str});
             }
 
-            self.sema.deinit();
             try self.jit();
             s_run = false;
             self.sema.deinit();
