@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const Options = struct {
     file: []const u8,
@@ -12,9 +13,18 @@ pub const Options = struct {
 };
 
 pub fn parse(args: anytype) !Options {
+    var t: []const u8 = "";
+    switch (builtin.os.tag) {
+        .linux => t = "x86",
+        .macos => t = "aarch64",
+        else => {
+            return error.targetNotSupported;
+        },
+    }
+
     var options = Options{
         .file = "",
-        .target = "",
+        .target = t,
     };
 
     _ = args.next();

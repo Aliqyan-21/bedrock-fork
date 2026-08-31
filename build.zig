@@ -76,10 +76,5 @@ pub fn build(b: *std.Build) void {
         .root_module = test_root,
     });
 
-    const run_tests = b.addRunArtifact(all_tests);
-    if (b.args) |args| {
-        run_tests.addArgs(args);
-    }
-
-    test_step.dependOn(&run_tests.step);
+    test_step.dependOn(&b.addRunArtifact(all_tests).step);
 }
