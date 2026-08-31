@@ -293,6 +293,9 @@ pub const Codegen = struct {
         // NOTE: currently only for var assign
         switch (a.target.*) {
             .ident => |*i| {
+                if (std.mem.eql(u8, i.name, "_")) {
+                    return e; // return if assigning in '_' (it is discard mf)
+                }
                 // lookup for var on stack
                 const alloca = self.stack_map.get(i.name).?;
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);
