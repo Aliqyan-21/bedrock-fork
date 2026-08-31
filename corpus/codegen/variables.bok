@@ -1,4 +1,5 @@
- func add(x: i32, y: i32) -> i32
+// output: 60
+func add(x: i32, y: i32) -> i32
     var a: i32 = 10;
     var b: i32 = 10;
     const c: i32 = y;

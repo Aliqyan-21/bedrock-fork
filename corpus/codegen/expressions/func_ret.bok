@@ -1,3 +1,4 @@
+// output: 20
 func void_func() -> i32
     return 10 + 10;
 end

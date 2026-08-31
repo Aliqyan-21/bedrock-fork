@@ -32,7 +32,7 @@ pub const Compiler = struct {
         };
     }
 
-    pub fn jit(self: *Compiler) !void {
+    pub fn jit(self: *Compiler) !i32 {
         // jit compilation
         if (std.mem.eql(u8, self.opt.target, "aarch64")) {
             llvm.LLVMInitializeAArch64TargetInfo();
@@ -46,19 +46,19 @@ pub const Compiler = struct {
             llvm.LLVMInitializeX86AsmPrinter();
         } else {
             std.debug.print("{s} target is not currently supported\n", .{self.opt.target});
-            return;
+            return error.JitError;
         }
 
         const builder = llvm.LLVMOrcCreateLLJITBuilder();
         if (builder == null) {
             std.debug.print("failed to create LLJIT builder\n", .{});
-            return;
+            return error.JitError;
         }
         var j: llvm.LLVMOrcLLJITRef = null;
         _ = llvm.LLVMOrcCreateLLJIT(&j, builder);
         if (j == null) {
             std.debug.print("LLVM failed to create LLJIT\n", .{});
-            return;
+            return error.JitError;
         }
 
         // get thread safe context for jit
@@ -71,10 +71,11 @@ pub const Compiler = struct {
         const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
         const result = Main();
 
-        std.debug.print("result = {}\n", .{result});
+        // std.debug.print("result = {}\n", .{result});
+        return result;
     }
 
-    pub fn run(self: *Compiler) !void {
+    pub fn run(self: *Compiler) !i32 {
         if (self.opt.emit_tokens) {
             var tokens = try lexer.tokenize(self.allocator, self.source);
             defer tokens.deinit(self.allocator);
@@ -97,6 +98,7 @@ pub const Compiler = struct {
             s_run = true;
         }
 
+        var r: i32 = 0;
         if (self.opt.run_jit) {
             var c = codegen.Codegen.init(self.allocator, self);
             self.mod = try c.codegen();
@@ -115,7 +117,7 @@ pub const Compiler = struct {
                 std.debug.print("{s}\n", .{mod_str});
             }
 
-            try self.jit();
+            r = try self.jit();
             s_run = false;
             self.sema.deinit();
             c.deinit();
@@ -125,6 +127,8 @@ pub const Compiler = struct {
 
         try self.emitErrors();
         self.ast.deinit(self.allocator);
+
+        return r;
     }
 
     pub fn addError(self: *Compiler, msg: []const u8, severity: err.Severity, tok: token.Token) !void {
