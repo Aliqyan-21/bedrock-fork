@@ -278,30 +278,50 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_if(self: *Codegen, i: *ast.IfExpr) !llvm.LLVMValueRef {
-        const cond = try self.codegen_expression(i.cond);
-
         // get the parent function for block insertion
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
-        // TODO: no elif for now
         const then_bb = llvm.LLVMAppendBasicBlock(func, "then");
-        const else_bb = llvm.LLVMAppendBasicBlock(func, "else");
         const merge_bb = llvm.LLVMAppendBasicBlock(func, "merge");
 
-        // build cmp condition
-        _ = llvm.LLVMBuildCondBr(self.builder, cond, then_bb, else_bb);
+        const elif_bbs = try self.allocator.alloc(llvm.LLVMBasicBlockRef, i.elifs.items.len);
+        defer self.allocator.free(elif_bbs);
+        const elif_then_bbs = try self.allocator.alloc(llvm.LLVMBasicBlockRef, i.elifs.items.len);
+        defer self.allocator.free(elif_then_bbs);
+        for (elif_bbs, 0..) |*bb, idx| {
+            bb.* = llvm.LLVMAppendBasicBlock(func, "elif_check");
+            elif_then_bbs[idx] = llvm.LLVMAppendBasicBlock(func, "elif_then");
+        }
+
+        const else_bb = llvm.LLVMAppendBasicBlock(func, "else");
+
+        const first_false_bb = if (elif_bbs.len > 0) elif_bbs[0] else else_bb;
+        const cond = try self.codegen_expression(i.cond);
+        _ = llvm.LLVMBuildCondBr(self.builder, cond, then_bb, first_false_bb);
 
         // set new insert point for then_bb codegen
         llvm.LLVMPositionBuilderAtEnd(self.builder, then_bb);
-        const then_val = try self.codegen_statements(i.then_body);
+        _ = try self.codegen_statements(i.then_body);
         if (llvm.LLVMGetBasicBlockTerminator(then_bb) == null) {
             _ = llvm.LLVMBuildBr(self.builder, merge_bb);
         }
 
+        for (i.elifs.items, 0..) |*elif, idx| {
+            llvm.LLVMPositionBuilderAtEnd(self.builder, elif_bbs[idx]);
+            const elif_cond = try self.codegen_expression(elif.cond);
+            const nxt = if (idx + 1 < elif_bbs.len) elif_bbs[idx + 1] else else_bb;
+            _ = llvm.LLVMBuildCondBr(self.builder, elif_cond, elif_then_bbs[idx], nxt);
+
+            llvm.LLVMPositionBuilderAtEnd(self.builder, elif_then_bbs[idx]);
+            _ = try self.codegen_statements(elif.body);
+            if (llvm.LLVMGetBasicBlockTerminator(elif_then_bbs[idx]) == null) {
+                _ = llvm.LLVMBuildBr(self.builder, merge_bb);
+            }
+        }
+
         // set new insert point for else_bb codegen
         llvm.LLVMPositionBuilderAtEnd(self.builder, else_bb);
-        var else_val: llvm.LLVMValueRef = null;
         if (i.else_body) |*body| {
-            else_val = try self.codegen_statements(body.*);
+            _ = try self.codegen_statements(body.*);
         }
         if (llvm.LLVMGetBasicBlockTerminator(else_bb) == null) {
             _ = llvm.LLVMBuildBr(self.builder, merge_bb);
@@ -314,7 +334,7 @@ pub const Codegen = struct {
         // _ = [_]llvm.LLVMBasicBlockRef{ then_bb, else_bb };
         // _ = llvm.LLVMAddIncoming(phi, @ptrCast(@constCast(&values)), @ptrCast(@constCast(&blocks)), 2);
 
-        return if (else_val != null) else_val else then_val;
+        return null;
     }
 
     pub fn codegen_for(self: *Codegen, f: *ast.ForExpr) !llvm.LLVMValueRef {
