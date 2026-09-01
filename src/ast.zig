@@ -672,6 +672,12 @@ pub const LiteralExpr = struct {
     pub fn to_string(self: *LiteralExpr, allocator: std.mem.Allocator) ![]const u8 {
         return try std.fmt.allocPrint(allocator, "{s}", .{self.raw});
     }
+
+    pub fn deinit(self: *LiteralExpr, allocator: std.mem.Allocator) void {
+        if (self.kind == .string) {
+            allocator.free(self.token.val);
+        }
+    }
 };
 
 pub const IdentExpr = struct {
@@ -1153,7 +1159,10 @@ pub const Expr = union(enum) {
 
     pub fn deinit(self: *Expr, allocator: std.mem.Allocator) void {
         switch (self.*) {
-            .literal => allocator.destroy(self),
+            .literal => |*l| {
+                l.deinit(allocator);
+                allocator.destroy(self);
+            },
             .binary => |*b| {
                 b.deinit(allocator);
                 allocator.destroy(self);

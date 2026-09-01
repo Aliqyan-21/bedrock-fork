@@ -11,6 +11,9 @@ fn types(allocator: std.mem.Allocator, source: []const u8) ![]token.TokenType {
     var result = try allocator.alloc(token.TokenType, tokens.items.len - 1);
     for (tokens.items[0 .. tokens.items.len - 1], 0..) |tok, i| {
         result[i] = tok.type;
+        if (tok.type == .string) {
+            allocator.free(tok.val);
+        }
     }
     return result;
 }

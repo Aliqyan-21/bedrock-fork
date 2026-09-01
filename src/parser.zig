@@ -14,7 +14,7 @@ pub const Parser = struct {
     pub fn init(allocator: std.mem.Allocator, source: []const u8, c: *compiler.Compiler) Parser {
         return Parser{
             .allocator = allocator,
-            .lexer = lexer.Lexer.init(source),
+            .lexer = lexer.Lexer.init(source, allocator),
             .source = source,
             .compiler = c,
         };
