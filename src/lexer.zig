@@ -379,6 +379,10 @@ pub const Lexer = struct {
                         _ = self.advance();
                         return self.make(.dot_dot_dot, start, line, col);
                     }
+                    if (self.peek() == '=') {
+                        _ = self.advance();
+                        return self.make(.dot_dot_eq, start, line, col);
+                    }
                     return self.make(.dot_dot, start, line, col);
                 }
                 return self.make(.dot, start, line, col);

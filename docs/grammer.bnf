@@ -97,7 +97,7 @@ bitor_expr      = bitxor_expr { "|" bitxor_expr }
 bitxor_expr     = bitand_expr { "^" bitand_expr }
 bitand_expr     = shift_expr { "&" shift_expr }
 shift_expr      = range_expr { ( "<<" | ">>" ) range_expr }
-range_expr      = additive [ ".." additive ]
+range_expr      = additive [ ( ".." | "..=" ) additive ]
 additive        = multiplicative { ( "+" | "-" ) multiplicative }
 multiplicative  = unary { ( "*" | "/" | "%" ) unary }
 unary           = ( "-" | "!" | "~" | "&" | "*" | "try" ) unary | postfix

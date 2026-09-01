@@ -87,7 +87,8 @@ pub const TokenType = enum {
     amp_eq, // &=
     pipe_eq, // |=
     caret_eq, // ^=
-    dot_dot, // .. (range)
+    dot_dot, // .. (exclusive range)
+    dot_dot_eq, // ..= (inclusive range)
     dot_dot_dot, // ... (ellipsis for variadic)
 
     // others

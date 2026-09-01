@@ -1400,7 +1400,7 @@ pub const Parser = struct {
                 .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt,
                 .amp_amp, .pipe_pipe,
                 .amp, .pipe, .caret,
-                .shl, .shr, .dot, .dot_dot,
+                .shl, .shr, .dot, .dot_dot, .dot_dot_eq,
                 .l_paren, .l_bracket,
                 .kw_where => tok.type,
 
@@ -1510,7 +1510,7 @@ fn infix_binding_power(op: token.TokenType) [2]usize {
         .caret => .{ 9, 10 },
         .amp => .{ 11, 12 },
         .shl, .shr => .{ 13, 14 },
-        .dot_dot => .{ 15, 16 },
+        .dot_dot, .dot_dot_eq => .{ 15, 16 },
         .plus, .minus => .{ 17, 18 },
         .star, .slash, .percent => .{ 19, 20 },
         else => .{ 0, 0 },
@@ -1552,6 +1552,7 @@ fn get_binary_op(op: token.TokenType) ast.BinaryOp {
         .shl => ast.BinaryOp.shl,
         .shr => ast.BinaryOp.shr,
         .dot_dot => ast.BinaryOp.range,
+        .dot_dot_eq => ast.BinaryOp.range_incl,
         else => unreachable,
     };
 }
