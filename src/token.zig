@@ -88,6 +88,7 @@ pub const TokenType = enum {
     pipe_eq, // |=
     caret_eq, // ^=
     dot_dot, // .. (range)
+    dot_dot_dot, // ... (ellipsis for variadic)
 
     // others
     eof,

@@ -84,14 +84,25 @@ pub const Sema = struct {
             .extern_def => |e_def| {
                 switch (e_def.kind) {
                     .func => |f| {
-                        self.scope.declare(.{ .name = f.name, .kind = .func }) catch |e| {
+                        var param_tys = std.ArrayList(types.TypeId).empty;
+                        for (f.params.items) |*param| {
+                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                        }
+                        const rty = try self.types.resolve_type(f.result);
+                        const fnty = try self.types.intern(.{ .function = .{ .params = param_tys, .result = rty, .is_variadic = f.is_variadic } });
+                        self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                             if (e == error.DuplicateName) {
                                 try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{f.name}, .Error, e_def.token);
                             }
                         };
                     },
                     .proc => |p| {
-                        self.scope.declare(.{ .name = p.name, .kind = .func }) catch |e| {
+                        var param_tys = std.ArrayList(types.TypeId).empty;
+                        for (p.params.items) |*param| {
+                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                        }
+                        const prty = try self.types.intern(.{ .procedure = .{ .params = param_tys, .is_variadic = p.is_variadic } });
+                        self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {
                             if (e == error.DuplicateName) {
                                 try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{p.name}, .Error, e_def.token);
                             }
@@ -455,20 +466,29 @@ pub const Sema = struct {
 
                 break :blk switch (self.types.get(cty).*) {
                     .function => |fnty| result: {
-                        if (c.args.items.len != fnty.params.items.len) {
+                        if (fnty.is_variadic) {
+                            if (c.args.items.len < fnty.params.items.len) {
+                                try self.compiler.add_sem_error("expected atleast {d} arguments, found {d}", .{ fnty.params.items.len, c.args.items.len }, .Error, c.token);
+                            }
+                        } else if (c.args.items.len != fnty.params.items.len) {
                             try self.compiler.add_sem_error("expected {d} arguments, found {d}", .{ fnty.params.items.len, c.args.items.len }, .Error, c.token);
                             break :result fnty.result;
-                        }
-                        for (c.args.items, fnty.params.items) |arg, pty| {
-                            const argty = try self.visit_expression(arg.value, pty);
-                            if (argty != .invalid and !self.types.assignable(argty, pty)) {
-                                try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(pty), self.types.name_of(argty) }, .Error, c.token);
+                        } else {
+                            for (c.args.items, fnty.params.items) |arg, pty| {
+                                const argty = try self.visit_expression(arg.value, pty);
+                                if (argty != .invalid and !self.types.assignable(argty, pty)) {
+                                    try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(pty), self.types.name_of(argty) }, .Error, c.token);
+                                }
                             }
                         }
                         break :result fnty.result;
                     },
                     .procedure => |prty| result: {
-                        if (c.args.items.len != prty.params.items.len) {
+                        if (prty.is_variadic) {
+                            if (c.args.items.len < prty.params.items.len) {
+                                try self.compiler.add_sem_error("expected atleast {d} arguments, found {d}", .{ prty.params.items.len, c.args.items.len }, .Error, c.token);
+                            }
+                        } else if (c.args.items.len != prty.params.items.len) {
                             try self.compiler.add_sem_error("expected {d} arguments, found {d}", .{ prty.params.items.len, c.args.items.len }, .Error, c.token);
                         } else {
                             for (c.args.items, prty.params.items) |arg, pty| {

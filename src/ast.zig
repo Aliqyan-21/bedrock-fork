@@ -281,12 +281,12 @@ pub const ExternDef = struct {
         for (0..indent) |_| std.debug.print(" ", .{});
         switch (self.kind) {
             .func => |f| {
-                std.debug.print("extern func: {s}\n", .{f.name});
+                std.debug.print("extern func: {s}{s}\n", .{ f.name, if (f.is_variadic) " (variadic)" else "" });
                 for (f.params.items) |*p| try p.print(indent + 4);
                 try f.result.print(indent + 4);
             },
             .proc => |p| {
-                std.debug.print("extern proc: {s}\n", .{p.name});
+                std.debug.print("extern proc: {s}{s}\n", .{ p.name, if (p.is_variadic) " (variadic)" else "" });
                 for (p.params.items) |*param| try param.print(indent + 4);
             },
         }

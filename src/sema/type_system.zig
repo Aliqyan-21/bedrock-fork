@@ -23,8 +23,8 @@ pub const Type = union(enum) {
     slice: struct { child: TypeId },
     optional: TypeId,
     error_union: TypeId,
-    function: struct { params: std.ArrayList(TypeId), result: TypeId },
-    procedure: struct { params: std.ArrayList(TypeId) },
+    function: struct { params: std.ArrayList(TypeId), result: TypeId, is_variadic: bool = false },
+    procedure: struct { params: std.ArrayList(TypeId), is_variadic: bool = false },
     range: struct { elem: TypeId },
 };
 
@@ -125,8 +125,10 @@ pub const TypeSystem = struct {
             .optional => a.optional == b.optional,
             .error_union => a.error_union == b.error_union,
             .function => (a.function.result == b.function.result) and
+                (a.function.is_variadic == b.function.is_variadic) and
                 std.mem.eql(TypeId, a.function.params.items, b.function.params.items),
-            .procedure => std.mem.eql(TypeId, a.function.params.items, b.function.params.items),
+            .procedure => (a.procedure.is_variadic == b.procedure.is_variadic) and
+                std.mem.eql(TypeId, a.procedure.params.items, b.procedure.params.items),
             .range => a.range.elem == b.range.elem,
         };
     }
