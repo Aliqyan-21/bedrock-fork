@@ -1,0 +1,4 @@
+// output: 10.1
+func main() -> f32
+    return 10.10;
+end
