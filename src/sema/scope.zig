@@ -7,6 +7,7 @@ pub const SymbolKind = enum {
     param,
     func,
     proc,
+    st_field,
     @"struct",
 };
 
@@ -34,6 +35,7 @@ pub const Scope = struct {
         func, // both func and proc
         loop,
         unsafe,
+        @"struct",
     };
 
     pub fn init(allocator: std.mem.Allocator, id: Id, parent: ?*Scope) Scope {
