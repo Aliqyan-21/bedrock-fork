@@ -1448,7 +1448,15 @@ pub const Parser = struct {
                             .ident => {
                                 const f = try self.parse_struct_literal();
                                 try st_lit.field_inits.append(self.allocator, f);
-                                _ = try self.expect(.comma, "expected ','") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+
+                                const nxt = try self.lexer.peek_token();
+                                if (nxt.type == .comma) {
+                                    _ = try self.lexer.next();
+                                } else if (nxt.type != .kw_end) {
+                                    try self.compiler.addError("expected ',' or 'end'", err.Severity.Error, nxt);
+                                    // try self.sync(&.{.{ .kw_end, .kw_const, .kw_var }});
+                                    break;
+                                }
                             },
                             .kw_end => {
                                 _ = try self.lexer.next();
