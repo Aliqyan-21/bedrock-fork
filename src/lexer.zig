@@ -178,6 +178,7 @@ pub const Lexer = struct {
     }
 
     fn read_string(self: *Lexer, line: usize, col: usize, from_peek: bool) !t.Token {
+        const start = self.pos;
         _ = self.advance();
 
         var buf: std.ArrayList(u8) = .empty;
@@ -213,10 +214,9 @@ pub const Lexer = struct {
             }
         }
 
-        const val = if (from_peek) buf.items else try buf.toOwnedSlice(self.allocator);
-        return .{
+        return if (from_peek) self.make(.string, start, line, col) else .{
             .type = .string,
-            .val = val,
+            .val = try buf.toOwnedSlice(self.allocator),
             .line = line,
             .col = col,
         };
