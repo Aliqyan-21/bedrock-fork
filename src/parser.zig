@@ -218,13 +218,12 @@ pub const Parser = struct {
         var tok = try self.lexer.next();
         // ident
         const name = try self.lexer.next();
-        _ = name;
         _ = try self.expect(.eq, "expected '='");
 
         tok = try self.lexer.next();
         switch (tok.type) {
             .kw_struct => {
-                const s = try self.parse_struct();
+                const s = try self.parse_struct(name.val);
                 type_def.variant = .{ .struct_def = s };
             },
             .kw_enum => {
@@ -238,11 +237,11 @@ pub const Parser = struct {
         return type_def;
     }
 
-    pub fn parse_struct(self: *Parser) !ast.StructDef {
+    pub fn parse_struct(self: *Parser, name: []const u8) !ast.StructDef {
         var tok = try self.lexer.peek_token();
         var s = ast.StructDef{
             .is_pub = false,
-            .name = "",
+            .name = name,
             .type_params = .empty,
             .fields = .empty,
             .methods = .empty,
@@ -267,7 +266,14 @@ pub const Parser = struct {
                 .ident, .kw_pub => {
                     const f = try self.parse_struct_fields();
                     try s.fields.append(self.allocator, f);
-                    _ = try self.expect(.comma, "expected ','") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+                    const nxt = try self.lexer.peek_token();
+                    if (nxt.type == .comma) {
+                        _ = try self.lexer.next();
+                    } else if (nxt.type != .kw_end) {
+                        try self.compiler.addError("expected ',' or 'end'", err.Severity.Error, nxt);
+                        // try self.sync(&.{.{ .kw_end, .kw_const, .kw_var }});
+                        break;
+                    }
                     tok = try self.lexer.peek_token();
                 },
                 else => {

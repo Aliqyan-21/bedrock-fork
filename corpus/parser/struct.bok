@@ -6,7 +6,7 @@ end
 type Person = struct
     name: str,
     age: usize,
-    adult: bool,
+    adult: bool
 end
 
 type Person = struct

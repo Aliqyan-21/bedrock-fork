@@ -1,0 +1,12 @@
+type Person = struct
+    name: str,
+    name: str,
+    age: usize,
+    adult: bool,
+end
+
+type Point = struct
+    x: i32,
+    x: u32,
+    y: i32,
+end

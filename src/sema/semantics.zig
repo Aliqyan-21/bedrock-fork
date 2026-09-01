@@ -80,7 +80,26 @@ pub const Sema = struct {
                 };
                 try self.visit_proc(p);
             },
-            .type_def => {},
+            .type_def => |t_def| {
+                switch (t_def.variant) {
+                    .struct_def => |*s| {
+                        var field_tys = std.ArrayList(types.TypeId).empty;
+                        for (s.fields.items) |*s_f| {
+                            try field_tys.append(self.compiler.allocator, try self.types.resolve_type(s_f.type));
+                        }
+
+                        const sty = try self.types.intern(.{ .struct_ty = .{ .fields = field_tys } });
+                        self.scope.declare(.{ .name = s.name, .kind = .@"struct", .ty = sty }) catch |e| {
+                            if (e == error.DuplicateName) {
+                                try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{s.name}, .Error, s.token);
+                            }
+                        };
+
+                        try self.visit_struct_def(@constCast(s));
+                    },
+                    else => {},
+                }
+            },
             .extern_def => |e_def| {
                 switch (e_def.kind) {
                     .func => |f| {
@@ -135,6 +154,21 @@ pub const Sema = struct {
                     }
                 };
             },
+        }
+    }
+
+    fn visit_struct_def(self: *Sema, s: *ast.StructDef) !void {
+        var s_scope = scope.Scope.init(self.compiler.allocator, .@"struct", self.scope);
+        defer s_scope.deinit();
+        const saved = self.scope;
+        self.scope = &s_scope;
+        defer self.scope = saved;
+
+        for (s.fields.items) |*f| {
+            const f_ty = try self.types.resolve_type(f.type);
+            s_scope.declare(.{ .name = f.name, .kind = .st_field, .ty = f_ty }) catch |e| {
+                if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate struct field: {s}\n", .{f.name}, .Error, s.token);
+            };
         }
     }
 
