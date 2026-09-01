@@ -389,6 +389,12 @@ pub const Codegen = struct {
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);
                 return alloca;
             },
+            .index => |*i| {
+                const e_ptr = try self.codegen_array_element_ptr(i);
+                _ = llvm.LLVMBuildStore(self.builder, e, e_ptr);
+
+                return e_ptr;
+            },
             else => {
                 // TODO:
                 return null;
@@ -533,6 +539,37 @@ pub const Codegen = struct {
         const ld = llvm.LLVMBuildLoad2(self.builder, element_ty, element_ptr, "");
 
         return ld;
+    }
+
+    pub fn codegen_array_element_ptr(self: *Codegen, i: *ast.IndexExpr) !llvm.LLVMValueRef {
+        if (i.args.items.len != 1) {
+            return error.InvalidArrayIndex;
+        }
+
+        // For now, array target must be an identifier.
+        const arr = switch (i.target.*) {
+            .ident => |ident| self.stack_map.get(ident.name) orelse {
+                return error.UnknownVariable;
+            },
+            else => return error.UnsupportedArrayTarget,
+        };
+
+        const array_ty = llvm.LLVMGetAllocatedType(arr);
+        const index = try self.codegen_expression(i.args.items[0]);
+        var indices = [2]llvm.LLVMValueRef{
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            index,
+        };
+
+        return llvm.LLVMBuildGEPWithNoWrapFlags(
+            self.builder,
+            array_ty,
+            arr,
+            &indices,
+            2,
+            "",
+            0,
+        );
     }
 
     pub fn codegen_ident(self: *Codegen, i: *ast.IdentExpr) !llvm.LLVMValueRef {
