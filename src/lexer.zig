@@ -3,12 +3,13 @@ const t = @import("token.zig");
 
 pub const Lexer = struct {
     source: []const u8,
+    allocator: std.mem.Allocator,
     pos: usize = 0,
     line: usize = 1,
     col: usize = 1,
 
-    pub fn init(source: []const u8) Lexer {
-        return .{ .source = source };
+    pub fn init(source: []const u8, allocator: std.mem.Allocator) Lexer {
+        return .{ .source = source, .allocator = allocator };
     }
 
     fn peek(self: *Lexer) u8 {
@@ -78,7 +79,7 @@ pub const Lexer = struct {
         return c >= '0' and c <= '1';
     }
 
-    pub fn scan(self: *Lexer, bump: bool) !t.Token {
+    pub fn scan(self: *Lexer, bump: bool, from_peek: bool) !t.Token {
         self.skip_whitespace();
         const line = self.line;
         const col = self.col;
@@ -104,7 +105,7 @@ pub const Lexer = struct {
         } else if (is_digit(c)) {
             return try self.read_number(line, col);
         } else if (c == '"') {
-            return try self.read_string(line, col);
+            return try self.read_string(line, col, from_peek);
         } else if (c == '\'') {
             return try self.read_char(line, col);
         } else {
@@ -115,9 +116,9 @@ pub const Lexer = struct {
     pub fn peek_token(self: *Lexer) !t.Token {
         var tok: t.Token = undefined;
         while (true) {
-            tok = try self.scan(false);
+            tok = try self.scan(false, true);
             if (tok.type == .comment)
-                _ = try self.scan(true);
+                _ = try self.scan(true, true);
             if (tok.type != .comment) break;
         }
         return tok;
@@ -126,7 +127,7 @@ pub const Lexer = struct {
     pub fn next(self: *Lexer) !t.Token {
         var tok: t.Token = undefined;
         while (true) {
-            tok = try self.scan(true);
+            tok = try self.scan(true, false);
             if (tok.type != .comment) break;
         }
         return tok;
@@ -176,9 +177,11 @@ pub const Lexer = struct {
         return self.make(.char, start, line, col);
     }
 
-    fn read_string(self: *Lexer, line: usize, col: usize) !t.Token {
-        const start = self.pos;
+    fn read_string(self: *Lexer, line: usize, col: usize, from_peek: bool) !t.Token {
         _ = self.advance();
+
+        var buf: std.ArrayList(u8) = .empty;
+        defer buf.deinit(self.allocator);
 
         while (true) {
             if (self.is_end()) return error.UnterminatedString;
@@ -190,17 +193,33 @@ pub const Lexer = struct {
             if (c == '\n') return error.UnterminatedString;
             if (c == '\\') {
                 _ = self.advance();
-                const e = self.peek();
+                const e = self.advance();
                 switch (e) {
-                    '\\', '"', 'n', 't', 'r', '0' => _ = self.advance(),
+                    'n' => try buf.append(self.allocator, '\n'),
+                    't' => try buf.append(self.allocator, '\t'),
+                    'r' => try buf.append(self.allocator, '\r'),
+                    '0' => try buf.append(self.allocator, '\x00'),
+                    '"' => try buf.append(self.allocator, '"'),
+                    '\\' => try buf.append(self.allocator, '\\'),
+                    'a' => try buf.append(self.allocator, '\x07'),
+                    'b' => try buf.append(self.allocator, '\x08'),
+                    'f' => try buf.append(self.allocator, '\x0C'),
+                    'v' => try buf.append(self.allocator, '\x0B'),
                     else => return error.InvalidEscape,
                 }
-                continue;
+            } else {
+                try buf.append(self.allocator, c);
+                _ = self.advance();
             }
-            _ = self.advance();
         }
 
-        return self.make(.string, start, line, col);
+        const val = if (from_peek) buf.items else try buf.toOwnedSlice(self.allocator);
+        return .{
+            .type = .string,
+            .val = val,
+            .line = line,
+            .col = col,
+        };
     }
 
     fn read_number(self: *Lexer, line: usize, col: usize) !t.Token {
@@ -407,7 +426,7 @@ pub const Lexer = struct {
 
 // convenience function
 pub fn tokenize(allocator: std.mem.Allocator, source: []const u8) !std.ArrayList(t.Token) {
-    var lexer = Lexer.init(source);
+    var lexer = Lexer.init(source, allocator);
     var tokens: std.ArrayList(t.Token) = .empty;
     errdefer tokens.deinit(allocator);
     while (true) {
