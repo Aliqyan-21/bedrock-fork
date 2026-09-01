@@ -9,6 +9,12 @@ const codegen = @import("codegen.zig");
 const sema = @import("sema/semantics.zig");
 const Options = @import("cli.zig").Options;
 
+pub const JitRetType = union(enum) {
+    i32: i32,
+    f32: f32,
+    f64: f64,
+};
+
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
     errors: std.ArrayList(err.SourceError),
@@ -32,7 +38,7 @@ pub const Compiler = struct {
         };
     }
 
-    pub fn jit(self: *Compiler) !i32 {
+    pub fn jit(self: *Compiler) !JitRetType {
         // jit compilation
         if (std.mem.eql(u8, self.opt.target, "aarch64")) {
             llvm.LLVMInitializeAArch64TargetInfo();
@@ -61,6 +67,14 @@ pub const Compiler = struct {
             return error.JitError;
         }
 
+        const func = llvm.LLVMGetNamedFunction(self.mod, "main");
+        if (func == null) {
+            std.debug.print("main func not found in the program\n", .{});
+            return error.MainNotFound;
+        }
+        const func_type = llvm.LLVMGlobalGetValueType(func);
+        const return_type = llvm.LLVMGetReturnType(func_type);
+
         // get thread safe context for jit
         const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(self.ctx);
         const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(self.mod, tsctx);
@@ -68,14 +82,30 @@ pub const Compiler = struct {
         _ = llvm.LLVMOrcLLJITAddLLVMIRModule(j, jd, tsm);
         var addr: llvm.LLVMOrcExecutorAddress = undefined;
         _ = llvm.LLVMOrcLLJITLookup(j, &addr, @ptrCast("main"));
-        const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
-        const result = Main();
+        var res: JitRetType = undefined;
+        switch (llvm.LLVMGetTypeKind(return_type)) {
+            llvm.LLVMIntegerTypeKind => {
+                const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
+                res = .{ .i32 = Main() };
+            },
+            llvm.LLVMFloatTypeKind => {
+                const Main = @as(*const fn () callconv(.c) f32, @ptrFromInt(addr));
+                res = .{ .f32 = Main() };
+            },
+            llvm.LLVMDoubleTypeKind => {
+                const Main = @as(*const fn () callconv(.c) f64, @ptrFromInt(addr));
+                res = .{ .f64 = Main() };
+            },
+            else => {
+                std.debug.print("ret type is not supported\n", .{});
+                return error.JitRetTypeUnsupported;
+            },
+        }
 
-        // std.debug.print("result = {}\n", .{result});
-        return result;
+        return res;
     }
 
-    pub fn run(self: *Compiler) !i32 {
+    pub fn run(self: *Compiler) !JitRetType {
         if (self.opt.emit_tokens) {
             var tokens = try lexer.tokenize(self.allocator, self.source);
             defer tokens.deinit(self.allocator);
@@ -98,7 +128,7 @@ pub const Compiler = struct {
             s_run = true;
         }
 
-        var r: i32 = 0;
+        var r: JitRetType = .{ .i32 = 0 };
         if (self.opt.run_jit) {
             var c = codegen.Codegen.init(self.allocator, self);
             self.mod = try c.codegen();

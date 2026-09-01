@@ -85,8 +85,12 @@ test "codegen-test" {
         const expected = parse_expected_output(source);
         if (expected != null) {
             var c = compiler.Compiler.init(allocator, source, options);
-            const res = try c.run();
-            const res_dup = try std.fmt.allocPrint(allocator, "{}", .{res});
+            const res: compiler.JitRetType = try c.run();
+            const res_dup = switch (res) {
+                .i32 => try std.fmt.allocPrint(allocator, "{}", .{res.i32}),
+                .f32 => try std.fmt.allocPrint(allocator, "{}", .{res.f32}),
+                .f64 => try std.fmt.allocPrint(allocator, "{}", .{res.f64}),
+            };
 
             std.testing.expectEqual(c.errors.items.len, 0) catch {
                 // skip traces
