@@ -155,7 +155,8 @@ pub const Codegen = struct {
         const params = try self.codegen_params(e.kind.func.params);
         defer self.allocator.free(params);
         const params_len: c_uint = @intCast(e.kind.func.params.items.len);
-        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, 0);
+        const is_vararg: c_int = if (e.kind.func.is_variadic) 1 else 0;
+        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, is_vararg);
         const name = try self.allocator.dupeZ(u8, e.kind.func.name);
         defer self.allocator.free(name);
         const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
@@ -176,7 +177,8 @@ pub const Codegen = struct {
         const params = try self.codegen_params(e.kind.proc.params);
         defer self.allocator.free(params);
         const params_len: c_uint = @intCast(e.kind.proc.params.items.len);
-        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, 0);
+        const is_vararg: c_int = if (e.kind.func.is_variadic) 1 else 0;
+        const func_type: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_type, params.ptr, params_len, is_vararg);
         const name = try self.allocator.dupeZ(u8, e.kind.proc.name);
         defer self.allocator.free(name);
         const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
@@ -611,10 +613,13 @@ pub const Codegen = struct {
         defer self.allocator.free(args);
         const n_args = c.args.items.len;
 
-        const expected = llvm.LLVMCountParamTypes(func_type);
-        if (expected != n_args) {
-            std.debug.print("expected args = {}, actual args = {}\n", .{ expected, n_args });
-        }
+        // note: commenting this out, as these checks should be
+        // handled in sema, not in codegen, right?
+
+        // const expected = llvm.LLVMCountParamTypes(func_type);
+        // if (expected != n_args) {
+        //     std.debug.print("expected args = {}, actual args = {}\n", .{ expected, n_args });
+        // }
 
         const call = llvm.LLVMBuildCall2(
             self.builder,
