@@ -15,3 +15,4 @@ const n = !10;
 const o = ~n;
 const p = &o;
 const q = *p;
+const a = 10 % 2;

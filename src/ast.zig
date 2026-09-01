@@ -763,6 +763,7 @@ pub const BinaryExpr = struct {
             .sub => "-",
             .mul => "*",
             .div => "/",
+            .mod => "%",
             .eq => "==",
             .gt => ">",
             .ge => ">=",
