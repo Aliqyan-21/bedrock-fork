@@ -1396,7 +1396,7 @@ pub const Parser = struct {
             // expect a operator
             const op = switch (tok.type) {
                 // zig fmt: off
-                .plus, .minus, .star, .slash, 
+                .plus, .minus, .star, .slash, .percent,
                 .eq_eq, .gt_eq, .lt_eq, .bang_eq, .gt, .lt,
                 .amp_amp, .pipe_pipe,
                 .amp, .pipe, .caret,
