@@ -765,6 +765,10 @@ pub const Codegen = struct {
         return switch (u.op) {
             .neg => llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
             .bit_not => llvm.LLVMBuildNot(self.builder, e, "bit_not_un"),
+            .addr_of => switch (u.operand.*) {
+                .ident => |*i| self.stack_map.get(i.name).?,
+                else => unreachable,
+            },
             else => {
                 // TODO:
                 unreachable;
@@ -776,6 +780,7 @@ pub const Codegen = struct {
         // TODO: handle optionals and errors
         switch (ret_type.base) {
             .primitive => |*p| return self.get_primitive_type(p),
+            .pointer => |p| return llvm.LLVMPointerType(try self.get_type(p), 0),
             .array => |*a| {
                 const ele_ty = try self.get_type(a.elem);
                 const sz = switch (a.size) {
@@ -823,6 +828,7 @@ pub const Codegen = struct {
                 .char => return llvm.LLVMInt8Type(),
                 .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
             },
+            .pointer => |p| llvm.LLVMPointerType(try self.get_llvm_type_of(p.child), 0),
             .array => |a| {
                 const ele_ty = try self.get_llvm_type_of(a.child);
                 const sz: c_uint = @intCast(a.len);

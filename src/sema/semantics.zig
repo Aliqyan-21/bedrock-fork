@@ -438,14 +438,23 @@ pub const Sema = struct {
                         break :blk ty;
                     },
                     .addr_of => {
-                        //todo: implement when pointer is implemented
-                        _ = try self.visit_expression(u.operand, null);
-                        break :blk .invalid;
+                        if (u.operand.* != .ident) {
+                            try self.compiler.add_sem_error("cannot take address of non identifier expression", .{}, .Error, u.token);
+                            break :blk .invalid;
+                        }
+                        const innerty = try self.visit_expression(u.operand, null);
+                        break :blk if (innerty == .invalid) .invalid else try self.types.intern(.{ .pointer = .{ .child = innerty } });
                     },
                     .deref => {
-                        //todo: implement when pointer is implemented
-                        _ = try self.visit_expression(u.operand, null);
-                        break :blk .invalid;
+                        const ty = try self.visit_expression(u.operand, null);
+                        if (ty == .invalid) break :blk .invalid;
+                        break :blk switch (self.types.get(ty).*) {
+                            .pointer => |p| p.child,
+                            else => blk2: {
+                                try self.compiler.add_sem_error("cannot dereference non pointer type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                                break :blk2 .invalid;
+                            },
+                        };
                     },
                 }
                 return .invalid; // todo: implement unary type
