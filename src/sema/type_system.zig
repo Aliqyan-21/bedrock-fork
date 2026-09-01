@@ -32,6 +32,7 @@ pub const Type = union(enum) {
 pub const TypeSystem = struct {
     allocator: std.mem.Allocator,
     types: std.ArrayList(Type),
+    arena: std.heap.ArenaAllocator,
 
     pids: [@typeInfo(Primitive).@"enum".fields.len]TypeId, // primtive ids
 
@@ -40,6 +41,7 @@ pub const TypeSystem = struct {
             .allocator = allocator,
             .types = .empty,
             .pids = [_]TypeId{.invalid} ** @typeInfo(Primitive).@"enum".fields.len,
+            .arena = std.heap.ArenaAllocator.init(allocator),
         };
     }
 
@@ -53,6 +55,7 @@ pub const TypeSystem = struct {
             }
         }
         self.types.deinit(self.allocator);
+        self.arena.deinit();
     }
 
     pub fn get(self: *TypeSystem, id: TypeId) *Type {
@@ -184,6 +187,10 @@ pub const TypeSystem = struct {
         return switch (self.get(to).*) {
             .optional => |inner| from == inner or self.assignable(from, inner),
             .error_union => |inner| from == inner or self.assignable(from, inner),
+            .slice => |s| switch (self.get(from).*) {
+                .array => |a| self.assignable(a.child, s.child),
+                else => false,
+            },
             else => false,
         };
     }
@@ -223,8 +230,8 @@ pub const TypeSystem = struct {
         if (id == .invalid) return "<invalid>";
         return switch (self.get(id).*) {
             .primitive => |p| @tagName(p),
-            .array => |a| std.fmt.allocPrint(self.allocator, "[{d}]{s}", .{ a.len, self.name_of(a.child) }) catch "<oom>",
-            .slice => |s| std.fmt.allocPrint(self.allocator, "[]{s}", .{self.name_of(s.child)}) catch "<oom>",
+            .array => |a| std.fmt.allocPrint(self.arena.allocator(), "[{d}]{s}", .{ a.len, self.name_of(a.child) }) catch "<oom>",
+            .slice => |s| std.fmt.allocPrint(self.arena.allocator(), "[]{s}", .{self.name_of(s.child)}) catch "<oom>",
             else => "not implemented",
         };
     }
