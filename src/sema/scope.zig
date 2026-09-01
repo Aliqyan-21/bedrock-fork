@@ -7,6 +7,7 @@ pub const SymbolKind = enum {
     param,
     func,
     proc,
+    @"struct",
 };
 
 pub const FnInfo = union(enum) {

@@ -26,6 +26,7 @@ pub const Type = union(enum) {
     function: struct { params: std.ArrayList(TypeId), result: TypeId, is_variadic: bool = false },
     procedure: struct { params: std.ArrayList(TypeId), is_variadic: bool = false },
     range: struct { elem: TypeId },
+    struct_ty: struct { fields: std.ArrayList(TypeId) },
 };
 
 pub const TypeSystem = struct {
@@ -47,6 +48,7 @@ pub const TypeSystem = struct {
             switch (ty.*) {
                 .function => |*f| f.params.deinit(self.allocator),
                 .procedure => |*p| p.params.deinit(self.allocator),
+                .struct_ty => |*s| s.fields.deinit(self.allocator),
                 else => {},
             }
         }
@@ -130,6 +132,7 @@ pub const TypeSystem = struct {
             .procedure => (a.procedure.is_variadic == b.procedure.is_variadic) and
                 std.mem.eql(TypeId, a.procedure.params.items, b.procedure.params.items),
             .range => a.range.elem == b.range.elem,
+            .struct_ty => std.mem.eql(TypeId, a.struct_ty.fields.items, b.struct_ty.fields.items),
         };
     }
 
