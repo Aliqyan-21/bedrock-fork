@@ -167,7 +167,6 @@ pub const Sema = struct {
         for (s.fields.items) |*f| {
             const f_ty = try self.types.resolve_type(f.type);
             s_scope.declare(.{ .name = f.name, .kind = .st_field, .ty = f_ty }) catch |e| {
-                std.debug.print("here is the field name: {s}\n", .{f.name});
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate struct field: {s}\n", .{f.name}, .Error, s.token);
             };
         }
