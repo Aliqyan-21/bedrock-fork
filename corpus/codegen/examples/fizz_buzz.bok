@@ -1,0 +1,15 @@
+extern func printf(...) -> i32;
+
+proc fizz_buzz()
+  for i in 0..100
+    if (i % 3 == 0) || (i % 5 == 0) _ = printf("fizzbuzz\n");
+    elif (i % 3 == 0) _ = printf("fizz\n");
+    elif (i % 5 == 0) _ = printf("buzz\n");
+    else  _ = printf("%d\n", i);
+    end
+  end
+end
+
+proc main()
+  fizz_buzz();
+end
