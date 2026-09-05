@@ -505,7 +505,7 @@ pub const Codegen = struct {
             const val = try self.codegen_expression(e);
             return llvm.LLVMBuildRet(self.builder, val);
         }
-        unreachable;
+        return llvm.LLVMBuildRetVoid(self.builder);
     }
 
     pub fn codegen_expression_statement(self: *Codegen, e_stmt: *ast.ExprStmt) !llvm.LLVMValueRef {
@@ -749,7 +749,7 @@ pub const Codegen = struct {
             .bit_or => llvm.LLVMBuildOr(self.builder, l, r, "log_bin"),
             .bit_xor => llvm.LLVMBuildXor(self.builder, l, r, "log_bin"),
             .bit_and => llvm.LLVMBuildAnd(self.builder, l, r, "log_bin"),
-            .logical_or => llvm.LLVMBuildAnd(self.builder, l, r, "or_bin"),
+            .logical_or => llvm.LLVMBuildOr(self.builder, l, r, "or_bin"),
             .logical_and => llvm.LLVMBuildAnd(self.builder, l, r, "and_bin"),
             .shl => llvm.LLVMBuildShl(self.builder, l, r, "shift_bin"),
             .shr => llvm.LLVMBuildLShr(self.builder, l, r, "shift_bin"),
