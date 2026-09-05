@@ -16,6 +16,8 @@ pub const Primitive = enum {
     // zig fmt: on
 };
 
+pub const StFieldTy = struct { name: []const u8, ty: TypeId }; // struct field ka type
+
 pub const Type = union(enum) {
     primitive: Primitive,
     pointer: struct { child: TypeId },
@@ -26,7 +28,7 @@ pub const Type = union(enum) {
     function: struct { params: std.ArrayList(TypeId), result: TypeId, is_variadic: bool = false },
     procedure: struct { params: std.ArrayList(TypeId), is_variadic: bool = false },
     range: struct { elem: TypeId },
-    struct_ty: struct { fields: std.ArrayList(TypeId) },
+    struct_ty: struct { name: []const u8, fields: std.ArrayList(StFieldTy) },
 };
 
 pub const TypeSystem = struct {
@@ -135,7 +137,7 @@ pub const TypeSystem = struct {
             .procedure => (a.procedure.is_variadic == b.procedure.is_variadic) and
                 std.mem.eql(TypeId, a.procedure.params.items, b.procedure.params.items),
             .range => a.range.elem == b.range.elem,
-            .struct_ty => std.mem.eql(TypeId, a.struct_ty.fields.items, b.struct_ty.fields.items),
+            .struct_ty => std.mem.eql(u8, a.struct_ty.name, b.struct_ty.name),
         };
     }
 
@@ -232,6 +234,7 @@ pub const TypeSystem = struct {
             .primitive => |p| @tagName(p),
             .array => |a| std.fmt.allocPrint(self.arena.allocator(), "[{d}]{s}", .{ a.len, self.name_of(a.child) }) catch "<oom>",
             .slice => |s| std.fmt.allocPrint(self.arena.allocator(), "[]{s}", .{self.name_of(s.child)}) catch "<oom>",
+            .struct_ty => |*s| s.name,
             else => "not implemented",
         };
     }
