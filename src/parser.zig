@@ -569,8 +569,11 @@ pub const Parser = struct {
         _ = try self.expect(.eq, "expected '='");
         var_stmt.value = try self.parse_expression();
 
-        // extect ';'
-        _ = try self.expect(.semicolon, "expected ';'");
+        switch (var_stmt.value.*) {
+            .struct_literal => {},
+            // extect ';'
+            else => _ = try self.expect(.semicolon, "expected ';'"),
+        }
 
         return ast.Stmt{ .var_stmt = var_stmt };
     }
@@ -599,8 +602,11 @@ pub const Parser = struct {
         _ = try self.expect(.eq, "expected '='");
         const_stmt.value = try self.parse_expression();
 
-        // extect ';'
-        _ = try self.expect(.semicolon, "expected ';'");
+        switch (const_stmt.value.*) {
+            .struct_literal => {},
+            // extect ';'
+            else => _ = try self.expect(.semicolon, "expected ';'"),
+        }
 
         return ast.Stmt{ .const_stmt = const_stmt };
     }
