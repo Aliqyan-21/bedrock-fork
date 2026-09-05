@@ -1,5 +1,6 @@
 const std = @import("std");
 const ast = @import("../ast.zig");
+const scope_mod = @import("scope.zig");
 
 pub const TypeId = enum(u32) {
     invalid = 0,
@@ -85,19 +86,19 @@ pub const TypeSystem = struct {
     // this does same work as visit type but now returns the typeid too,
     // as it will become complete then there will be no need for visit_type, then
     // just resolve_type will be used everywhere then we can remove visit_type
-    pub fn resolve_type(self: *TypeSystem, ty: *ast.Type) !TypeId {
+    pub fn resolve_type(self: *TypeSystem, ty: *ast.Type, scope: *scope_mod.Scope) !TypeId {
         var id: TypeId = switch (ty.base) {
             .primitive => |p| try self.from_ast_primitive(p),
             .pointer => |inner| blk: {
-                const cid = try self.resolve_type(inner);
+                const cid = try self.resolve_type(inner, scope);
                 break :blk try self.intern(.{ .pointer = .{ .child = cid } });
             },
             .slice => |*s| blk: {
-                const cid = try self.resolve_type(s.elem);
+                const cid = try self.resolve_type(s.elem, scope);
                 break :blk try self.intern(.{ .slice = .{ .child = cid } });
             },
             .array => |*a| blk: {
-                const cid = try self.resolve_type(a.elem);
+                const cid = try self.resolve_type(a.elem, scope);
                 break :blk switch (a.size) {
                     .fixed => |d| self.intern(.{ .array = .{ .child = cid, .len = std.fmt.parseInt(u64, d, 10) catch return .invalid } }) catch return .invalid,
                     .inferred => .invalid,
@@ -105,16 +106,19 @@ pub const TypeSystem = struct {
             },
             .func => |*f| blk: {
                 var params: std.ArrayList(TypeId) = .empty;
-                for (f.params.items) |p| try params.append(self.allocator, try self.resolve_type(p));
-                const rid = try self.resolve_type(f.result);
+                for (f.params.items) |p| try params.append(self.allocator, try self.resolve_type(p, scope));
+                const rid = try self.resolve_type(f.result, scope);
                 break :blk try self.intern(.{ .function = .{ .params = params, .result = rid } });
             },
             .proc => |*pr| blk: {
                 var params: std.ArrayList(TypeId) = .empty;
-                for (pr.params.items) |p| try params.append(self.allocator, try self.resolve_type(p));
+                for (pr.params.items) |p| try params.append(self.allocator, try self.resolve_type(p, scope));
                 break :blk try self.intern(.{ .procedure = .{ .params = params } });
             },
-            .named => .invalid,
+            .named => |n| blk: {
+                const sym = scope.resolve(n.name) orelse break :blk .invalid;
+                break :blk if (sym.kind == .@"struct") sym.ty else .invalid;
+            },
         };
 
         if (ty.is_optional) id = try self.intern(.{ .optional = id });
