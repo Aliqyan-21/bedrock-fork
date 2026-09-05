@@ -390,12 +390,13 @@ pub const FieldInit = struct {
 };
 
 pub const StructLiteral = struct {
+    name: []const u8,
     field_inits: std.ArrayList(FieldInit),
     token: Token,
 
     pub fn print(self: *StructLiteral, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("struct literal:\n", .{});
+        std.debug.print("struct literal: {s}\n", .{self.name});
         for (self.field_inits.items) |*f| {
             try f.print(indent + 4);
         }
