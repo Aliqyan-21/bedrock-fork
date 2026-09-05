@@ -762,13 +762,19 @@ pub const Codegen = struct {
 
     pub fn codegen_unary(self: *Codegen, u: *ast.UnaryExpr) anyerror!llvm.LLVMValueRef {
         const e = try self.codegen_expression(u.operand);
+        const oty = self.expr_type(u.operand);
+        const is_float = switch (self.compiler.sema.types.get(oty).*) {
+            .primitive => |p| p == .f32 or p == .f64,
+            else => false,
+        };
         return switch (u.op) {
-            .neg => llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
+            .neg => if (is_float) llvm.LLVMBuildFNeg(self.builder, e, "neg_un") else llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
             .bit_not => llvm.LLVMBuildNot(self.builder, e, "bit_not_un"),
             .addr_of => switch (u.operand.*) {
                 .ident => |*i| self.stack_map.get(i.name).?,
                 else => unreachable,
             },
+            .not => llvm.LLVMBuildNot(self.builder, e, "not_un"),
             else => {
                 // TODO:
                 unreachable;
