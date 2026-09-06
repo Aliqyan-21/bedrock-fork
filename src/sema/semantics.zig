@@ -494,9 +494,30 @@ pub const Sema = struct {
                 }
                 return .invalid; // todo: implement unary type
             },
-            .field_access => |*f| {
-                _ = try self.visit_expression(f.target, null);
-                return .invalid; // todo: implement field_access type?
+            .field_access => |*fa| blk: {
+                const tty = try self.visit_expression(fa.target, null);
+                if (tty == .invalid) break :blk .invalid;
+
+                const stty = switch (self.types.get(tty).*) {
+                    .struct_ty => tty,
+                    .pointer => |p| switch (self.types.get(p.child).*) {
+                        .struct_ty => p.child,
+                        else => .invalid,
+                    },
+                    else => .invalid,
+                };
+
+                if (stty == .invalid) {
+                    try self.compiler.add_sem_error("cannot access field '{s}' on non-struct type '{s}'", .{ fa.field, self.types.name_of(tty) }, .Error, fa.token);
+                    break :blk .invalid;
+                }
+
+                const sdef = self.types.get(stty).struct_ty;
+                for (sdef.fields.items) |sf| {
+                    if (std.mem.eql(u8, sf.name, fa.field)) break :blk sf.ty;
+                }
+                try self.compiler.add_sem_error("struct '{s}' has no field '{s}'", .{ sdef.name, fa.field }, .Error, fa.token);
+                break :blk .invalid;
             },
             .call => |*c| blk: {
                 const tmp = self.discard;
