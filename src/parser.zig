@@ -569,8 +569,11 @@ pub const Parser = struct {
         _ = try self.expect(.eq, "expected '='");
         var_stmt.value = try self.parse_expression();
 
-        // extect ';'
-        _ = try self.expect(.semicolon, "expected ';'");
+        switch (var_stmt.value.*) {
+            .struct_literal => {},
+            // extect ';'
+            else => _ = try self.expect(.semicolon, "expected ';'"),
+        }
 
         return ast.Stmt{ .var_stmt = var_stmt };
     }
@@ -599,8 +602,11 @@ pub const Parser = struct {
         _ = try self.expect(.eq, "expected '='");
         const_stmt.value = try self.parse_expression();
 
-        // extect ';'
-        _ = try self.expect(.semicolon, "expected ';'");
+        switch (const_stmt.value.*) {
+            .struct_literal => {},
+            // extect ';'
+            else => _ = try self.expect(.semicolon, "expected ';'"),
+        }
 
         return ast.Stmt{ .const_stmt = const_stmt };
     }
@@ -1446,7 +1452,16 @@ pub const Parser = struct {
                     lhs = try self.allocator.create(ast.Expr);
                     lhs.* = .{ .index = .{ .target = tmp, .args = args, .token = tok } };
                 } else if (tok.type == .kw_where) {
-                    var st_lit = ast.StructLiteral{ .field_inits = .empty, .token = tok };
+                    const name = switch (lhs.*) {
+                        .ident => |i| i.name,
+                        else => blk: {
+                            try self.compiler.addError("expected a type name or '_' before 'where'", err.Severity.Error, tok);
+                            break :blk "<error>";
+                        },
+                    };
+                    self.allocator.destroy(lhs);
+
+                    var st_lit = ast.StructLiteral{ .name = name, .field_inits = .empty, .token = tok };
                     tok = try self.lexer.next();
                     while (true) {
                         tok = try self.lexer.peek_token();
@@ -1476,9 +1491,6 @@ pub const Parser = struct {
                         }
                     }
 
-                    // we dont need the ident here for struct literal
-                    const prev_lhs = lhs;
-                    self.allocator.destroy(prev_lhs);
                     lhs = try self.allocator.create(ast.Expr);
                     lhs.* = .{ .struct_literal = st_lit };
                 }

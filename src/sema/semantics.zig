@@ -56,9 +56,9 @@ pub const Sema = struct {
             .function => |*f| {
                 var param_tys = std.ArrayList(types.TypeId).empty;
                 for (f.params.items) |*param| {
-                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
                 }
-                const rty = try self.types.resolve_type(f.result);
+                const rty = try self.types.resolve_type(f.result, self.scope);
                 const fnty = try self.types.intern(.{ .function = .{ .params = param_tys, .result = rty } });
                 self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                     if (e == error.DuplicateName) {
@@ -70,7 +70,7 @@ pub const Sema = struct {
             .proc => |*p| {
                 var param_tys = std.ArrayList(types.TypeId).empty;
                 for (p.params.items) |*param| {
-                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
                 }
                 const prty = try self.types.intern(.{ .procedure = .{ .params = param_tys } });
                 self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {
@@ -83,12 +83,13 @@ pub const Sema = struct {
             .type_def => |t_def| {
                 switch (t_def.variant) {
                     .struct_def => |*s| {
-                        var field_tys = std.ArrayList(types.TypeId).empty;
+                        var field_tys = std.ArrayList(types.StFieldTy).empty;
                         for (s.fields.items) |*s_f| {
-                            try field_tys.append(self.compiler.allocator, try self.types.resolve_type(s_f.type));
+                            const fty = try self.types.resolve_type(s_f.type, self.scope);
+                            try field_tys.append(self.compiler.allocator, .{ .name = s_f.name, .ty = fty });
                         }
 
-                        const sty = try self.types.intern(.{ .struct_ty = .{ .fields = field_tys } });
+                        const sty = try self.types.intern(.{ .struct_ty = .{ .name = s.name, .fields = field_tys } });
                         self.scope.declare(.{ .name = s.name, .kind = .@"struct", .ty = sty }) catch |e| {
                             if (e == error.DuplicateName) {
                                 try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{s.name}, .Error, s.token);
@@ -105,9 +106,9 @@ pub const Sema = struct {
                     .func => |f| {
                         var param_tys = std.ArrayList(types.TypeId).empty;
                         for (f.params.items) |*param| {
-                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
                         }
-                        const rty = try self.types.resolve_type(f.result);
+                        const rty = try self.types.resolve_type(f.result, self.scope);
                         const fnty = try self.types.intern(.{ .function = .{ .params = param_tys, .result = rty, .is_variadic = f.is_variadic } });
                         self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                             if (e == error.DuplicateName) {
@@ -118,7 +119,7 @@ pub const Sema = struct {
                     .proc => |p| {
                         var param_tys = std.ArrayList(types.TypeId).empty;
                         for (p.params.items) |*param| {
-                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type));
+                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
                         }
                         const prty = try self.types.intern(.{ .procedure = .{ .params = param_tys, .is_variadic = p.is_variadic } });
                         self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {
@@ -130,7 +131,7 @@ pub const Sema = struct {
                 }
             },
             .var_def => |*v| {
-                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
                 const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
@@ -143,7 +144,7 @@ pub const Sema = struct {
                 };
             },
             .const_def => |*c| {
-                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
                 const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
@@ -165,7 +166,7 @@ pub const Sema = struct {
         defer self.scope = saved;
 
         for (s.fields.items) |*f| {
-            const f_ty = try self.types.resolve_type(f.type);
+            const f_ty = try self.types.resolve_type(f.type, self.scope);
             s_scope.declare(.{ .name = f.name, .kind = .st_field, .ty = f_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate struct field: {s}\n", .{f.name}, .Error, s.token);
             };
@@ -174,7 +175,7 @@ pub const Sema = struct {
 
     fn visit_function(self: *Sema, func: *ast.FunctionDef) !void {
         // std.debug.print("visiting function\n", .{});
-        const rty = try self.types.resolve_type(func.result);
+        const rty = try self.types.resolve_type(func.result, self.scope);
 
         var func_scope = scope.Scope.init(self.compiler.allocator, .func, self.scope);
         func_scope.fn_info = .{ .func = rty };
@@ -184,7 +185,7 @@ pub const Sema = struct {
         defer self.scope = saved;
 
         for (func.params.items) |*param| {
-            const param_ty = try self.types.resolve_type(param.type);
+            const param_ty = try self.types.resolve_type(param.type, self.scope);
             func_scope.declare(.{ .name = param.name, .kind = .param, .ty = param_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
             };
@@ -207,7 +208,7 @@ pub const Sema = struct {
         defer self.scope = saved;
 
         for (proc.params.items) |*param| {
-            const param_ty = try self.types.resolve_type(param.type);
+            const param_ty = try self.types.resolve_type(param.type, self.scope);
             proc_scope.declare(.{ .name = param.name, .kind = .param, .ty = param_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
             };
@@ -220,7 +221,7 @@ pub const Sema = struct {
         // std.debug.print("visiting statement\n", .{});
         switch (stmt.*) {
             .var_stmt => |*v| {
-                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
                 const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
@@ -231,7 +232,7 @@ pub const Sema = struct {
                 };
             },
             .const_stmt => |*c| {
-                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
                 const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
@@ -241,7 +242,7 @@ pub const Sema = struct {
                 };
             },
             .local_static_var_stmt => |lv| {
-                const dty: types.TypeId = if (lv.type_ann) |ty| try self.types.resolve_type(ty) else .invalid;
+                const dty: types.TypeId = if (lv.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
                 const aty = try self.visit_expression(lv.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, lv.token);
@@ -493,9 +494,30 @@ pub const Sema = struct {
                 }
                 return .invalid; // todo: implement unary type
             },
-            .field_access => |*f| {
-                _ = try self.visit_expression(f.target, null);
-                return .invalid; // todo: implement field_access type?
+            .field_access => |*fa| blk: {
+                const tty = try self.visit_expression(fa.target, null);
+                if (tty == .invalid) break :blk .invalid;
+
+                const stty = switch (self.types.get(tty).*) {
+                    .struct_ty => tty,
+                    .pointer => |p| switch (self.types.get(p.child).*) {
+                        .struct_ty => p.child,
+                        else => .invalid,
+                    },
+                    else => .invalid,
+                };
+
+                if (stty == .invalid) {
+                    try self.compiler.add_sem_error("cannot access field '{s}' on non-struct type '{s}'", .{ fa.field, self.types.name_of(tty) }, .Error, fa.token);
+                    break :blk .invalid;
+                }
+
+                const sdef = self.types.get(stty).struct_ty;
+                for (sdef.fields.items) |sf| {
+                    if (std.mem.eql(u8, sf.name, fa.field)) break :blk sf.ty;
+                }
+                try self.compiler.add_sem_error("struct '{s}' has no field '{s}'", .{ sdef.name, fa.field }, .Error, fa.token);
+                break :blk .invalid;
             },
             .call => |*c| blk: {
                 const tmp = self.discard;
@@ -625,8 +647,60 @@ pub const Sema = struct {
                 try self.compiler.add_sem_error("cannot infer type of nil without context", .{}, .Error, n.token);
                 break :blk .invalid;
             },
-            .struct_literal => {
-                return .invalid;
+            .struct_literal => |*sl| blk: {
+                var stty: types.TypeId = .invalid;
+                if (std.mem.eql(u8, sl.name, "_")) {
+                    if (expected) |exp| {
+                        if (self.types.get(exp).* == .struct_ty) stty = exp;
+                    }
+                    if (stty == .invalid) {
+                        try self.compiler.add_sem_error("cannot infer struct type: no target type available", .{}, .Error, sl.token);
+                        break :blk .invalid;
+                    }
+                } else {
+                    const sym = self.scope.resolve(sl.name) orelse {
+                        try self.compiler.add_sem_error("unknown type '{s}'", .{sl.name}, .Error, sl.token);
+                        break :blk .invalid;
+                    };
+                    if (sym.kind != .@"struct") {
+                        try self.compiler.add_sem_error("'{s}' is not a struct type", .{sl.name}, .Error, sl.token);
+                        break :blk .invalid;
+                    }
+                    stty = sym.ty;
+                }
+
+                const sdef = self.types.get(stty).struct_ty;
+                var seen = std.StringHashMap(bool).init(self.compiler.allocator);
+                defer seen.deinit();
+
+                for (sl.field_inits.items) |*fi| {
+                    var flty: ?types.TypeId = null;
+                    for (sdef.fields.items) |f| {
+                        if (std.mem.eql(u8, f.name, fi.name)) {
+                            flty = f.ty;
+                            break;
+                        }
+                    }
+                    if (flty == null) {
+                        try self.compiler.add_sem_error("struct '{s}' has no field '{s}'", .{ sdef.name, fi.name }, .Error, fi.token);
+                        _ = try self.visit_expression(fi.value, null);
+                        continue;
+                    }
+                    if (seen.contains(fi.name)) {
+                        try self.compiler.add_sem_error("field '{s}' is initialized more than one time", .{fi.name}, .Error, fi.token);
+                    }
+                    try seen.put(fi.name, true);
+                    const vty = try self.visit_expression(fi.value, flty);
+                    if (vty != .invalid and !self.types.assignable(vty, flty.?)) {
+                        try self.compiler.add_sem_error("type mismatch for field '{s}': expected {s}, found {s}", .{ fi.name, self.types.name_of(flty.?), self.types.name_of(vty) }, .Error, fi.token);
+                    }
+                }
+                for (sdef.fields.items) |f| {
+                    if (!seen.contains(f.name)) {
+                        try self.compiler.add_sem_error("uninitialized field '{s}' in struct literal for '{s}'", .{ f.name, sdef.name }, .Error, sl.token);
+                    }
+                }
+                break :blk stty;
             },
         };
         try self.expr_types.put(self.compiler.allocator, expr, ty);

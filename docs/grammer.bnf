@@ -26,6 +26,11 @@ extern_param    = IDENT ":" type
 
 # Structs and Enums
 struct_def      = [ "pub" ] "type" IDENT [ type_params ] "=" "struct" [ struct_members ] "end"
+
+struct_literal  = ( IDENT | "_" ) "where" [ field_inits ] "end"
+field_inits     = field_init { "," field_init } [ "," ]
+field_init      = IDENT "=" expression
+
 struct_members  = struct_member { struct_member }
 struct_member   = struct_field ","
                 | method_def
@@ -111,6 +116,7 @@ primary         = INTEGER | FLOAT | CHAR | STRING | BOOL | IDENT
                 | control_flow_expr
                 | comptime_expr
                 | array_literal
+                | struct_literal
                 | "(" expression ")"
 
 array_literal = "[" [ array_elems ] "]"
