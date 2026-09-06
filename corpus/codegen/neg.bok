@@ -1,0 +1,6 @@
+// output: -10.123
+
+func main() -> f32
+  var a:f32 = -10.123;
+  return a;
+end

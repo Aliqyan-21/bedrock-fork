@@ -505,7 +505,7 @@ pub const Codegen = struct {
             const val = try self.codegen_expression(e);
             return llvm.LLVMBuildRet(self.builder, val);
         }
-        unreachable;
+        return llvm.LLVMBuildRetVoid(self.builder);
     }
 
     pub fn codegen_expression_statement(self: *Codegen, e_stmt: *ast.ExprStmt) !llvm.LLVMValueRef {
@@ -749,7 +749,7 @@ pub const Codegen = struct {
             .bit_or => llvm.LLVMBuildOr(self.builder, l, r, "log_bin"),
             .bit_xor => llvm.LLVMBuildXor(self.builder, l, r, "log_bin"),
             .bit_and => llvm.LLVMBuildAnd(self.builder, l, r, "log_bin"),
-            .logical_or => llvm.LLVMBuildAnd(self.builder, l, r, "or_bin"),
+            .logical_or => llvm.LLVMBuildOr(self.builder, l, r, "or_bin"),
             .logical_and => llvm.LLVMBuildAnd(self.builder, l, r, "and_bin"),
             .shl => llvm.LLVMBuildShl(self.builder, l, r, "shift_bin"),
             .shr => llvm.LLVMBuildLShr(self.builder, l, r, "shift_bin"),
@@ -762,13 +762,19 @@ pub const Codegen = struct {
 
     pub fn codegen_unary(self: *Codegen, u: *ast.UnaryExpr) anyerror!llvm.LLVMValueRef {
         const e = try self.codegen_expression(u.operand);
+        const oty = self.expr_type(u.operand);
+        const is_float = switch (self.compiler.sema.types.get(oty).*) {
+            .primitive => |p| p == .f32 or p == .f64,
+            else => false,
+        };
         return switch (u.op) {
-            .neg => llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
+            .neg => if (is_float) llvm.LLVMBuildFNeg(self.builder, e, "neg_un") else llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
             .bit_not => llvm.LLVMBuildNot(self.builder, e, "bit_not_un"),
             .addr_of => switch (u.operand.*) {
                 .ident => |*i| self.stack_map.get(i.name).?,
                 else => unreachable,
             },
+            .not => llvm.LLVMBuildNot(self.builder, e, "not_un"),
             else => {
                 // TODO:
                 unreachable;
