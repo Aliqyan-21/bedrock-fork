@@ -79,7 +79,7 @@ if_expr            = "if" expression block { elif_clause } [ else_clause ] "end"
 elif_clause        = "elif" expression block
 else_clause        = "else" block
 return_expr        = "return" [ expression ]
-for_expr           = "for" IDENT "in" expression block "end"
+for_expr           = "for" IDENT [ "," IDENT ] "in" expression [ "," additive ".." ] block "end"
 while_expr         = "while" expression block "end"
 
 # Match expression

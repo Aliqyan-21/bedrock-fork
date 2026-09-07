@@ -14,6 +14,7 @@ pub const Codegen = struct {
     entry: llvm.LLVMBasicBlockRef,
     opt: bool,
     stack_map: std.StringHashMap(llvm.LLVMValueRef),
+    struct_types: std.StringHashMap(llvm.LLVMTypeRef),
 
     pub fn init(allocator: std.mem.Allocator, c: *compiler.Compiler) Codegen {
         return Codegen{
@@ -25,11 +26,13 @@ pub const Codegen = struct {
             .entry = undefined,
             .opt = false,
             .stack_map = std.StringHashMap(llvm.LLVMValueRef).init(allocator),
+            .struct_types = std.StringHashMap(llvm.LLVMTypeRef).init(allocator),
         };
     }
 
     pub fn deinit(self: *Codegen) void {
         self.stack_map.deinit();
+        self.struct_types.deinit();
     }
 
     pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {
@@ -364,6 +367,7 @@ pub const Codegen = struct {
         const name = try self.allocator.dupeZ(u8, f.binding);
         defer self.allocator.free(name);
         const i_alloca = llvm.LLVMBuildAlloca(self.builder, llvm_ty, name);
+        const e_alloca = try self.enumerate_setup(f);
         try self.stack_map.put(f.binding, i_alloca);
 
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
@@ -405,6 +409,7 @@ pub const Codegen = struct {
             "for_inc",
         );
         _ = llvm.LLVMBuildStore(self.builder, next, index_alloca);
+        self.enumerate_increment(e_alloca);
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
@@ -427,6 +432,7 @@ pub const Codegen = struct {
         const name = try self.allocator.dupeZ(u8, f.binding);
         defer self.allocator.free(name);
         const i_alloca = llvm.LLVMBuildAlloca(self.builder, llvm_ty, name);
+        const e_alloca = try self.enumerate_setup(f);
         _ = llvm.LLVMBuildStore(self.builder, lo, i_alloca);
         try self.stack_map.put(f.binding, i_alloca);
 
@@ -460,6 +466,7 @@ pub const Codegen = struct {
         const one = if (is_float) llvm.LLVMConstReal(llvm_ty, 1.0) else llvm.LLVMConstInt(llvm_ty, 1, 0);
         const next = if (is_float) llvm.LLVMBuildFAdd(self.builder, cur, one, "for_inc") else llvm.LLVMBuildAdd(self.builder, cur, one, "for_inc");
         _ = llvm.LLVMBuildStore(self.builder, next, i_alloca);
+        self.enumerate_increment(e_alloca);
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
@@ -485,6 +492,24 @@ pub const Codegen = struct {
             },
             else => false,
         };
+    // for allocating the binding
+    fn enumerate_setup(self: *Codegen, f: *ast.ForExpr) !?llvm.LLVMValueRef {
+        const ib = f.index_binding orelse return null;
+        const start_ty = try self.get_llvm_type_of(self.expr_type(f.index_start.?));
+        const start_val = try self.codegen_expression(f.index_start.?);
+        const alloca = llvm.LLVMBuildAlloca(self.builder, start_ty, "");
+        _ = llvm.LLVMBuildStore(self.builder, start_val, alloca);
+        try self.stack_map.put(ib, alloca);
+        return alloca;
+    }
+
+    // for incrementing through range
+    fn enumerate_increment(self: *Codegen, enum_alloca: ?llvm.LLVMValueRef) void {
+        const alloca = enum_alloca orelse return;
+        const ty = llvm.LLVMGetAllocatedType(alloca);
+        const cur = llvm.LLVMBuildLoad2(self.builder, ty, alloca, "");
+        const next = llvm.LLVMBuildAdd(self.builder, cur, llvm.LLVMConstInt(ty, 1, 0), "enum_inc");
+        _ = llvm.LLVMBuildStore(self.builder, next, alloca);
     }
 
     pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {

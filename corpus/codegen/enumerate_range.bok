@@ -1,0 +1,10 @@
+// output: 5
+
+func main() -> usize
+  var a: usize = 0;
+  for val, idx in 12..18, 0..
+   a = idx;
+  end
+
+  return a;
+end
