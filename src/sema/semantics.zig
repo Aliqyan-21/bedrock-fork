@@ -364,6 +364,17 @@ pub const Sema = struct {
 
                 var loop_scope = scope.Scope.init(self.compiler.allocator, .loop, self.scope);
                 defer loop_scope.deinit();
+                if (f.index_binding) |ib| {
+                    const ty = try self.types.primitive(.usize);
+                    const sty = try self.visit_expression(f.index_start.?, ty); // expeting the type of idx to be usize always
+                    if (sty != .invalid and !self.types.assignable(sty, ty)) {
+                        try self.compiler.add_sem_error("enumerate start must be usize, found {s}", .{self.types.name_of(sty)}, .Error, f.index_start.?.token_of());
+                    }
+                    loop_scope.declare(.{ .name = ib, .kind = .variable, .ty = ty }) catch |e| {
+                        if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}", .{ib}, .Error, f.token);
+                    };
+                }
+
                 loop_scope.declare(.{ .name = f.binding, .kind = .variable, .ty = elemty }) catch |e| {
                     if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}", .{f.binding}, .Error, f.token);
                 };
