@@ -504,7 +504,7 @@ pub const Sema = struct {
                         };
                     },
                 }
-                return .invalid; // todo: implement unary type
+                return .invalid;
             },
             .field_access => |*fa| blk: {
                 const tty = try self.visit_expression(fa.target, null);
