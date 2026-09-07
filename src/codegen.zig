@@ -492,6 +492,7 @@ pub const Codegen = struct {
             },
             else => false,
         };
+    }
     // for allocating the binding
     fn enumerate_setup(self: *Codegen, f: *ast.ForExpr) !?llvm.LLVMValueRef {
         const ib = f.index_binding orelse return null;
