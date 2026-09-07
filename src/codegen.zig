@@ -705,7 +705,6 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_struct_literal(self: *Codegen, s_lit: *ast.StructLiteral, expected_ty: ?llvm.LLVMTypeRef) anyerror!llvm.LLVMValueRef {
-        // NOTE: no struct infer as of now
         const s_ty = if (s_lit.name.len != 0 and !std.mem.eql(u8, s_lit.name, "_"))
             self.struct_types.get(s_lit.name) orelse return error.NoStructTypeAvailable
         else
