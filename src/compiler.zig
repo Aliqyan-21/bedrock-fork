@@ -147,7 +147,8 @@ pub const Compiler = struct {
                 std.debug.print("{s}\n", .{mod_str});
             }
 
-            r = try self.jit();
+            // r = try self.jit();
+            _ = &r;
             s_run = false;
             self.sema.deinit();
             c.deinit();

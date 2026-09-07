@@ -1,0 +1,22 @@
+// output: 0
+extern proc InitWindow(w: i32, h: i32, title: str);
+extern func WindowShouldClose() -> bool;
+extern proc BeginDrawing();
+extern proc EndDrawing();
+extern proc CloseWindow();
+extern proc ClearBackground(c: i64);
+
+func main() -> i32
+  var white: i64 = 245 | (245 << 8) | (245 << 16) | (255 << 24);
+
+  InitWindow(800, 600, "Triangle");
+  while !WindowShouldClose()
+    BeginDrawing();
+    ClearBackground(white);
+    EndDrawing();
+  end
+
+  CloseWindow();
+
+  return 0;
+end
