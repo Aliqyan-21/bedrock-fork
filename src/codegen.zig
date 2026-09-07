@@ -476,6 +476,17 @@ pub const Codegen = struct {
         };
     }
 
+    fn is_signed_type(self: *Codegen, ty: types.TypeId) bool {
+        return switch (self.compiler.sema.types.get(ty).*) {
+            .primitive => |p| switch (p) {
+                .i8, .i16, .i32, .i64, .isize => true,
+                .u8, .u16, .u32, .u64, .usize => false,
+                else => false,
+            },
+            else => false,
+        };
+    }
+
     pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {
         const e = try self.codegen_expression(a.value);
         // NOTE: currently only for var assign
@@ -486,14 +497,33 @@ pub const Codegen = struct {
                 }
                 // lookup for var on stack
                 const alloca = self.stack_map.get(i.name).?;
-                _ = llvm.LLVMBuildStore(self.builder, e, alloca);
-                return alloca;
+                if (a.op == null) {
+                    _ = llvm.LLVMBuildStore(self.builder, e, alloca);
+                    return alloca;
+                } else {
+                    const target_ty = self.expr_type(a.target);
+                    const llvm_target_ty = try self.get_llvm_type_of(target_ty);
+                    const old = llvm.LLVMBuildLoad2(self.builder, llvm_target_ty, alloca, "");
+                    const is_signed = self.is_signed_type(target_ty);
+                    const result = try self.codegen_compound_op(a.op.?, old, e, is_signed);
+                    _ = llvm.LLVMBuildStore(self.builder, result, alloca);
+                    return alloca;
+                }
             },
             .index => |*i| {
                 const e_ptr = try self.codegen_array_element_ptr(i);
-                _ = llvm.LLVMBuildStore(self.builder, e, e_ptr);
-
-                return e_ptr;
+                if (a.op == null) {
+                    _ = llvm.LLVMBuildStore(self.builder, e, e_ptr);
+                    return e_ptr;
+                } else {
+                    const elem_ty = self.expr_type(a.target);
+                    const llvm_elem_ty = try self.get_llvm_type_of(elem_ty);
+                    const old = llvm.LLVMBuildLoad2(self.builder, llvm_elem_ty, e_ptr, "");
+                    const is_signed = self.is_signed_type(elem_ty);
+                    const result = try self.codegen_compound_op(a.op.?, old, e, is_signed);
+                    _ = llvm.LLVMBuildStore(self.builder, result, e_ptr);
+                    return e_ptr;
+                }
             },
             else => {
                 // TODO:
@@ -793,6 +823,27 @@ pub const Codegen = struct {
                 else => llvm.LLVMDoubleType(),
             },
             else => llvm.LLVMDoubleType(),
+        };
+    }
+
+    fn codegen_compound_op(self: *Codegen, op: ast.CompoundOp, l: llvm.LLVMValueRef, r: llvm.LLVMValueRef, is_signed: bool) !llvm.LLVMValueRef {
+        const l_ty = llvm.LLVMTypeOf(l);
+        const type_kind = llvm.LLVMGetTypeKind(l_ty);
+        const is_float =
+            type_kind == llvm.LLVMFloatTypeKind or
+            type_kind == llvm.LLVMDoubleTypeKind;
+
+        return switch (op) {
+            .add => if (is_float) llvm.LLVMBuildFAdd(self.builder, l, r, "add_compound") else llvm.LLVMBuildAdd(self.builder, l, r, "add_compound"),
+            .sub => if (is_float) llvm.LLVMBuildFSub(self.builder, l, r, "sub_compound") else llvm.LLVMBuildSub(self.builder, l, r, "sub_compound"),
+            .mul => if (is_float) llvm.LLVMBuildFMul(self.builder, l, r, "mul_compound") else llvm.LLVMBuildMul(self.builder, l, r, "mul_compound"),
+            .div => if (is_float) llvm.LLVMBuildFDiv(self.builder, l, r, "div_compound") else if (is_signed) llvm.LLVMBuildSDiv(self.builder, l, r, "div_compound") else llvm.LLVMBuildUDiv(self.builder, l, r, "div_compound"),
+            .mod => if (is_float) llvm.LLVMBuildFRem(self.builder, l, r, "mod_compound") else if (is_signed) llvm.LLVMBuildSRem(self.builder, l, r, "mod_compound") else llvm.LLVMBuildURem(self.builder, l, r, "mod_compound"),
+            .bit_or => llvm.LLVMBuildOr(self.builder, l, r, "log_compound"),
+            .bit_xor => llvm.LLVMBuildXor(self.builder, l, r, "log_compound"),
+            .bit_and => llvm.LLVMBuildAnd(self.builder, l, r, "log_compound"),
+            .shl => llvm.LLVMBuildShl(self.builder, l, r, "shift_compound"),
+            .shr => llvm.LLVMBuildLShr(self.builder, l, r, "shift_compound"),
         };
     }
 

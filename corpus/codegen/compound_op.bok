@@ -1,0 +1,11 @@
+ // output: 130
+func main() -> i32
+    var arr: [3]i32 = [10, 10, 10];
+    arr[1] += 2 * arr[1];
+    var a: i32 = 10;
+    a += 100;
+    a -= 10;
+    a *= 2;
+    a /= 2;
+    return a + arr[1];
+end
