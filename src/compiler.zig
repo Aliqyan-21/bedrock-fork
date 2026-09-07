@@ -129,7 +129,7 @@ pub const Compiler = struct {
         }
 
         var r: JitRetType = .{ .i32 = 0 };
-        if (self.opt.run_jit) {
+        if (self.opt.run_jit or self.opt.emit_ir) {
             var c = codegen.Codegen.init(self.allocator, self);
             self.mod = try c.codegen();
             self.ctx = c.ctx;
@@ -147,10 +147,12 @@ pub const Compiler = struct {
                 std.debug.print("{s}\n", .{mod_str});
             }
 
-            // r = try self.jit();
-            _ = &r;
-            s_run = false;
-            self.sema.deinit();
+            if (self.opt.run_jit) {
+                r = try self.jit();
+                s_run = false;
+                self.sema.deinit();
+            }
+
             c.deinit();
         }
 

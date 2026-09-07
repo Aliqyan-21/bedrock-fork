@@ -54,6 +54,7 @@ pub fn parse(args: anytype) !Options {
             options.emit_tokens = true;
         } else if (std.mem.eql(u8, arg, "--emit-ir")) {
             options.emit_ir = true;
+            options.sema = true;
         } else if (std.mem.eql(u8, arg, "--sema")) {
             options.sema = true;
         } else if (std.mem.eql(u8, arg, "--jit")) {
