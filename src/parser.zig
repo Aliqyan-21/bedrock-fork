@@ -927,7 +927,15 @@ pub const Parser = struct {
             for_expr.index_binding = idx_tok.val;
         }
 
-        _ = try self.expect(.kw_in, "expected 'in'");
+        if (try self.expect(.kw_in, "expected 'in'") == null) {
+            try self.sync(&.{.kw_end});
+            if ((try self.lexer.peek_token()).type == .kw_end) {
+                _ = try self.lexer.next();
+            }
+            for_expr.iterable = try self.error_expr(tok);
+            for_expr.body = try self.parse_body();
+            return .{ .for_expr = for_expr };
+        }
 
         for_expr.iterable = try self.parse_expression();
 
@@ -938,6 +946,14 @@ pub const Parser = struct {
             _ = try self.lexer.next();
             for_expr.index_start = try self.parse_expression_bp(16);
             _ = try self.expect(.dot_dot, "expected '..'");
+        } else if (for_expr.index_binding != null and (peek_tok.type == .integer or peek_tok.type == .float)) {
+            try self.compiler.addError("expected ',' before index range", err.Severity.Error, peek_tok);
+            try self.sync(&.{.kw_end});
+            if ((try self.lexer.peek_token()).type == .kw_end) {
+                _ = try self.lexer.next();
+            }
+            for_expr.body = .empty;
+            return .{ .for_expr = for_expr };
         }
 
         // so for case like for val, i in arr ... end
@@ -949,7 +965,7 @@ pub const Parser = struct {
         }
         // for val in arr, 0..
         if (for_expr.index_binding == null and for_expr.index_start != null) {
-            try self.compiler.add_sem_error("index range needs a second binding, e.g. 'for val, idx in ...'", .{}, .Error, range_tok.?);
+            try self.compiler.add_sem_error("index range needs a second binding, e.g. 'for val, idx in ...'", .{}, err.Severity.Error, range_tok.?);
         }
 
         for_expr.body = try self.parse_body();
@@ -983,6 +999,12 @@ pub const Parser = struct {
             .token = start_tok,
         };
         return ty;
+    }
+
+    fn error_expr(self: *Parser, tok: token.Token) !*ast.Expr {
+        const e = try self.allocator.create(ast.Expr);
+        e.* = .{ .ident = .{ .name = "<error>", .token = tok } };
+        return e;
     }
 
     fn parse_base_type(self: *Parser) anyerror!ast.BaseType {
@@ -1428,7 +1450,8 @@ pub const Parser = struct {
                 lhs.* = .{ .array_literal = .{ .elements = elems, .token = tok } };
             },
             else => {
-                // TODO:
+                try self.compiler.addError("expected an expression", err.Severity.Error, tok);
+                lhs = try self.error_expr(tok);
             },
         }
 
