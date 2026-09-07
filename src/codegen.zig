@@ -58,6 +58,7 @@ pub const Codegen = struct {
                 .function => |*f| try self.codegen_function(f),
                 .proc => |*p| try self.codegen_proc(p),
                 .extern_def => |*e| try self.codegen_extern(e),
+                .type_def => |*t| try self.codegen_typedef(t),
                 else => {
                     // TODO:
                 },
@@ -195,6 +196,37 @@ pub const Codegen = struct {
             const arg = llvm.LLVMGetParam(func, @intCast(idx));
             llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
         }
+    }
+
+    pub fn codegen_typedef(self: *Codegen, t_def: *ast.TypeDef) !void {
+        switch (t_def.*.variant) {
+            .struct_def => |*s| try self.codegen_struct_def(s),
+            .enum_def => unreachable,
+        }
+    }
+
+    pub fn codegen_struct_def(self: *Codegen, s_def: *ast.StructDef) !void {
+        const fields = try self.allocator.alloc(llvm.LLVMTypeRef, s_def.fields.items.len);
+        defer self.allocator.free(fields);
+        for (s_def.fields.items, 0..) |f, idx| {
+            const t = try self.get_type(f.type);
+            fields[idx] = t;
+        }
+
+        const name = try self.allocator.dupeZ(u8, s_def.name);
+        defer self.allocator.free(name);
+        const s_ty = llvm.LLVMStructTypeInContext(
+            self.ctx,
+            fields.ptr,
+            @intCast(s_def.fields.items.len),
+            0,
+        );
+        try self.struct_types.put(s_def.name, s_ty);
+        _ = llvm.LLVMAddGlobal(
+            self.mod,
+            s_ty,
+            name,
+        );
     }
 
     pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !llvm.LLVMValueRef {
@@ -537,6 +569,14 @@ pub const Codegen = struct {
                 try self.stack_map.put(v.name, arr);
                 return arr;
             },
+            .struct_literal => {
+                const alloca = try self.codegen_alloca_var(v);
+                const expected_ty = if (v.type_ann) |ty| try self.get_type(ty) else null;
+                const s = try self.codegen_expression_with_type(v.value, expected_ty);
+                _ = llvm.LLVMBuildStore(self.builder, s, alloca);
+                try self.stack_map.put(v.name, alloca);
+                return s;
+            },
             else => {
                 const alloca = try self.codegen_alloca_var(v);
                 const e = try self.codegen_expression(v.value);
@@ -621,6 +661,10 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_expression(self: *Codegen, e: *ast.Expr) !llvm.LLVMValueRef {
+        return self.codegen_expression_with_type(e, null);
+    }
+
+    pub fn codegen_expression_with_type(self: *Codegen, e: *ast.Expr, expected_ty: ?llvm.LLVMTypeRef) !llvm.LLVMValueRef {
         return switch (e.*) {
             .literal => |*l| self.codegen_literal(l, e),
             .binary => |*b| self.codegen_binary(b),
@@ -629,8 +673,80 @@ pub const Codegen = struct {
             .ident => |*i| self.codegen_ident(i),
             .array_literal => |*a| try self.codegen_array(a, e),
             .index => |*i| try self.codegen_index(i),
+            .struct_literal => |*s| try self.codegen_struct_literal(s, expected_ty),
+            .field_access => |*f| try self.codegen_field_access(f),
             else => unreachable,
         };
+    }
+
+    pub fn codegen_field_access(self: *Codegen, f_access: *ast.FieldAccessExpr) anyerror!llvm.LLVMValueRef {
+        // NOTE: currently only for structs field access
+        const ident = switch (f_access.target.*) {
+            .ident => |i| i,
+            else => return error.InvalidFieldAccess,
+        };
+
+        const struct_ptr = self.stack_map.get(ident.name) orelse return error.VariableNotFound;
+        const target_ty = self.expr_type(f_access.target);
+        if (target_ty == .invalid) return error.InvalidType;
+
+        const target_type = self.compiler.sema.types.get(target_ty);
+        const struct_ty = switch (target_type.*) {
+            .struct_ty => |*s| s,
+            else => return error.InvalidFieldAccess,
+        };
+
+        const llvm_struct_ty = try self.get_llvm_type_of(target_ty);
+
+        var field_index: usize = 0;
+        var field_type: types.TypeId = .invalid;
+        var found = false;
+        for (struct_ty.fields.items, 0..) |field, i| {
+            if (std.mem.eql(u8, field.name, f_access.field)) {
+                field_index = i;
+                field_type = field.ty;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) return error.UnknownField;
+
+        const zero = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0);
+        const field_idx = llvm.LLVMConstInt(llvm.LLVMInt32Type(), field_index, 0);
+        var indices = [_]llvm.LLVMValueRef{ zero, field_idx };
+        const field_ptr = llvm.LLVMBuildGEP2(
+            self.builder,
+            llvm_struct_ty,
+            struct_ptr,
+            &indices,
+            indices.len,
+            "",
+        );
+
+        const llvm_field_ty = try self.get_llvm_type_of(field_type);
+        return llvm.LLVMBuildLoad2(self.builder, llvm_field_ty, field_ptr, "");
+    }
+
+    pub fn codegen_struct_literal(self: *Codegen, s_lit: *ast.StructLiteral, expected_ty: ?llvm.LLVMTypeRef) anyerror!llvm.LLVMValueRef {
+        const s_ty = if (s_lit.name.len != 0 and !std.mem.eql(u8, s_lit.name, "_"))
+            self.struct_types.get(s_lit.name) orelse return error.NoStructTypeAvailable
+        else
+            expected_ty orelse return error.NoStructTypeAvailable;
+
+        var struct_value = llvm.LLVMGetUndef(s_ty);
+        for (s_lit.field_inits.items, 0..) |*f, idx| {
+            const value = try self.codegen_expression(f.value);
+            struct_value = llvm.LLVMBuildInsertValue(
+                self.builder,
+                struct_value,
+                value,
+                @intCast(idx),
+                "",
+            );
+        }
+
+        return struct_value;
     }
 
     pub fn codegen_index(self: *Codegen, i: *ast.IndexExpr) anyerror!llvm.LLVMValueRef {
@@ -902,6 +1018,7 @@ pub const Codegen = struct {
                 };
                 return llvm.LLVMArrayType(ele_ty, sz);
             },
+            .named => |*n| return self.struct_types.get(n.name) orelse unreachable,
             else => {
                 // TODO:
                 unreachable;
@@ -945,6 +1062,7 @@ pub const Codegen = struct {
                 const sz: c_uint = @intCast(a.len);
                 return llvm.LLVMArrayType(ele_ty, sz);
             },
+            .struct_ty => |*s| self.struct_types.get(s.name) orelse return error.NoStructTypeAvailable,
             else => {
                 //todo: other typse
                 unreachable;
