@@ -337,15 +337,83 @@ pub const Codegen = struct {
         return null;
     }
 
-    pub fn codegen_for(self: *Codegen, f: *ast.ForExpr) !llvm.LLVMValueRef {
-        // note: only range based iterations are lowerd right now
-        // todo: array and slices based iterations
-        const rangety = self.expr_type(f.iterable);
-        const elemty = switch (self.compiler.sema.types.get(rangety).*) {
-            .range => |r| r.elem,
-            else => unreachable, // sema sambhal lega
+    pub fn codegen_array_iter(self: *Codegen, f: *ast.ForExpr, ty: types.TypeId, len: u64) !llvm.LLVMValueRef {
+        const llvm_ty = try self.get_llvm_type_of(ty);
+        const array_ptr = switch (f.iterable.*) {
+            .ident => |ident| self.stack_map.get(ident.name) orelse {
+                return error.UnknownVariable;
+            },
+            else => return error.UnsupportedArrayTarget,
         };
-        const llvm_ty = try self.get_llvm_type_of(elemty);
+
+        const l = llvm.LLVMConstInt(llvm.LLVMInt64Type(), len, 0);
+
+        const func = llvm.LLVMGetBasicBlockParent(self.entry);
+        const cond_bb = llvm.LLVMAppendBasicBlock(func, "for_cond");
+        const body_bb = llvm.LLVMAppendBasicBlock(func, "for_body");
+        const merge_bb = llvm.LLVMAppendBasicBlock(func, "for_merge");
+
+        // index variable.
+        const index_alloca = llvm.LLVMBuildAlloca(self.builder, llvm.LLVMInt64Type(), "for_index");
+        _ = llvm.LLVMBuildStore(
+            self.builder,
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            index_alloca,
+        );
+
+        const name = try self.allocator.dupeZ(u8, f.binding);
+        defer self.allocator.free(name);
+        const i_alloca = llvm.LLVMBuildAlloca(self.builder, llvm_ty, name);
+        try self.stack_map.put(f.binding, i_alloca);
+
+        _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+
+        llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
+
+        const index = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64Type(), index_alloca, "index");
+        const cond = llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULT, index, l, "for_cmp");
+        _ = llvm.LLVMBuildCondBr(self.builder, cond, body_bb, merge_bb);
+
+        llvm.LLVMPositionBuilderAtEnd(self.builder, body_bb);
+
+        var indices = [2]llvm.LLVMValueRef{
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            index,
+        };
+
+        const gep = llvm.LLVMBuildGEPWithNoWrapFlags(
+            self.builder,
+            llvm.LLVMArrayType2(llvm_ty, len),
+            array_ptr,
+            &indices,
+            2,
+            "",
+            0,
+        );
+
+        const ele = llvm.LLVMBuildLoad2(self.builder, llvm_ty, gep, "ele");
+        _ = llvm.LLVMBuildStore(self.builder, ele, i_alloca);
+
+        _ = try self.codegen_statements(f.body);
+
+        // i = i + 1
+        const curr = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64Type(), index_alloca, "index");
+        const next = llvm.LLVMBuildAdd(
+            self.builder,
+            curr,
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 1, 0),
+            "for_inc",
+        );
+        _ = llvm.LLVMBuildStore(self.builder, next, index_alloca);
+        _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+
+        llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
+
+        return i_alloca;
+    }
+
+    pub fn codegen_for_range(self: *Codegen, f: *ast.ForExpr, ty: types.TypeId) !llvm.LLVMValueRef {
+        const llvm_ty = try self.get_llvm_type_of(ty);
 
         const b = &f.iterable.binary;
         const lo = try self.codegen_expression(b.lhs);
@@ -365,11 +433,11 @@ pub const Codegen = struct {
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
 
-        const is_float = switch (self.compiler.sema.types.get(elemty).*) {
+        const is_float = switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| p == .f32 or p == .f64,
             else => false,
         };
-        const is_signed = switch (self.compiler.sema.types.get(elemty).*) {
+        const is_signed = switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| switch (p) {
                 .i8, .i16, .i32, .i64, .isize => true,
                 else => false,
@@ -396,6 +464,16 @@ pub const Codegen = struct {
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
         return i_alloca;
+    }
+
+    pub fn codegen_for(self: *Codegen, f: *ast.ForExpr) !llvm.LLVMValueRef {
+        // todo: slices based iterations
+        const iter_ty = self.expr_type(f.iterable);
+        return switch (self.compiler.sema.types.get(iter_ty).*) {
+            .range => |r| try self.codegen_for_range(f, r.elem),
+            .array => |a| try self.codegen_array_iter(f, a.child, a.len),
+            else => unreachable, // sema sambhal lega
+        };
     }
 
     pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {
