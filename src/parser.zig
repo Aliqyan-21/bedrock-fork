@@ -920,9 +920,32 @@ pub const Parser = struct {
             token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
         for_expr.binding = binding_tok.val;
 
+        var peek_tok = try self.lexer.peek_token();
+        if (peek_tok.type == .comma) {
+            _ = try self.lexer.next();
+            const idx_tok = try self.expect(.ident, "expected identifier") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+            for_expr.index_binding = idx_tok.val;
+        }
+
         _ = try self.expect(.kw_in, "expected 'in'");
 
         for_expr.iterable = try self.parse_expression();
+
+        peek_tok = try self.lexer.peek_token();
+        if (peek_tok.type == .comma) {
+            _ = try self.lexer.next();
+            for_expr.index_start = try self.parse_expression_bp(16);
+            _ = try self.expect(.dot_dot, "expected '..'");
+        }
+
+        // so for case like for val, i in arr ... end
+        // here enumerate start not give, so be default I make it 0
+        if (for_expr.index_binding != null and for_expr.index_start == null) {
+            const zero = try self.allocator.create(ast.Expr);
+            zero.* = .{ .literal = .{ .kind = .integer, .raw = "0", .token = tok } };
+            for_expr.index_start = zero;
+        }
+
         for_expr.body = try self.parse_body();
 
         return .{ .for_expr = for_expr };
