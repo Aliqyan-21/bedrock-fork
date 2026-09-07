@@ -58,6 +58,7 @@ pub const Codegen = struct {
                 .function => |*f| try self.codegen_function(f),
                 .proc => |*p| try self.codegen_proc(p),
                 .extern_def => |*e| try self.codegen_extern(e),
+                .type_def => |*t| try self.codegen_typedef(t),
                 else => {
                     // TODO:
                 },
@@ -195,6 +196,30 @@ pub const Codegen = struct {
             const arg = llvm.LLVMGetParam(func, @intCast(idx));
             llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
         }
+    }
+
+    pub fn codegen_typedef(self: *Codegen, t_def: *ast.TypeDef) !void {
+        switch (t_def.*.variant) {
+            .struct_def => |*s| try self.codegen_struct_def(s),
+            .enum_def => unreachable,
+        }
+    }
+
+    pub fn codegen_struct_def(self: *Codegen, s_def: *ast.StructDef) !void {
+        const fields = try self.allocator.alloc(llvm.LLVMTypeRef, s_def.fields.items.len);
+        defer self.allocator.free(fields);
+        for (s_def.fields.items, 0..) |f, idx| {
+            const t = try self.get_type(f.type);
+            fields[idx] = t;
+        }
+
+        const s_ty = llvm.LLVMStructTypeInContext(
+            self.ctx,
+            fields.ptr,
+            @intCast(s_def.fields.items.len),
+            0,
+        );
+        _ = llvm.LLVMAddGlobal(self.mod, s_ty, "");
     }
 
     pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !llvm.LLVMValueRef {
