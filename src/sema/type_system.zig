@@ -36,8 +36,8 @@ pub const TypeSystem = struct {
     allocator: std.mem.Allocator,
     types: std.ArrayList(Type),
     arena: std.heap.ArenaAllocator,
-
     pids: [@typeInfo(Primitive).@"enum".fields.len]TypeId, // primtive ids
+    struct_reg: std.StringArrayHashMapUnmanaged(TypeId) = .empty, // struct registry for storing all defined struct (for codegen)
 
     pub fn init(allocator: std.mem.Allocator) TypeSystem {
         return .{
@@ -59,6 +59,7 @@ pub const TypeSystem = struct {
         }
         self.types.deinit(self.allocator);
         self.arena.deinit();
+        self.struct_reg.deinit(self.allocator);
     }
 
     pub fn get(self: *TypeSystem, id: TypeId) *Type {
@@ -241,5 +242,14 @@ pub const TypeSystem = struct {
             .struct_ty => |*s| s.name,
             else => "not implemented",
         };
+    }
+
+    // struct or named type specific things //
+    pub fn register(self: *TypeSystem, name: []const u8, id: TypeId) !void {
+        try self.struct_reg.put(self.allocator, name, id);
+    }
+
+    pub fn resolve(self: *TypeSystem, name: []const u8) ?TypeId {
+        return self.struct_reg.get(name);
     }
 };
