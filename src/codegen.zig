@@ -467,8 +467,7 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_for(self: *Codegen, f: *ast.ForExpr) !llvm.LLVMValueRef {
-        // note: only range based iterations are lowerd right now
-        // todo: array and slices based iterations
+        // todo: slices based iterations
         const iter_ty = self.expr_type(f.iterable);
         return switch (self.compiler.sema.types.get(iter_ty).*) {
             .range => |r| try self.codegen_for_range(f, r.elem),
