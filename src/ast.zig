@@ -1081,14 +1081,25 @@ pub const WhileExpr = struct {
 // for_expr = "for" IDENT "in" expression block "end"
 pub const ForExpr = struct {
     binding: []const u8,
+    index_binding: ?[]const u8 = null,
+    index_start: ?*Expr = null,
     iterable: *Expr,
     body: std.ArrayList(Stmt),
     token: Token,
 
     pub fn print(self: *ForExpr, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("for expr: {s}\n", .{self.binding});
+        if (self.index_binding) |ib| {
+            std.debug.print("for expr: {s}, {s}\n", .{ self.binding, ib });
+        } else {
+            std.debug.print("for expr: {s}\n", .{self.binding});
+        }
         try self.iterable.print(indent + 4);
+        if (self.index_start) |s| {
+            for (0..indent + 4) |_| std.debug.print(" ", .{});
+            std.debug.print("index start:\n", .{});
+            try s.print(indent + 8);
+        }
         for (self.body.items) |*stmt| {
             for (0..indent + 4) |_| std.debug.print(" ", .{});
             std.debug.print("stmt\n", .{});
@@ -1097,6 +1108,7 @@ pub const ForExpr = struct {
     }
     pub fn deinit(self: *ForExpr, allocator: std.mem.Allocator) void {
         self.iterable.deinit(allocator);
+        if (self.index_start) |s| s.deinit(allocator);
         for (self.body.items) |*i| i.deinit(allocator);
         self.body.deinit(allocator);
     }
