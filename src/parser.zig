@@ -931,8 +931,10 @@ pub const Parser = struct {
 
         for_expr.iterable = try self.parse_expression();
 
+        var range_tok: ?token.Token = null;
         peek_tok = try self.lexer.peek_token();
         if (peek_tok.type == .comma) {
+            range_tok = peek_tok;
             _ = try self.lexer.next();
             for_expr.index_start = try self.parse_expression_bp(16);
             _ = try self.expect(.dot_dot, "expected '..'");
@@ -944,6 +946,10 @@ pub const Parser = struct {
             const zero = try self.allocator.create(ast.Expr);
             zero.* = .{ .literal = .{ .kind = .integer, .raw = "0", .token = tok } };
             for_expr.index_start = zero;
+        }
+        // for val in arr, 0..
+        if (for_expr.index_binding == null and for_expr.index_start != null) {
+            try self.compiler.add_sem_error("index range needs a second binding, e.g. 'for val, idx in ...'", .{}, .Error, range_tok.?);
         }
 
         for_expr.body = try self.parse_body();
