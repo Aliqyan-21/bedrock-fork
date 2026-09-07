@@ -287,8 +287,10 @@ pub const Codegen = struct {
         // reset the insert pos
         llvm.LLVMPositionBuilderAtEnd(self.builder, while_bb);
         try self.break_targets.append(self.allocator, merge_bb);
+        try self.continue_targets.append(self.allocator, merge_bb);
         const while_val = try self.codegen_statements(w.body);
         _ = self.break_targets.pop();
+        _ = self.continue_targets.pop();
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
 
         // reset the insert pos
@@ -320,7 +322,11 @@ pub const Codegen = struct {
 
         // set new insert point for then_bb codegen
         llvm.LLVMPositionBuilderAtEnd(self.builder, then_bb);
+        try self.break_targets.append(self.allocator, merge_bb);
+        try self.continue_targets.append(self.allocator, merge_bb);
         _ = try self.codegen_statements(i.then_body);
+        _ = self.break_targets.pop();
+        _ = self.continue_targets.pop();
         if (llvm.LLVMGetBasicBlockTerminator(then_bb) == null) {
             _ = llvm.LLVMBuildBr(self.builder, merge_bb);
         }
@@ -332,7 +338,11 @@ pub const Codegen = struct {
             _ = llvm.LLVMBuildCondBr(self.builder, elif_cond, elif_then_bbs[idx], nxt);
 
             llvm.LLVMPositionBuilderAtEnd(self.builder, elif_then_bbs[idx]);
+            try self.break_targets.append(self.allocator, merge_bb);
+            try self.continue_targets.append(self.allocator, merge_bb);
             _ = try self.codegen_statements(elif.body);
+            _ = self.break_targets.pop();
+            _ = self.continue_targets.pop();
             if (llvm.LLVMGetBasicBlockTerminator(elif_then_bbs[idx]) == null) {
                 _ = llvm.LLVMBuildBr(self.builder, merge_bb);
             }
@@ -341,7 +351,11 @@ pub const Codegen = struct {
         // set new insert point for else_bb codegen
         llvm.LLVMPositionBuilderAtEnd(self.builder, else_bb);
         if (i.else_body) |*body| {
+            try self.break_targets.append(self.allocator, merge_bb);
+            try self.continue_targets.append(self.allocator, merge_bb);
             _ = try self.codegen_statements(body.*);
+            _ = self.break_targets.pop();
+            _ = self.continue_targets.pop();
         }
         if (llvm.LLVMGetBasicBlockTerminator(else_bb) == null) {
             _ = llvm.LLVMBuildBr(self.builder, merge_bb);
@@ -415,8 +429,10 @@ pub const Codegen = struct {
         _ = llvm.LLVMBuildStore(self.builder, ele, i_alloca);
 
         try self.break_targets.append(self.allocator, merge_bb);
+        try self.continue_targets.append(self.allocator, merge_bb);
         _ = try self.codegen_statements(f.body);
         _ = self.break_targets.pop();
+        _ = self.continue_targets.pop();
 
         // i = i + 1
         const curr = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64Type(), index_alloca, "index");
@@ -476,8 +492,10 @@ pub const Codegen = struct {
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, body_bb);
         try self.break_targets.append(self.allocator, merge_bb);
+        try self.continue_targets.append(self.allocator, merge_bb);
         _ = try self.codegen_statements(f.body);
         _ = self.break_targets.pop();
+        _ = self.continue_targets.pop();
 
         // do the i = i + 1
         const cur = llvm.LLVMBuildLoad2(self.builder, llvm_ty, i_alloca, "");
