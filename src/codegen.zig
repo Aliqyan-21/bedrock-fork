@@ -14,6 +14,7 @@ pub const Codegen = struct {
     entry: llvm.LLVMBasicBlockRef,
     opt: bool,
     stack_map: std.StringHashMap(llvm.LLVMValueRef),
+    struct_types: std.StringHashMap(llvm.LLVMTypeRef),
 
     pub fn init(allocator: std.mem.Allocator, c: *compiler.Compiler) Codegen {
         return Codegen{
@@ -25,11 +26,13 @@ pub const Codegen = struct {
             .entry = undefined,
             .opt = false,
             .stack_map = std.StringHashMap(llvm.LLVMValueRef).init(allocator),
+            .struct_types = std.StringHashMap(llvm.LLVMTypeRef).init(allocator),
         };
     }
 
     pub fn deinit(self: *Codegen) void {
         self.stack_map.deinit();
+        self.struct_types.deinit();
     }
 
     pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {

@@ -90,6 +90,7 @@ pub const Sema = struct {
                         }
 
                         const sty = try self.types.intern(.{ .struct_ty = .{ .name = s.name, .fields = field_tys } });
+                        try self.types.register(s.name, sty);
                         self.scope.declare(.{ .name = s.name, .kind = .@"struct", .ty = sty }) catch |e| {
                             if (e == error.DuplicateName) {
                                 try self.compiler.add_sem_error("Duplicate declaration: {s}\n", .{s.name}, .Error, s.token);
