@@ -1,0 +1,5 @@
+proc main()
+  arr = [1,2,3,4,5,6];
+  for val, idx in arr, 0..
+  end
+end
