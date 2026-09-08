@@ -571,6 +571,12 @@ pub const Parser = struct {
 
         switch (var_stmt.value.*) {
             .struct_literal => {},
+            .unary => |*u| {
+                switch (u.operand.*) {
+                    .struct_literal => {},
+                    else => _ = try self.expect(.semicolon, "expected ';'"),
+                }
+            },
             // extect ';'
             else => _ = try self.expect(.semicolon, "expected ';'"),
         }
@@ -1390,7 +1396,7 @@ pub const Parser = struct {
                 // expect ')'
                 _ = try self.expect(.r_paren, "expected ')'");
             },
-            .minus, .bang, .tilde, .amp, .star => {
+            .minus, .bang, .tilde, .amp, .star, .kw_new => {
                 const p_bp = prefix_binding_power(tok.type);
                 const rhs = try self.parse_expression_bp(p_bp[1]);
                 lhs = try self.allocator.create(ast.Expr);
@@ -1589,7 +1595,7 @@ fn infix_binding_power(op: token.TokenType) [2]usize {
 
 fn prefix_binding_power(op: token.TokenType) [2]usize {
     return switch (op) {
-        .minus, .bang_eq, .tilde, .amp, .star => .{ 0, 5 },
+        .minus, .bang_eq, .tilde, .amp, .star, .kw_new => .{ 0, 5 },
         else => .{ 0, 0 },
     };
 }
@@ -1634,6 +1640,7 @@ fn get_unary_op(op: token.TokenType) ast.UnaryOp {
         .tilde => ast.UnaryOp.bit_not,
         .amp => ast.UnaryOp.addr_of,
         .star => ast.UnaryOp.deref,
+        .kw_new => ast.UnaryOp.new,
         else => unreachable,
     };
 }

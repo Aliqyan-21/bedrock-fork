@@ -697,6 +697,7 @@ pub const UnaryOp = enum {
     bit_not,
     addr_of,
     deref,
+    new,
 
     pub fn print(self: *UnaryOp, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
