@@ -820,20 +820,45 @@ pub const Codegen = struct {
         return struct_value;
     }
 
-    pub fn codegen_index(self: *Codegen, i: *ast.IndexExpr) anyerror!llvm.LLVMValueRef {
-        // Currently only support one-dimensional arrays.
-        if (i.args.items.len != 1) {
-            return error.InvalidIndex;
-        }
+    fn codegen_slice_index(self: *Codegen, i: *ast.IndexExpr, slice_ty: types.TypeId) anyerror!llvm.LLVMValueRef {
+        const slice_llvm_ty = try self.get_llvm_type_of(slice_ty);
+        const slice_ptr = switch (i.target.*) {
+            .ident => |ident| self.stack_map.get(ident.name) orelse return error.UnknownVariable,
+            else => unreachable,
+        };
 
+        const slice = llvm.LLVMBuildLoad2(self.builder, slice_llvm_ty, slice_ptr, "");
+        const data_ptr = llvm.LLVMBuildExtractValue(self.builder, slice, 0, "");
+
+        // Generate index.
+        const index = try self.codegen_expression(i.args.items[0]);
+        const slice_info = switch (self.compiler.sema.types.get(slice_ty).*) {
+            .slice => |s| s,
+            else => unreachable,
+        };
+
+        var indices = [1]llvm.LLVMValueRef{index};
+        const elem_ty = try self.get_llvm_type_of(slice_info.child);
+        const element_ptr = llvm.LLVMBuildGEP2(
+            self.builder,
+            elem_ty,
+            data_ptr,
+            &indices,
+            1,
+            "",
+        );
+
+        return llvm.LLVMBuildLoad2(self.builder, elem_ty, element_ptr, "");
+    }
+
+    pub fn codegen_array_index(self: *Codegen, i: *ast.IndexExpr, array_ty: types.TypeId) anyerror!llvm.LLVMValueRef {
         const arr = switch (i.target.*) {
             .ident => |ident| self.stack_map.get(ident.name) orelse return error.UnknownVariable,
 
             else => try self.codegen_expression(i.target),
         };
-        // Generate the index expression.
+        const llvm_array_ty = try self.get_llvm_type_of(array_ty);
         const index = try self.codegen_expression(i.args.items[0]);
-        const array_ty = try self.get_llvm_type_of(self.expr_type(i.target));
         var indices = [2]llvm.LLVMValueRef{
             llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
             index,
@@ -841,7 +866,7 @@ pub const Codegen = struct {
 
         const element_ptr = llvm.LLVMBuildGEPWithNoWrapFlags(
             self.builder,
-            array_ty,
+            llvm_array_ty,
             arr,
             &indices,
             2,
@@ -849,10 +874,26 @@ pub const Codegen = struct {
             0,
         );
 
-        const element_ty = llvm.LLVMGetElementType(array_ty);
+        const element_ty = llvm.LLVMGetElementType(llvm_array_ty);
         const ld = llvm.LLVMBuildLoad2(self.builder, element_ty, element_ptr, "");
 
         return ld;
+    }
+
+    pub fn codegen_index(self: *Codegen, i: *ast.IndexExpr) anyerror!llvm.LLVMValueRef {
+        // Currently only support one-dimensional arrays.
+        if (i.args.items.len != 1) {
+            return error.InvalidIndex;
+        }
+
+        // Generate the index expression.
+        const target_ty = self.expr_type(i.target);
+        const target_type = self.compiler.sema.types.get(target_ty);
+        switch (target_type.*) {
+            .array => return self.codegen_array_index(i, target_ty),
+            .slice => return self.codegen_slice_index(i, target_ty),
+            else => return error.InvalidIndex,
+        }
     }
 
     pub fn codegen_array_element_ptr(self: *Codegen, i: *ast.IndexExpr) !llvm.LLVMValueRef {
@@ -915,13 +956,21 @@ pub const Codegen = struct {
             std.debug.print("no function named {s}\n", .{name});
         }
 
+        const callee_ty = self.expr_type(c.callee);
+        const callee_type = self.compiler.sema.types.get(callee_ty);
+        const param_types = switch (callee_type.*) {
+            .function => |f| f.params.items,
+            .procedure => |p| p.params.items,
+            else => unreachable,
+        };
+
         // see why called value type failed here
         const func_type = llvm.LLVMGlobalGetValueType(func_ref);
         if (func_type == null) {
             std.debug.print("no function type for {s}\n", .{name});
         }
 
-        const args = try self.codegen_args(c.args);
+        const args = try self.codegen_args(c.args, param_types);
         defer self.allocator.free(args);
         const n_args = c.args.items.len;
 
@@ -946,11 +995,83 @@ pub const Codegen = struct {
         return call;
     }
 
-    pub fn codegen_args(self: *Codegen, args: std.ArrayList(ast.CallArg)) ![]llvm.LLVMValueRef {
+    fn is_array_slice_conversion(self: *Codegen, arg_ty: types.TypeId, param_ty: types.TypeId) bool {
+        const arg = self.compiler.sema.types.get(arg_ty);
+        const param = self.compiler.sema.types.get(param_ty);
+
+        return switch (arg.*) {
+            .array => switch (param.*) {
+                .slice => true,
+                else => false,
+            },
+            else => false,
+        };
+    }
+
+    fn codegen_array_as_slice(self: *Codegen, operand: *ast.Expr, array_ty: types.TypeId) !llvm.LLVMValueRef {
+        const array_info = switch (self.compiler.sema.types.get(array_ty).*) {
+            .array => |a| a,
+            else => unreachable,
+        };
+
+        const array_ptr = switch (operand.*) {
+            .ident => |ident| self.stack_map.get(ident.name).?,
+            else => unreachable,
+        };
+
+        const llvm_array_ty = try self.get_llvm_type_of(array_ty);
+        var indices = [_]llvm.LLVMValueRef{
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+        };
+
+        const elem_ptr = llvm.LLVMBuildGEP2(
+            self.builder,
+            llvm_array_ty,
+            array_ptr,
+            &indices,
+            indices.len,
+            "slice_ptr",
+        );
+
+        const elem_ty = try self.get_llvm_type_of(array_info.child);
+        var fields = [_]llvm.LLVMTypeRef{
+            llvm.LLVMPointerType(elem_ty, 0),
+            llvm.LLVMInt64Type(),
+        };
+        const slice_ty = llvm.LLVMStructType(&fields, fields.len, 0);
+
+        var slice = llvm.LLVMGetUndef(slice_ty);
+
+        slice = llvm.LLVMBuildInsertValue(
+            self.builder,
+            slice,
+            elem_ptr,
+            0,
+            "slice_ptr",
+        );
+
+        slice = llvm.LLVMBuildInsertValue(
+            self.builder,
+            slice,
+            llvm.LLVMConstInt(llvm.LLVMInt64Type(), array_info.len, 0),
+            1,
+            "slice_len",
+        );
+
+        return slice;
+    }
+
+    pub fn codegen_args(self: *Codegen, args: std.ArrayList(ast.CallArg), param_types: []const types.TypeId) ![]llvm.LLVMValueRef {
         const a = try self.allocator.alloc(llvm.LLVMValueRef, args.items.len);
         for (args.items, 0..) |arg, idx| {
-            const v = try self.codegen_expression(arg.value);
-            a[idx] = v;
+            const arg_ty = self.expr_type(arg.value);
+            const param_ty = param_types[idx];
+            if (self.is_array_slice_conversion(arg_ty, param_ty)) {
+                a[idx] = try self.codegen_array_as_slice(arg.value, arg_ty);
+            } else {
+                a[idx] = try self.codegen_expression(arg.value);
+            }
         }
 
         return a;
@@ -1111,6 +1232,11 @@ pub const Codegen = struct {
                 return llvm.LLVMArrayType(ele_ty, sz);
             },
             .named => |*n| return self.struct_types.get(n.name) orelse unreachable,
+            .slice => |*s| {
+                const ele_ty = try self.get_type(s.elem);
+                var fields = [_]llvm.LLVMTypeRef{ llvm.LLVMPointerType(ele_ty, 0), llvm.LLVMInt64Type() };
+                return llvm.LLVMStructType(&fields, fields.len, 0);
+            },
             else => {
                 // TODO:
                 unreachable;
@@ -1155,6 +1281,11 @@ pub const Codegen = struct {
                 return llvm.LLVMArrayType(ele_ty, sz);
             },
             .struct_ty => |*s| self.struct_types.get(s.name) orelse return error.NoStructTypeAvailable,
+            .slice => |*s| {
+                const ele_ty = try self.get_llvm_type_of(s.child);
+                var fields = [_]llvm.LLVMTypeRef{ llvm.LLVMPointerType(ele_ty, 0), llvm.LLVMInt64Type() };
+                return llvm.LLVMStructType(&fields, fields.len, 0);
+            },
             else => {
                 //todo: other typse
                 unreachable;
