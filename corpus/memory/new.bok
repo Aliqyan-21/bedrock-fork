@@ -1,0 +1,11 @@
+type Point = struct
+    x: i32,
+    y: i32,
+end
+
+func main() -> i32
+    var p1 = new Point where x = a, y = a end
+    var p2 = Point where x = a, y = a end
+    var p3 = new 5;
+    return 0;
+end

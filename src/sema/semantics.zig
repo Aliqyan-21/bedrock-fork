@@ -503,6 +503,7 @@ pub const Sema = struct {
                             },
                         };
                     },
+                    .new => {},
                 }
                 return .invalid;
             },
