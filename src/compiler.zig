@@ -67,6 +67,15 @@ pub const Compiler = struct {
             return error.JitError;
         }
 
+        const jd = llvm.LLVMOrcLLJITGetMainJITDylib(j);
+        // add runtime mem
+        var obj_mem: llvm.LLVMMemoryBufferRef = undefined;
+        if (llvm.LLVMCreateMemoryBufferWithContentsOfFile("zig-out/memory.o", &obj_mem, null) != 0) {
+            return error.BufferCreateFailed;
+        }
+
+        _ = llvm.LLVMOrcLLJITAddObjectFile(j, jd, obj_mem);
+
         const func = llvm.LLVMGetNamedFunction(self.mod, "main");
         if (func == null) {
             std.debug.print("main func not found in the program\n", .{});
@@ -78,10 +87,11 @@ pub const Compiler = struct {
         // get thread safe context for jit
         const tsctx = llvm.LLVMOrcCreateNewThreadSafeContextFromLLVMContext(self.ctx);
         const tsm = llvm.LLVMOrcCreateNewThreadSafeModule(self.mod, tsctx);
-        const jd = llvm.LLVMOrcLLJITGetMainJITDylib(j);
         _ = llvm.LLVMOrcLLJITAddLLVMIRModule(j, jd, tsm);
+
         var addr: llvm.LLVMOrcExecutorAddress = undefined;
         _ = llvm.LLVMOrcLLJITLookup(j, &addr, @ptrCast("main"));
+
         var res: JitRetType = undefined;
         switch (llvm.LLVMGetTypeKind(return_type)) {
             llvm.LLVMIntegerTypeKind => {

@@ -133,18 +133,16 @@ pub const Codegen = struct {
         // reset the builder position
         // llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
 
-        if (self.compiler.opt.emit_ir) {
-            const bok_init_fn = llvm.LLVMGetNamedFunction(self.mod, "bok_init");
-            const bok_init_type = llvm.LLVMGlobalGetValueType(bok_init_fn);
-            _ = llvm.LLVMBuildCall2(
-                self.builder,
-                bok_init_type,
-                bok_init_fn,
-                null,
-                0,
-                "",
-            );
-        }
+        const bok_init_fn = llvm.LLVMGetNamedFunction(self.mod, "bok_init");
+        const bok_init_type = llvm.LLVMGlobalGetValueType(bok_init_fn);
+        _ = llvm.LLVMBuildCall2(
+            self.builder,
+            bok_init_type,
+            bok_init_fn,
+            null,
+            0,
+            "",
+        );
 
         _ = try self.codegen_statements(function.body);
     }
