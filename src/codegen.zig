@@ -41,8 +41,33 @@ pub const Codegen = struct {
         self.struct_types.deinit();
     }
 
+    pub fn codegen_alloc_mem(self: *Codegen) !void {
+        const ret_init = llvm.LLVMVoidType();
+        const func_type_init: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_init, null, 0, 0);
+        const name_init = try self.allocator.dupeZ(u8, "bok_init");
+        defer self.allocator.free(name_init);
+        const func_init: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name_init.ptr, func_type_init);
+        llvm.LLVMSetLinkage(func_init, llvm.LLVMExternalLinkage);
+
+        const ret_deinit = llvm.LLVMVoidType();
+        const func_type_deinit: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_deinit, null, 0, 0);
+        const name_deinit = try self.allocator.dupeZ(u8, "bok_deinit");
+        defer self.allocator.free(name_deinit);
+        const func_deinit: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name_deinit.ptr, func_type_deinit);
+        llvm.LLVMSetLinkage(func_deinit, llvm.LLVMExternalLinkage);
+
+        const ret_alloc = llvm.LLVMPointerTypeInContext(self.ctx, 0);
+        var params_alloc: [1]llvm.LLVMTypeRef = .{llvm.LLVMInt64Type()};
+        const func_type_alloc: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_alloc, @ptrCast(&params_alloc), 1, 0);
+        const name_alloc = try self.allocator.dupeZ(u8, "bok_alloc");
+        defer self.allocator.free(name_alloc);
+        const func_alloc: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name_alloc.ptr, func_type_alloc);
+        llvm.LLVMSetLinkage(func_alloc, llvm.LLVMExternalLinkage);
+    }
+
     pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {
         self.mod = llvm.LLVMModuleCreateWithNameInContext("module", self.ctx);
+        try self.codegen_alloc_mem();
         try self.codegen_program(self.compiler.ast.program);
 
         // set the pass managers
@@ -107,6 +132,19 @@ pub const Codegen = struct {
 
         // reset the builder position
         // llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+
+        if (self.compiler.opt.emit_ir) {
+            const bok_init_fn = llvm.LLVMGetNamedFunction(self.mod, "bok_init");
+            const bok_init_type = llvm.LLVMGlobalGetValueType(bok_init_fn);
+            _ = llvm.LLVMBuildCall2(
+                self.builder,
+                bok_init_type,
+                bok_init_fn,
+                null,
+                0,
+                "",
+            );
+        }
 
         _ = try self.codegen_statements(function.body);
     }
@@ -228,11 +266,7 @@ pub const Codegen = struct {
             0,
         );
         try self.struct_types.put(s_def.name, s_ty);
-        _ = llvm.LLVMAddGlobal(
-            self.mod,
-            s_ty,
-            name,
-        );
+        _ = llvm.LLVMStructCreateNamed(self.ctx, name);
     }
 
     pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !llvm.LLVMValueRef {
@@ -757,22 +791,49 @@ pub const Codegen = struct {
             else => return error.InvalidFieldAccess,
         };
 
-        const struct_ptr = self.stack_map.get(ident.name) orelse return error.VariableNotFound;
         const target_ty = self.expr_type(f_access.target);
-        if (target_ty == .invalid) return error.InvalidType;
-
+        if (target_ty == .invalid)
+            return error.InvalidType;
         const target_type = self.compiler.sema.types.get(target_ty);
-        const struct_ty = switch (target_type.*) {
+        //   Point   -> load Point from stack
+        //   *Point  -> load pointer to Point from stack
+        var struct_ty_id: types.TypeId = .invalid;
+        var struct_ptr: llvm.LLVMValueRef = undefined;
+        switch (target_type.*) {
+            .struct_ty => {
+                struct_ty_id = target_ty;
+                const struct_slot = self.stack_map.get(ident.name) orelse return error.VariableNotFound;
+                const llvm_struct_ty = try self.get_llvm_type_of(struct_ty_id);
+                struct_ptr = struct_slot;
+                _ = llvm_struct_ty;
+            },
+            .pointer => |p| {
+                struct_ty_id = p.child;
+                const struct_slot = self.stack_map.get(ident.name) orelse return error.VariableNotFound;
+                const ptr_ty = try self.get_llvm_type_of(target_ty);
+                struct_ptr = llvm.LLVMBuildLoad2(
+                    self.builder,
+                    ptr_ty,
+                    struct_slot,
+                    "",
+                );
+            },
+
+            else => return error.InvalidFieldAccess,
+        }
+
+        const struct_type = self.compiler.sema.types.get(struct_ty_id);
+        const struct_info = switch (struct_type.*) {
             .struct_ty => |*s| s,
             else => return error.InvalidFieldAccess,
         };
 
-        const llvm_struct_ty = try self.get_llvm_type_of(target_ty);
+        const llvm_struct_ty = try self.get_llvm_type_of(struct_ty_id);
 
         var field_index: usize = 0;
         var field_type: types.TypeId = .invalid;
         var found = false;
-        for (struct_ty.fields.items, 0..) |field, i| {
+        for (struct_info.fields.items, 0..) |field, i| {
             if (std.mem.eql(u8, field.name, f_access.field)) {
                 field_index = i;
                 field_type = field.ty;
@@ -1195,12 +1256,15 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_unary(self: *Codegen, u: *ast.UnaryExpr) anyerror!llvm.LLVMValueRef {
+        if (u.op == .new) return self.codegen_new(u.operand);
+
         const e = try self.codegen_expression(u.operand);
         const oty = self.expr_type(u.operand);
         const is_float = switch (self.compiler.sema.types.get(oty).*) {
             .primitive => |p| p == .f32 or p == .f64,
             else => false,
         };
+
         return switch (u.op) {
             .neg => if (is_float) llvm.LLVMBuildFNeg(self.builder, e, "neg_un") else llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
             .bit_not => llvm.LLVMBuildNot(self.builder, e, "bit_not_un"),
@@ -1214,6 +1278,46 @@ pub const Codegen = struct {
                 unreachable;
             },
         };
+    }
+
+    pub fn codegen_new(self: *Codegen, expr: *ast.Expr) !llvm.LLVMValueRef {
+        const type_id = self.expr_type(expr);
+        const llvm_type = try self.get_llvm_type_of(type_id);
+        const size_val = llvm.LLVMConstInt(llvm.LLVMInt64Type(), 8, 0);
+        var args = [_]llvm.LLVMValueRef{size_val};
+
+        const bok_alloc_fn = llvm.LLVMGetNamedFunction(self.mod, "bok_alloc");
+        const bok_alloc_type = llvm.LLVMGlobalGetValueType(bok_alloc_fn);
+
+        const ptr = llvm.LLVMBuildCall2(
+            self.builder,
+            bok_alloc_type,
+            bok_alloc_fn,
+            &args,
+            args.len,
+            "",
+        );
+
+        switch (expr.*) {
+            .struct_literal => |*s| {
+                for (s.field_inits.items, 0..) |field_init, idx| {
+                    const name = try self.allocator.dupeZ(u8, field_init.name);
+                    defer self.allocator.free(name);
+                    const field_ptr = llvm.LLVMBuildStructGEP2(
+                        self.builder,
+                        llvm_type,
+                        ptr,
+                        @intCast(idx),
+                        name,
+                    );
+                    const value = try self.codegen_expression(field_init.value);
+                    _ = llvm.LLVMBuildStore(self.builder, value, field_ptr);
+                }
+            },
+            else => unreachable,
+        }
+
+        return ptr;
     }
 
     pub fn get_type(self: *Codegen, ret_type: *ast.Type) anyerror!llvm.LLVMTypeRef {
@@ -1231,7 +1335,12 @@ pub const Codegen = struct {
                 };
                 return llvm.LLVMArrayType(ele_ty, sz);
             },
-            .named => |*n| return self.struct_types.get(n.name) orelse unreachable,
+            .named => |*n| {
+                if (std.mem.eql(u8, n.name, "ptr")) {
+                    return llvm.LLVMPointerTypeInContext(self.ctx, 64);
+                }
+                return self.struct_types.get(n.name) orelse unreachable;
+            },
             .slice => |*s| {
                 const ele_ty = try self.get_type(s.elem);
                 var fields = [_]llvm.LLVMTypeRef{ llvm.LLVMPointerType(ele_ty, 0), llvm.LLVMInt64Type() };
@@ -1245,7 +1354,6 @@ pub const Codegen = struct {
     }
 
     pub fn get_primitive_type(self: *Codegen, p: *ast.PrimitiveType) !llvm.LLVMTypeRef {
-        _ = self;
         switch (p.*) {
             .i8, .u8 => return llvm.LLVMInt8Type(),
             .i16, .u16 => return llvm.LLVMInt16Type(),
@@ -1256,6 +1364,7 @@ pub const Codegen = struct {
             .bool => return llvm.LLVMInt1Type(),
             .char => return llvm.LLVMInt8Type(),
             .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
+            .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 64),
         }
     }
 
@@ -1273,6 +1382,7 @@ pub const Codegen = struct {
                 .bool => return llvm.LLVMInt1Type(),
                 .char => return llvm.LLVMInt8Type(),
                 .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
+                .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 64),
             },
             .pointer => |p| llvm.LLVMPointerType(try self.get_llvm_type_of(p.child), 0),
             .array => |a| {
