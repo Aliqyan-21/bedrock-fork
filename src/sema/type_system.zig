@@ -14,6 +14,7 @@ pub const Primitive = enum {
     u8, u16, u32, u64,
     f32, f64,
     usize, isize,
+    ptr,
     // zig fmt: on
 };
 

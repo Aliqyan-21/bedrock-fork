@@ -1030,7 +1030,7 @@ pub const Parser = struct {
             },
             .kw_func => return try self.parse_func_type(tok),
             .kw_proc => return try self.parse_proc_type(tok),
-            .ident => {
+            .ident, .kw_ptr => {
                 if (std.meta.stringToEnum(ast.PrimitiveType, tok.val)) |prim| {
                     return ast.BaseType{ .primitive = prim };
                 }

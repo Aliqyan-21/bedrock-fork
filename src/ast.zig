@@ -471,6 +471,7 @@ pub const PrimitiveType = enum {
     bool,
     char,
     str,
+    ptr,
 
     pub fn print(self: *PrimitiveType, indent: usize) anyerror!void {
         _ = indent;

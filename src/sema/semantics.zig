@@ -503,7 +503,15 @@ pub const Sema = struct {
                             },
                         };
                     },
-                    .new => {},
+                    .new => {
+                        const ty = try self.visit_expression(u.operand, null);
+                        if (ty == .invalid) break :blk .invalid;
+                        break :blk try self.types.intern(.{
+                            .pointer = .{
+                                .child = ty,
+                            },
+                        });
+                    },
                 }
                 return .invalid;
             },
