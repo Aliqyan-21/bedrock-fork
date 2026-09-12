@@ -5,9 +5,14 @@ const ast = @import("ast.zig");
 const token = @import("token.zig");
 const types = @import("sema/type_system.zig");
 
+const log = std.log.scoped(.codegen);
+const Error = error{CodegenFail};
+
 pub const Codegen = struct {
     allocator: std.mem.Allocator,
     compiler: *compiler.Compiler,
+    tm: llvm.LLVMTargetMachineRef,
+    triple: [*c]u8,
     ctx: llvm.LLVMContextRef,
     mod: llvm.LLVMModuleRef,
     builder: llvm.LLVMBuilderRef,
@@ -18,12 +23,31 @@ pub const Codegen = struct {
     continue_targets: std.ArrayList(llvm.LLVMBasicBlockRef),
     struct_types: std.StringHashMap(llvm.LLVMTypeRef),
 
-    pub fn init(allocator: std.mem.Allocator, c: *compiler.Compiler) Codegen {
-        return Codegen{
+    pub fn init(allocator: std.mem.Allocator, c: *compiler.Compiler) !Codegen {
+        // initialize target machine and code emission
+        if (std.mem.eql(u8, c.opt.target, "aarch64")) {
+            llvm.LLVMInitializeAArch64TargetInfo();
+            llvm.LLVMInitializeAArch64Target();
+            llvm.LLVMInitializeAArch64TargetMC();
+            llvm.LLVMInitializeAArch64AsmPrinter();
+        } else if (std.mem.eql(u8, c.opt.target, "x86")) {
+            llvm.LLVMInitializeX86TargetInfo();
+            llvm.LLVMInitializeX86Target();
+            llvm.LLVMInitializeX86TargetMC();
+            llvm.LLVMInitializeX86AsmPrinter();
+        } else {
+            log.err("{s} target is not currently supported\n", .{c.opt.target});
+            return Error.CodegenFail;
+        }
+
+        const g_ctx = llvm.LLVMContextCreate();
+        var c_gen = Codegen{
             .allocator = allocator,
             .compiler = c,
-            .ctx = llvm.LLVMContextCreate(),
-            .mod = undefined,
+            .tm = undefined,
+            .triple = llvm.LLVMGetDefaultTargetTriple(),
+            .ctx = g_ctx,
+            .mod = llvm.LLVMModuleCreateWithNameInContext("module", g_ctx),
             .builder = llvm.LLVMCreateBuilder(),
             .entry = undefined,
             .opt = false,
@@ -32,9 +56,35 @@ pub const Codegen = struct {
             .continue_targets = .empty,
             .struct_types = std.StringHashMap(llvm.LLVMTypeRef).init(allocator),
         };
+
+        var target: llvm.LLVMTargetRef = undefined;
+        var err_msg: [*c]u8 = null;
+        _ = llvm.LLVMGetTargetFromTriple(c_gen.triple, &target, &err_msg);
+        if (err_msg) |msg| {
+            log.err("{s}\n", .{std.mem.span(msg)});
+            llvm.LLVMDisposeMessage(msg);
+            return Error.CodegenFail;
+        }
+
+        // create target machine for code emmision
+        c_gen.tm = llvm.LLVMCreateTargetMachine(
+            target,
+            c_gen.triple,
+            "generic",
+            "",
+            llvm.LLVMCodeGenLevelDefault,
+            llvm.LLVMRelocPIC,
+            llvm.LLVMCodeModelDefault,
+        );
+        llvm.LLVMSetModuleDataLayout(c_gen.mod, llvm.LLVMCreateTargetDataLayout(c_gen.tm));
+        llvm.LLVMSetTarget(c_gen.mod, c_gen.triple);
+
+        return c_gen;
     }
 
     pub fn deinit(self: *Codegen) void {
+        llvm.LLVMDisposeTargetMachine(self.tm);
+        llvm.LLVMDisposeMessage(self.triple);
         self.stack_map.deinit();
         self.break_targets.deinit(self.allocator);
         self.continue_targets.deinit(self.allocator);
@@ -66,7 +116,6 @@ pub const Codegen = struct {
     }
 
     pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {
-        self.mod = llvm.LLVMModuleCreateWithNameInContext("module", self.ctx);
         try self.codegen_alloc_mem();
         try self.codegen_program(self.compiler.ast.program);
 

@@ -9,6 +9,7 @@ pub const Options = struct {
     emit_ir: bool = false,
     sema: bool = false,
     run_jit: bool = false,
+    emit_obj: bool = false,
     testing: bool = false,
 };
 
@@ -55,6 +56,9 @@ pub fn parse(args: anytype) !Options {
         } else if (std.mem.eql(u8, arg, "--emit-ir")) {
             options.emit_ir = true;
             options.sema = true;
+        } else if (std.mem.eql(u8, arg, "-o")) {
+            options.emit_obj = true;
+            options.sema = true;
         } else if (std.mem.eql(u8, arg, "--sema")) {
             options.sema = true;
         } else if (std.mem.eql(u8, arg, "--jit")) {
@@ -93,6 +97,7 @@ pub fn printUsage() void {
         \\Options:
         \\  --emit-ast              emit AST
         \\  --emit-ir               emit LLVM IR
+        \\  --o                     emit object file
         \\  --sema                  run semantic analysis
         \\  --jit                   compilation target
         \\  --help                  show this help

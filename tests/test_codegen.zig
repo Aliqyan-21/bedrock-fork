@@ -11,6 +11,8 @@ const codegen = bedrock.codegen;
 const cli = bedrock.cli;
 const llvm = bedrock.llvm;
 
+const log = std.log.scoped(.codegen_tests);
+
 fn parse_expected_output(source: []const u8) ?[]const u8 {
     var lines = std.mem.splitScalar(u8, source, '\n');
 
