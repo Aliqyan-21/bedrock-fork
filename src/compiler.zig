@@ -72,7 +72,7 @@ pub const Compiler = struct {
         var gen: llvm.LLVMOrcDefinitionGeneratorRef = undefined;
         const gen_err = llvm.LLVMOrcCreateDynamicLibrarySearchGeneratorForPath(
             &gen,
-            "zig-out/lib/libmemory.dylib",
+            dyn_mem.ptr,
             0,
             null,
             null,
