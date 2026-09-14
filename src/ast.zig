@@ -813,6 +813,7 @@ pub const UnaryExpr = struct {
             .not => "!",
             .addr_of => "&",
             .deref => "*",
+            .new => "new",
         };
         return try std.fmt.allocPrint(allocator, "({s}{s})", .{ op, o });
     }

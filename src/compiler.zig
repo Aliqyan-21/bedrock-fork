@@ -9,6 +9,9 @@ const codegen = @import("codegen.zig");
 const sema = @import("sema/semantics.zig");
 const Options = @import("cli.zig").Options;
 
+const log = std.log.scoped(.compiler);
+const Error = error{ CompilerFail, JitError, MainFuncNotFound };
+
 pub const JitRetType = union(enum) {
     i32: i32,
     f32: f32,
@@ -39,47 +42,55 @@ pub const Compiler = struct {
     }
 
     pub fn jit(self: *Compiler) !JitRetType {
-        // jit compilation
-        if (std.mem.eql(u8, self.opt.target, "aarch64")) {
-            llvm.LLVMInitializeAArch64TargetInfo();
-            llvm.LLVMInitializeAArch64Target();
-            llvm.LLVMInitializeAArch64TargetMC();
-            llvm.LLVMInitializeAArch64AsmPrinter();
-        } else if (std.mem.eql(u8, self.opt.target, "x86")) {
-            llvm.LLVMInitializeX86TargetInfo();
-            llvm.LLVMInitializeX86Target();
-            llvm.LLVMInitializeX86TargetMC();
-            llvm.LLVMInitializeX86AsmPrinter();
-        } else {
-            std.debug.print("{s} target is not currently supported\n", .{self.opt.target});
-            return error.JitError;
+        const jit_builder = llvm.LLVMOrcCreateLLJITBuilder();
+        if (jit_builder == null) {
+            log.err("failed to create LLJIT builder\n", .{});
+            return Error.JitError;
         }
 
-        const builder = llvm.LLVMOrcCreateLLJITBuilder();
-        if (builder == null) {
-            std.debug.print("failed to create LLJIT builder\n", .{});
-            return error.JitError;
-        }
         var j: llvm.LLVMOrcLLJITRef = null;
-        _ = llvm.LLVMOrcCreateLLJIT(&j, builder);
-        if (j == null) {
-            std.debug.print("LLVM failed to create LLJIT\n", .{});
-            return error.JitError;
+        const e = llvm.LLVMOrcCreateLLJIT(&j, jit_builder);
+        if (e != null) {
+            const err_ref = llvm.LLVMGetErrorMessage(e);
+            log.err("{s}\n", .{err_ref});
+            llvm.LLVMDisposeErrorMessage(err_ref);
+            return Error.JitError;
         }
 
         const jd = llvm.LLVMOrcLLJITGetMainJITDylib(j);
         // add runtime mem
-        var obj_mem: llvm.LLVMMemoryBufferRef = undefined;
-        if (llvm.LLVMCreateMemoryBufferWithContentsOfFile("zig-out/memory.o", &obj_mem, null) != 0) {
-            return error.BufferCreateFailed;
+        var dyn_mem: []const u8 = "";
+        if (std.mem.eql(u8, self.opt.target, "aarch64")) {
+            dyn_mem = "zig-out/lib/libmemory.dylib";
+        } else if (std.mem.eql(u8, self.opt.target, "x86")) {
+            dyn_mem = "zig-out/lib/libmemory.so";
+        } else {
+            log.err("Linking to memory runtime not supported for this aarch\n", .{});
+            return Error.JitError;
         }
 
-        _ = llvm.LLVMOrcLLJITAddObjectFile(j, jd, obj_mem);
+        var gen: llvm.LLVMOrcDefinitionGeneratorRef = undefined;
+        const gen_err = llvm.LLVMOrcCreateDynamicLibrarySearchGeneratorForPath(
+            &gen,
+            dyn_mem.ptr,
+            0,
+            null,
+            null,
+        );
+
+        if (gen_err != null) {
+            const err_ref = llvm.LLVMGetErrorMessage(gen_err);
+            log.err("{s}\n", .{err_ref});
+            llvm.LLVMDisposeErrorMessage(err_ref);
+            return Error.JitError;
+        }
+
+        llvm.LLVMOrcJITDylibAddGenerator(jd, gen);
 
         const func = llvm.LLVMGetNamedFunction(self.mod, "main");
         if (func == null) {
-            std.debug.print("main func not found in the program\n", .{});
-            return error.MainNotFound;
+            log.err("main func not found in the program\n", .{});
+            return Error.MainFuncNotFound;
         }
         const func_type = llvm.LLVMGlobalGetValueType(func);
         const return_type = llvm.LLVMGetReturnType(func_type);
@@ -92,27 +103,30 @@ pub const Compiler = struct {
         var addr: llvm.LLVMOrcExecutorAddress = undefined;
         _ = llvm.LLVMOrcLLJITLookup(j, &addr, @ptrCast("main"));
 
-        var res: JitRetType = undefined;
         switch (llvm.LLVMGetTypeKind(return_type)) {
             llvm.LLVMIntegerTypeKind => {
                 const Main = @as(*const fn () callconv(.c) i32, @ptrFromInt(addr));
-                res = .{ .i32 = Main() };
+                const res = Main();
+                log.debug("jit result: {}\n", .{res});
+                return .{ .i32 = res };
             },
             llvm.LLVMFloatTypeKind => {
                 const Main = @as(*const fn () callconv(.c) f32, @ptrFromInt(addr));
-                res = .{ .f32 = Main() };
+                const res = Main();
+                log.debug("jit result: {}\n", .{res});
+                return .{ .f32 = res };
             },
             llvm.LLVMDoubleTypeKind => {
                 const Main = @as(*const fn () callconv(.c) f64, @ptrFromInt(addr));
-                res = .{ .f64 = Main() };
+                const res = Main();
+                log.debug("jit result: {}\n", .{res});
+                return .{ .f64 = res };
             },
             else => {
-                std.debug.print("ret type is not supported\n", .{});
-                return error.JitRetTypeUnsupported;
+                log.err("ret type is not supported\n", .{});
+                return Error.JitError;
             },
         }
-
-        return res;
     }
 
     pub fn run(self: *Compiler) !JitRetType {
@@ -120,9 +134,9 @@ pub const Compiler = struct {
             var tokens = try lexer.tokenize(self.allocator, self.source);
             defer tokens.deinit(self.allocator);
 
-            std.debug.print("\nTokens:\n", .{});
+            log.debug("\nTokens:\n", .{});
             for (tokens.items) |tok| {
-                std.debug.print("{d}:{d:<3} {s:<12} '{s}'\n", .{ tok.line, tok.col, @tagName(tok.type), tok.val });
+                log.debug("{d}:{d:<3} {s:<12} '{s}'\n", .{ tok.line, tok.col, @tagName(tok.type), tok.val });
             }
         }
 
@@ -140,21 +154,29 @@ pub const Compiler = struct {
 
         var r: JitRetType = .{ .i32 = 0 };
         if (self.opt.run_jit or self.opt.emit_ir) {
-            var c = codegen.Codegen.init(self.allocator, self);
+            var c = try codegen.Codegen.init(self.allocator, self);
             self.mod = try c.codegen();
             self.ctx = c.ctx;
-            var error_message: [*c]u8 = null;
-            const res = llvm.LLVMPrintModuleToFile(self.mod, "./corpus/codegen/dump.ll", &error_message);
-            if (res != 0) {
-                if (error_message) |msg| {
-                    std.debug.print("LLVM: {s}\n", .{std.mem.span(msg)});
+
+            var err_msg: [*c]u8 = null;
+            if (self.opt.emit_ir) {
+                _ = llvm.LLVMPrintModuleToFile(self.mod, "./build/dump.ll", &err_msg);
+                if (err_msg) |msg| {
+                    log.err("{s}\n", .{std.mem.span(msg)});
                     llvm.LLVMDisposeMessage(msg);
+                    return Error.CompilerFail;
                 }
+                const mod_str = llvm.LLVMPrintModuleToString(self.mod);
+                log.debug("{s}\n", .{mod_str});
             }
 
-            if (self.opt.emit_ir) {
-                const mod_str = llvm.LLVMPrintModuleToString(self.mod);
-                std.debug.print("{s}\n", .{mod_str});
+            if (self.opt.emit_obj) {
+                _ = llvm.LLVMTargetMachineEmitToFile(c.tm, c.mod, "./build/out.o", llvm.LLVMObjectFile, &err_msg);
+                if (err_msg) |msg| {
+                    log.err("{s}\n", .{std.mem.span(msg)});
+                    llvm.LLVMDisposeMessage(msg);
+                    return Error.CompilerFail;
+                }
             }
 
             if (self.opt.run_jit) {
@@ -199,29 +221,29 @@ pub const Compiler = struct {
                 } else if (l_count >= e.token.line + 3) {
                     break;
                 } else if (l_count == e.token.line) {
-                    std.debug.print("{d} | {s}", .{ l_count, l[0 .. e.token.col - 1] });
-                    std.debug.print("{s}", .{l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]});
-                    std.debug.print("{s}\n", .{l[e.token.col + e.token.val.len - 1 ..]});
-                    std.debug.print("    ", .{});
+                    log.debug("{d} | {s}", .{ l_count, l[0 .. e.token.col - 1] });
+                    log.debug("{s}", .{l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]});
+                    log.debug("{s}\n", .{l[e.token.col + e.token.val.len - 1 ..]});
+                    log.debug("    ", .{});
                     for (l[0 .. e.token.col - 1]) |_| {
-                        std.debug.print(" ", .{});
+                        log.debug(" ", .{});
                     }
                     for (l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]) |_| {
-                        std.debug.print("^", .{});
+                        log.debug("^", .{});
                     }
                     switch (e.severity) {
                         err.Severity.Error => {
-                            std.debug.print(" \x1b[31m{s}\x1b[0m\n\n", .{e.msg});
+                            log.debug(" \x1b[31m{s}\x1b[0m\n\n", .{e.msg});
                         },
                         err.Severity.Warn => {
-                            std.debug.print(" \x1b[33m{s}\x1b[0m\n\n", .{e.msg});
+                            log.debug(" \x1b[33m{s}\x1b[0m\n\n", .{e.msg});
                         },
                         err.Severity.Info => {
-                            std.debug.print(" \x1b[36m{s}\x1b[0m\n\n", .{e.msg});
+                            log.debug(" \x1b[36m{s}\x1b[0m\n\n", .{e.msg});
                         },
                     }
                 } else {
-                    std.debug.print("{d} | {s}\n", .{ l_count, l });
+                    log.debug("{d} | {s}\n", .{ l_count, l });
                 }
                 l_count += 1;
             }
