@@ -20,6 +20,7 @@ pub const JitRetType = union(enum) {
 
 pub const Compiler = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
     errors: std.ArrayList(err.SourceError),
     source: []const u8,
     ast: ast.AST,
@@ -28,9 +29,10 @@ pub const Compiler = struct {
     mod: llvm.LLVMModuleRef,
     opt: Options,
 
-    pub fn init(allocator: std.mem.Allocator, source: []const u8, opt: Options) Compiler {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, source: []const u8, opt: Options) Compiler {
         return Compiler{
             .allocator = allocator,
+            .io = io,
             .errors = .empty,
             .source = source,
             .ast = undefined,
@@ -39,6 +41,47 @@ pub const Compiler = struct {
             .ctx = undefined,
             .opt = opt,
         };
+    }
+
+    // runtime!! //
+    // using system linker "cc" for now
+    pub fn link(self: *Compiler, obj_path: []const u8) !void {
+        var rt_lib: []const u8 = "";
+        var rt_dir: []const u8 = "";
+        if (std.mem.eql(u8, self.opt.target, "aarch64")) {
+            rt_lib = "zig-out/lib/libmemory.dylib";
+            rt_dir = "zig-out/lib";
+        } else if (std.mem.eql(u8, self.opt.target, "x86")) {
+            rt_lib = "zig-out/lib/libmemory.so";
+            rt_dir = "zig-out/lib";
+        } else {
+            log.err("linking not supported for this target\n", .{});
+            return Error.CompilerFail;
+        }
+
+        // note: hardcoding -rpath so that it can find the libmemory.so
+        const rpath_flag = try std.fmt.allocPrint(self.allocator, "-Wl,-rpath,{s}", .{rt_dir});
+        defer self.allocator.free(rpath_flag);
+
+        const argv = [_][]const u8{
+            "cc",
+            obj_path,
+            rt_lib,
+            rpath_flag,
+            "-o",
+            self.opt.output,
+        };
+
+        const result = try std.process.run(self.allocator, self.io, .{ .argv = &argv });
+        defer self.allocator.free(result.stdout);
+        defer self.allocator.free(result.stderr);
+
+        if (result.term != .exited or result.term.exited != 0) {
+            log.err("linker failed:\n{s}\n", .{result.stderr});
+            return Error.CompilerFail;
+        }
+
+        log.debug("executable formed {s}\n", .{self.opt.output});
     }
 
     pub fn jit(self: *Compiler) !JitRetType {
@@ -153,7 +196,7 @@ pub const Compiler = struct {
         }
 
         var r: JitRetType = .{ .i32 = 0 };
-        if (self.opt.run_jit or self.opt.emit_ir) {
+        if (self.opt.run_jit or self.opt.emit_ir or self.opt.emit_obj) {
             var c = try codegen.Codegen.init(self.allocator, self);
             self.mod = try c.codegen();
             self.ctx = c.ctx;
@@ -171,11 +214,17 @@ pub const Compiler = struct {
             }
 
             if (self.opt.emit_obj) {
-                _ = llvm.LLVMTargetMachineEmitToFile(c.tm, c.mod, "./build/out.o", llvm.LLVMObjectFile, &err_msg);
+                var buf: [std.fs.max_path_bytes]u8 = undefined;
+                const obj_path = try std.fmt.bufPrintZ(&buf, "{s}.o", .{self.opt.output});
+                _ = llvm.LLVMTargetMachineEmitToFile(c.tm, c.mod, obj_path.ptr, llvm.LLVMObjectFile, &err_msg);
                 if (err_msg) |msg| {
                     log.err("{s}\n", .{std.mem.span(msg)});
                     llvm.LLVMDisposeMessage(msg);
                     return Error.CompilerFail;
+                }
+
+                if (self.opt.link) {
+                    try self.link(obj_path);
                 }
             }
 

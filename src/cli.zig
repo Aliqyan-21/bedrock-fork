@@ -10,6 +10,8 @@ pub const Options = struct {
     sema: bool = false,
     run_jit: bool = false,
     emit_obj: bool = false,
+    link: bool = false,
+    output: []const u8 = "a.out",
     testing: bool = false,
 };
 
@@ -58,7 +60,12 @@ pub fn parse(args: anytype) !Options {
             options.sema = true;
         } else if (std.mem.eql(u8, arg, "-o")) {
             options.emit_obj = true;
+            options.link = true;
             options.sema = true;
+            options.output = args.next() orelse {
+                std.debug.print("error: '-o' requires an output path\n", .{});
+                return error.MissingInput;
+            };
         } else if (std.mem.eql(u8, arg, "--sema")) {
             options.sema = true;
         } else if (std.mem.eql(u8, arg, "--jit")) {
@@ -97,7 +104,7 @@ pub fn printUsage() void {
         \\Options:
         \\  --emit-ast              emit AST
         \\  --emit-ir               emit LLVM IR
-        \\  --o                     emit object file
+        \\  -o <path>               compile and link to an executable at <path>
         \\  --sema                  run semantic analysis
         \\  --jit                   compilation target
         \\  --help                  show this help

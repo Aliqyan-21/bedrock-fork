@@ -25,7 +25,7 @@ pub fn main(init: std.process.Init) !void {
     const source = try std.Io.Dir.cwd().readFileAlloc(init.io, options.file, allocator, .limited(1 << 22));
     defer allocator.free(source);
 
-    var c = compiler.Compiler.init(allocator, source, options);
+    var c = compiler.Compiler.init(allocator, init.io, source, options);
     _ = try c.run();
     defer c.deinit();
 }
