@@ -1,4 +1,3 @@
-// output: 0
 extern proc InitWindow(w: i32, h: i32, title: str);
 extern func WindowShouldClose() -> bool;
 extern proc BeginDrawing();

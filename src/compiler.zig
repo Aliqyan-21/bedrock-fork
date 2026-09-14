@@ -49,7 +49,7 @@ pub const Compiler = struct {
         }
 
         var j: llvm.LLVMOrcLLJITRef = null;
-        var e = llvm.LLVMOrcCreateLLJIT(&j, jit_builder);
+        const e = llvm.LLVMOrcCreateLLJIT(&j, jit_builder);
         if (e != null) {
             const err_ref = llvm.LLVMGetErrorMessage(e);
             log.err("{s}\n", .{err_ref});
@@ -59,22 +59,33 @@ pub const Compiler = struct {
 
         const jd = llvm.LLVMOrcLLJITGetMainJITDylib(j);
         // add runtime mem
-        const err_msg: [*c][*c]u8 = null;
-        var obj_mem: llvm.LLVMMemoryBufferRef = undefined;
-        _ = llvm.LLVMCreateMemoryBufferWithContentsOfFile("zig-out/memory.o", &obj_mem, err_msg);
-        if (err_msg) |msg| {
-            log.err("{s}\n", .{std.mem.span(msg)});
-            llvm.LLVMDisposeMessage(msg);
+        var dyn_mem: []const u8 = "";
+        if (std.mem.eql(u8, self.opt.target, "aarch64")) {
+            dyn_mem = "zig-out/lib/libmemory.dylib";
+        } else if (std.mem.eql(u8, self.opt.target, "x86")) {
+            dyn_mem = "zig-out/lib/libmemory.so";
+        } else {
+            log.err("Linking to memory runtime not supported for this aarch\n", .{});
             return Error.JitError;
         }
 
-        e = llvm.LLVMOrcLLJITAddObjectFile(j, jd, obj_mem);
-        if (e != null) {
-            const err_ref = llvm.LLVMGetErrorMessage(e);
+        var gen: llvm.LLVMOrcDefinitionGeneratorRef = undefined;
+        const gen_err = llvm.LLVMOrcCreateDynamicLibrarySearchGeneratorForPath(
+            &gen,
+            "zig-out/lib/libmemory.dylib",
+            0,
+            null,
+            null,
+        );
+
+        if (gen_err != null) {
+            const err_ref = llvm.LLVMGetErrorMessage(gen_err);
             log.err("{s}\n", .{err_ref});
             llvm.LLVMDisposeErrorMessage(err_ref);
             return Error.JitError;
         }
+
+        llvm.LLVMOrcJITDylibAddGenerator(jd, gen);
 
         const func = llvm.LLVMGetNamedFunction(self.mod, "main");
         if (func == null) {
