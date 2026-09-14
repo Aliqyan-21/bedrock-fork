@@ -1174,8 +1174,7 @@ pub const Codegen = struct {
         const a = try self.allocator.alloc(llvm.LLVMValueRef, args.items.len);
         for (args.items, 0..) |arg, idx| {
             const arg_ty = self.expr_type(arg.value);
-            const param_ty = param_types[idx];
-            if (self.is_array_slice_conversion(arg_ty, param_ty)) {
+            if (param_types.len > 0 and self.is_array_slice_conversion(arg_ty, param_types[idx])) {
                 a[idx] = try self.codegen_array_as_slice(arg.value, arg_ty);
             } else {
                 a[idx] = try self.codegen_expression(arg.value);

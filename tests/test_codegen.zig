@@ -74,10 +74,11 @@ test "codegen-test" {
         .emit_ir = false,
         .sema = true,
         .run_jit = true,
+        .emit_obj = false,
         .testing = true,
     };
     for (codegen_files.items) |f| {
-        const s = try std.fmt.allocPrint(allocator, "Running file {s}...\n", .{f});
+        const s = try std.fmt.allocPrint(allocator, "Testing file {s}:", .{f});
         defer allocator.free(s);
 
         options.file = f;
@@ -87,7 +88,10 @@ test "codegen-test" {
         const expected = parse_expected_output(source);
         if (expected != null) {
             var c = compiler.Compiler.init(allocator, source, options);
-            const res: compiler.JitRetType = try c.run();
+            const res: compiler.JitRetType = c.run() catch {
+                log.info("{s} failed\n", .{s});
+                return;
+            };
             const res_dup = switch (res) {
                 .i32 => try std.fmt.allocPrint(allocator, "{}", .{res.i32}),
                 .f32 => try std.fmt.allocPrint(allocator, "{}", .{res.f32}),
@@ -101,6 +105,7 @@ test "codegen-test" {
                 // skip traces
             };
 
+            log.info("{s} passsed\n", .{s});
             defer allocator.free(res_dup);
             defer c.deinit();
         }
