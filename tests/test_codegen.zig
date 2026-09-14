@@ -87,7 +87,7 @@ test "codegen-test" {
 
         const expected = parse_expected_output(source);
         if (expected != null) {
-            var c = compiler.Compiler.init(allocator, source, options);
+            var c = compiler.Compiler.init(allocator, io, source, options);
             const res: compiler.JitRetType = c.run() catch {
                 log.info("{s} failed\n", .{s});
                 return;

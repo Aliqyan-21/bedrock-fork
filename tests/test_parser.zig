@@ -38,7 +38,7 @@ fn parse_type(allocator: std.mem.Allocator, source: []const u8) !TypeResult {
         .testing = false,
     };
     const c = try allocator.create(compiler.Compiler);
-    c.* = compiler.Compiler.init(allocator, source, options);
+    c.* = compiler.Compiler.init(allocator, std.testing.io, source, options);
     var p = parser.Parser.init(allocator, source, c);
     const ty = try p.parse_type();
     return .{ .ty = ty, .c = c };
@@ -56,7 +56,7 @@ fn parse_expression(allocator: std.mem.Allocator, source: []const u8) ![]const u
         .testing = false,
     };
 
-    var c = compiler.Compiler.init(allocator, source, options);
+    var c = compiler.Compiler.init(allocator, std.testing.io, source, options);
     var p = parser.Parser.init(allocator, source, &c);
     var expr = try p.parse_expression();
     const buf = try expr.to_string(allocator);
@@ -78,7 +78,7 @@ fn parse_stmt(allocator: std.mem.Allocator, source: []const u8) !StmtResult {
     };
 
     const c = try allocator.create(compiler.Compiler);
-    c.* = compiler.Compiler.init(allocator, source, options);
+    c.* = compiler.Compiler.init(allocator, std.testing.io, source, options);
     var p = parser.Parser.init(allocator, source, c);
     const stmt = try p.parse_statement();
     return .{ .stmt = stmt, .c = c };
