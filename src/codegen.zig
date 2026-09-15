@@ -48,7 +48,7 @@ pub const Codegen = struct {
             .triple = llvm.LLVMGetDefaultTargetTriple(),
             .ctx = g_ctx,
             .mod = llvm.LLVMModuleCreateWithNameInContext("module", g_ctx),
-            .builder = llvm.LLVMCreateBuilder(),
+            .builder = llvm.LLVMCreateBuilderInContext(g_ctx),
             .entry = undefined,
             .opt = false,
             .stack_map = std.StringHashMap(llvm.LLVMValueRef).init(allocator),
@@ -92,14 +92,14 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_alloc_mem(self: *Codegen) !void {
-        const ret_init = llvm.LLVMVoidType();
+        const ret_init = llvm.LLVMVoidTypeInContext(self.ctx);
         const func_type_init: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_init, null, 0, 0);
         const name_init = try self.allocator.dupeZ(u8, "bok_init");
         defer self.allocator.free(name_init);
         const func_init: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name_init.ptr, func_type_init);
         llvm.LLVMSetLinkage(func_init, llvm.LLVMExternalLinkage);
 
-        const ret_deinit = llvm.LLVMVoidType();
+        const ret_deinit = llvm.LLVMVoidTypeInContext(self.ctx);
         const func_type_deinit: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_deinit, null, 0, 0);
         const name_deinit = try self.allocator.dupeZ(u8, "bok_deinit");
         defer self.allocator.free(name_deinit);
@@ -107,7 +107,7 @@ pub const Codegen = struct {
         llvm.LLVMSetLinkage(func_deinit, llvm.LLVMExternalLinkage);
 
         const ret_alloc = llvm.LLVMPointerTypeInContext(self.ctx, 0);
-        var params_alloc: [1]llvm.LLVMTypeRef = .{llvm.LLVMInt64Type()};
+        var params_alloc: [1]llvm.LLVMTypeRef = .{llvm.LLVMInt64TypeInContext(self.ctx)};
         const func_type_alloc: llvm.LLVMTypeRef = llvm.LLVMFunctionType(ret_alloc, @ptrCast(&params_alloc), 1, 0);
         const name_alloc = try self.allocator.dupeZ(u8, "bok_alloc");
         defer self.allocator.free(name_alloc);
@@ -118,6 +118,17 @@ pub const Codegen = struct {
     pub fn codegen(self: *Codegen) !llvm.LLVMModuleRef {
         try self.codegen_alloc_mem();
         try self.codegen_program(self.compiler.ast.program);
+
+        // verify module
+        var err_msg: [*c]u8 = null;
+        const v_ret = llvm.LLVMVerifyModule(self.mod, llvm.LLVMPrintMessageAction, &err_msg);
+        if (v_ret != 0) {
+            if (err_msg) |msg| {
+                log.err("{s}\n", .{std.mem.span(msg)});
+                llvm.LLVMDisposeMessage(msg);
+                return Error.CodegenFail;
+            }
+        }
 
         // set the pass managers
         if (self.opt) {
@@ -165,7 +176,7 @@ pub const Codegen = struct {
             llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
         }
 
-        self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
+        self.entry = llvm.LLVMAppendBasicBlockInContext(self.ctx, main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
 
         // store params on stack
@@ -197,7 +208,7 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_proc(self: *Codegen, proc: *ast.ProcDef) !void {
-        const ret_type = llvm.LLVMVoidType();
+        const ret_type = llvm.LLVMVoidTypeInContext(self.ctx);
         const params = try self.codegen_params(proc.params);
         defer self.allocator.free(params);
         const params_len: c_uint = @intCast(proc.params.items.len);
@@ -215,7 +226,7 @@ pub const Codegen = struct {
             llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
         }
 
-        self.entry = llvm.LLVMAppendBasicBlock(main_func, "entry");
+        self.entry = llvm.LLVMAppendBasicBlockInContext(self.ctx, main_func, "entry");
         llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
 
         // store params on stack
@@ -268,7 +279,7 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_extern_proc(self: *Codegen, e: *ast.ExternDef) !void {
-        const ret_type = llvm.LLVMVoidType();
+        const ret_type = llvm.LLVMVoidTypeInContext(self.ctx);
         const params = try self.codegen_params(e.kind.proc.params);
         defer self.allocator.free(params);
         const params_len: c_uint = @intCast(e.kind.proc.params.items.len);
@@ -352,12 +363,12 @@ pub const Codegen = struct {
         const array_ty = try self.get_llvm_type_of(self.expr_type(e));
         const arr = llvm.LLVMBuildAlloca(self.builder, array_ty, "");
         var indices = [2]llvm.LLVMValueRef{
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
         };
 
         for (a.elements.items, 0..) |ele, idx| {
-            indices[1] = llvm.LLVMConstInt(llvm.LLVMInt64Type(), idx, 0);
+            indices[1] = llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), idx, 0);
             const value = try self.codegen_expression(ele);
             const gep = llvm.LLVMBuildGEPWithNoWrapFlags(
                 self.builder,
@@ -390,9 +401,9 @@ pub const Codegen = struct {
         // jmp to while condition block
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
 
-        const cond_bb = llvm.LLVMAppendBasicBlock(func, "cond_bb");
-        const while_bb = llvm.LLVMAppendBasicBlock(func, "while_bb");
-        const merge_bb = llvm.LLVMAppendBasicBlock(func, "merge");
+        const cond_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "cond_bb");
+        const while_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "while_bb");
+        const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "merge");
 
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
@@ -418,19 +429,19 @@ pub const Codegen = struct {
     pub fn codegen_if(self: *Codegen, i: *ast.IfExpr) !llvm.LLVMValueRef {
         // get the parent function for block insertion
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
-        const then_bb = llvm.LLVMAppendBasicBlock(func, "then");
-        const merge_bb = llvm.LLVMAppendBasicBlock(func, "merge");
+        const then_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "then");
+        const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "merge");
 
         const elif_bbs = try self.allocator.alloc(llvm.LLVMBasicBlockRef, i.elifs.items.len);
         defer self.allocator.free(elif_bbs);
         const elif_then_bbs = try self.allocator.alloc(llvm.LLVMBasicBlockRef, i.elifs.items.len);
         defer self.allocator.free(elif_then_bbs);
         for (elif_bbs, 0..) |*bb, idx| {
-            bb.* = llvm.LLVMAppendBasicBlock(func, "elif_check");
-            elif_then_bbs[idx] = llvm.LLVMAppendBasicBlock(func, "elif_then");
+            bb.* = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "elif_check");
+            elif_then_bbs[idx] = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "elif_then");
         }
 
-        const else_bb = llvm.LLVMAppendBasicBlock(func, "else");
+        const else_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "else");
 
         const first_false_bb = if (elif_bbs.len > 0) elif_bbs[0] else else_bb;
         const cond = try self.codegen_expression(i.cond);
@@ -479,7 +490,7 @@ pub const Codegen = struct {
 
         // codegen merge block
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
-        // const phi = llvm.LLVMBuildPhi(self.builder, llvm.LLVMInt32Type(), "");
+        // const phi = llvm.LLVMBuildPhi(self.builder, llvm.LLVMInt32TypeInContext(self.ctx), "");
         // _ = [_]llvm.LLVMValueRef{ then_val, else_val };
         // _ = [_]llvm.LLVMBasicBlockRef{ then_bb, else_bb };
         // _ = llvm.LLVMAddIncoming(phi, @ptrCast(@constCast(&values)), @ptrCast(@constCast(&blocks)), 2);
@@ -496,18 +507,18 @@ pub const Codegen = struct {
             else => return error.UnsupportedArrayTarget,
         };
 
-        const l = llvm.LLVMConstInt(llvm.LLVMInt64Type(), len, 0);
+        const l = llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), len, 0);
 
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
-        const cond_bb = llvm.LLVMAppendBasicBlock(func, "for_cond");
-        const body_bb = llvm.LLVMAppendBasicBlock(func, "for_body");
-        const merge_bb = llvm.LLVMAppendBasicBlock(func, "for_merge");
+        const cond_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_cond");
+        const body_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_body");
+        const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_merge");
 
         // index variable.
-        const index_alloca = llvm.LLVMBuildAlloca(self.builder, llvm.LLVMInt64Type(), "for_index");
+        const index_alloca = llvm.LLVMBuildAlloca(self.builder, llvm.LLVMInt64TypeInContext(self.ctx), "for_index");
         _ = llvm.LLVMBuildStore(
             self.builder,
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
             index_alloca,
         );
 
@@ -521,14 +532,14 @@ pub const Codegen = struct {
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
 
-        const index = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64Type(), index_alloca, "index");
+        const index = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64TypeInContext(self.ctx), index_alloca, "index");
         const cond = llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULT, index, l, "for_cmp");
         _ = llvm.LLVMBuildCondBr(self.builder, cond, body_bb, merge_bb);
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, body_bb);
 
         var indices = [2]llvm.LLVMValueRef{
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
             index,
         };
 
@@ -552,11 +563,11 @@ pub const Codegen = struct {
         _ = self.continue_targets.pop();
 
         // i = i + 1
-        const curr = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64Type(), index_alloca, "index");
+        const curr = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64TypeInContext(self.ctx), index_alloca, "index");
         const next = llvm.LLVMBuildAdd(
             self.builder,
             curr,
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 1, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 1, 0),
             "for_inc",
         );
         _ = llvm.LLVMBuildStore(self.builder, next, index_alloca);
@@ -576,9 +587,9 @@ pub const Codegen = struct {
         const hi = try self.codegen_expression(b.rhs);
 
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
-        const cond_bb = llvm.LLVMAppendBasicBlock(func, "for_cond");
-        const body_bb = llvm.LLVMAppendBasicBlock(func, "for_body");
-        const merge_bb = llvm.LLVMAppendBasicBlock(func, "for_merge");
+        const cond_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_cond");
+        const body_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_body");
+        const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_merge");
 
         const name = try self.allocator.dupeZ(u8, f.binding);
         defer self.allocator.free(name);
@@ -895,8 +906,8 @@ pub const Codegen = struct {
 
         if (!found) return error.UnknownField;
 
-        const zero = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0);
-        const field_idx = llvm.LLVMConstInt(llvm.LLVMInt32Type(), field_index, 0);
+        const zero = llvm.LLVMConstInt(llvm.LLVMInt32TypeInContext(self.ctx), 0, 0);
+        const field_idx = llvm.LLVMConstInt(llvm.LLVMInt32TypeInContext(self.ctx), field_index, 0);
         var indices = [_]llvm.LLVMValueRef{ zero, field_idx };
         const field_ptr = llvm.LLVMBuildGEP2(
             self.builder,
@@ -972,7 +983,7 @@ pub const Codegen = struct {
         const llvm_array_ty = try self.get_llvm_type_of(array_ty);
         const index = try self.codegen_expression(i.args.items[0]);
         var indices = [2]llvm.LLVMValueRef{
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
             index,
         };
 
@@ -1024,7 +1035,7 @@ pub const Codegen = struct {
         const array_ty = llvm.LLVMGetAllocatedType(arr);
         const index = try self.codegen_expression(i.args.items[0]);
         var indices = [2]llvm.LLVMValueRef{
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
             index,
         };
 
@@ -1133,8 +1144,8 @@ pub const Codegen = struct {
 
         const llvm_array_ty = try self.get_llvm_type_of(array_ty);
         var indices = [_]llvm.LLVMValueRef{
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 0, 0),
         };
 
         const elem_ptr = llvm.LLVMBuildGEP2(
@@ -1149,9 +1160,9 @@ pub const Codegen = struct {
         const elem_ty = try self.get_llvm_type_of(array_info.child);
         var fields = [_]llvm.LLVMTypeRef{
             llvm.LLVMPointerType(elem_ty, 0),
-            llvm.LLVMInt64Type(),
+            llvm.LLVMInt64TypeInContext(self.ctx),
         };
-        const slice_ty = llvm.LLVMStructType(&fields, fields.len, 0);
+        const slice_ty = llvm.LLVMStructTypeInContext(self.ctx, &fields, fields.len, 0);
 
         var slice = llvm.LLVMGetUndef(slice_ty);
 
@@ -1166,7 +1177,7 @@ pub const Codegen = struct {
         slice = llvm.LLVMBuildInsertValue(
             self.builder,
             slice,
-            llvm.LLVMConstInt(llvm.LLVMInt64Type(), array_info.len, 0),
+            llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), array_info.len, 0),
             1,
             "slice_len",
         );
@@ -1202,9 +1213,9 @@ pub const Codegen = struct {
                 const f = try std.fmt.parseFloat(f64, l.raw);
                 return llvm.LLVMConstReal(try self.get_llvm_type_of(ty), f);
             },
-            .bool_true => return llvm.LLVMConstInt(llvm.LLVMInt1Type(), 1, 0),
-            .bool_false => return llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0),
-            .char => return llvm.LLVMConstInt(llvm.LLVMInt8Type(), l.raw[0], 0),
+            .bool_true => return llvm.LLVMConstInt(llvm.LLVMInt1TypeInContext(self.ctx), 1, 0),
+            .bool_false => return llvm.LLVMConstInt(llvm.LLVMInt1TypeInContext(self.ctx), 0, 0),
+            .char => return llvm.LLVMConstInt(llvm.LLVMInt8TypeInContext(self.ctx), l.raw[0], 0),
             .string => {
                 const name = try self.allocator.dupeZ(u8, l.raw);
                 defer self.allocator.free(name);
@@ -1215,30 +1226,30 @@ pub const Codegen = struct {
     }
 
     fn llvm_int_type_of(self: *Codegen, ty: types.TypeId) !llvm.LLVMTypeRef {
-        if (ty == .invalid) return llvm.LLVMInt32Type();
+        if (ty == .invalid) return llvm.LLVMInt32TypeInContext(self.ctx);
 
         return switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| switch (p) {
-                .i8, .u8 => llvm.LLVMInt8Type(),
-                .i16, .u16 => llvm.LLVMInt16Type(),
-                .i32, .u32 => llvm.LLVMInt32Type(),
-                .i64, .u64, .usize, .isize => llvm.LLVMInt64Type(),
-                else => llvm.LLVMInt32Type(),
+                .i8, .u8 => llvm.LLVMInt8TypeInContext(self.ctx),
+                .i16, .u16 => llvm.LLVMInt16TypeInContext(self.ctx),
+                .i32, .u32 => llvm.LLVMInt32TypeInContext(self.ctx),
+                .i64, .u64, .usize, .isize => llvm.LLVMInt64TypeInContext(self.ctx),
+                else => llvm.LLVMInt32TypeInContext(self.ctx),
             },
-            else => llvm.LLVMInt32Type(),
+            else => llvm.LLVMInt32TypeInContext(self.ctx),
         };
     }
 
     fn llvm_float_type_of(self: *Codegen, ty: types.TypeId) !llvm.LLVMTypeRef {
-        if (ty == .invalid) return llvm.LLVMInt32Type();
+        if (ty == .invalid) return llvm.LLVMInt32TypeInContext(self.ctx);
 
         return switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| switch (p) {
-                .f32 => llvm.LLVMFloatType(),
-                .f64 => llvm.LLVMDoubleType(),
-                else => llvm.LLVMDoubleType(),
+                .f32 => llvm.LLVMFloatTypeInContext(self.ctx),
+                .f64 => llvm.LLVMDoubleTypeInContext(self.ctx),
+                else => llvm.LLVMDoubleTypeInContext(self.ctx),
             },
-            else => llvm.LLVMDoubleType(),
+            else => llvm.LLVMDoubleTypeInContext(self.ctx),
         };
     }
 
@@ -1333,7 +1344,7 @@ pub const Codegen = struct {
     pub fn codegen_new(self: *Codegen, expr: *ast.Expr) !llvm.LLVMValueRef {
         const type_id = self.expr_type(expr);
         const llvm_type = try self.get_llvm_type_of(type_id);
-        const size_val = llvm.LLVMConstInt(llvm.LLVMInt64Type(), 8, 0);
+        const size_val = llvm.LLVMConstInt(llvm.LLVMInt64TypeInContext(self.ctx), 8, 0);
         var args = [_]llvm.LLVMValueRef{size_val};
 
         const bok_alloc_fn = llvm.LLVMGetNamedFunction(self.mod, "bok_alloc");
@@ -1383,7 +1394,7 @@ pub const Codegen = struct {
                         unreachable;
                     },
                 };
-                return llvm.LLVMArrayType(ele_ty, sz);
+                return llvm.LLVMArrayType2(ele_ty, sz);
             },
             .named => |*n| {
                 if (std.mem.eql(u8, n.name, "ptr")) {
@@ -1393,8 +1404,8 @@ pub const Codegen = struct {
             },
             .slice => |*s| {
                 const ele_ty = try self.get_type(s.elem);
-                var fields = [_]llvm.LLVMTypeRef{ llvm.LLVMPointerType(ele_ty, 0), llvm.LLVMInt64Type() };
-                return llvm.LLVMStructType(&fields, fields.len, 0);
+                var fields = [_]llvm.LLVMTypeRef{ llvm.LLVMPointerType(ele_ty, 0), llvm.LLVMInt64TypeInContext(self.ctx) };
+                return llvm.LLVMStructTypeInContext(self.ctx, &fields, fields.len, 0);
             },
             else => {
                 // TODO:
@@ -1405,46 +1416,46 @@ pub const Codegen = struct {
 
     pub fn get_primitive_type(self: *Codegen, p: *ast.PrimitiveType) !llvm.LLVMTypeRef {
         switch (p.*) {
-            .i8, .u8 => return llvm.LLVMInt8Type(),
-            .i16, .u16 => return llvm.LLVMInt16Type(),
-            .i32, .u32 => return llvm.LLVMInt32Type(),
-            .i64, .u64, .usize, .isize => return llvm.LLVMInt64Type(),
-            .f32 => return llvm.LLVMFloatType(),
-            .f64 => return llvm.LLVMDoubleType(),
-            .bool => return llvm.LLVMInt1Type(),
-            .char => return llvm.LLVMInt8Type(),
-            .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
+            .i8, .u8 => return llvm.LLVMInt8TypeInContext(self.ctx),
+            .i16, .u16 => return llvm.LLVMInt16TypeInContext(self.ctx),
+            .i32, .u32 => return llvm.LLVMInt32TypeInContext(self.ctx),
+            .i64, .u64, .usize, .isize => return llvm.LLVMInt64TypeInContext(self.ctx),
+            .f32 => return llvm.LLVMFloatTypeInContext(self.ctx),
+            .f64 => return llvm.LLVMDoubleTypeInContext(self.ctx),
+            .bool => return llvm.LLVMInt1TypeInContext(self.ctx),
+            .char => return llvm.LLVMInt8TypeInContext(self.ctx),
+            .str => return llvm.LLVMPointerType(llvm.LLVMInt8TypeInContext(self.ctx), 64),
             .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 64),
         }
     }
 
     pub fn get_llvm_type_of(self: *Codegen, ty: types.TypeId) anyerror!llvm.LLVMTypeRef {
-        if (ty == .invalid) return llvm.LLVMInt32Type(); // note: for temp if some types are not managed in sema for now
+        if (ty == .invalid) return llvm.LLVMInt32TypeInContext(self.ctx); // note: for temp if some types are not managed in sema for now
 
         return switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| switch (p) {
-                .i8, .u8 => return llvm.LLVMInt8Type(),
-                .i16, .u16 => return llvm.LLVMInt16Type(),
-                .i32, .u32 => return llvm.LLVMInt32Type(),
-                .i64, .u64, .usize, .isize => return llvm.LLVMInt64Type(),
-                .f32 => return llvm.LLVMFloatType(),
-                .f64 => return llvm.LLVMDoubleType(),
-                .bool => return llvm.LLVMInt1Type(),
-                .char => return llvm.LLVMInt8Type(),
-                .str => return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 64),
+                .i8, .u8 => return llvm.LLVMInt8TypeInContext(self.ctx),
+                .i16, .u16 => return llvm.LLVMInt16TypeInContext(self.ctx),
+                .i32, .u32 => return llvm.LLVMInt32TypeInContext(self.ctx),
+                .i64, .u64, .usize, .isize => return llvm.LLVMInt64TypeInContext(self.ctx),
+                .f32 => return llvm.LLVMFloatTypeInContext(self.ctx),
+                .f64 => return llvm.LLVMDoubleTypeInContext(self.ctx),
+                .bool => return llvm.LLVMInt1TypeInContext(self.ctx),
+                .char => return llvm.LLVMInt8TypeInContext(self.ctx),
+                .str => return llvm.LLVMPointerType(llvm.LLVMInt8TypeInContext(self.ctx), 64),
                 .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 64),
             },
             .pointer => |p| llvm.LLVMPointerType(try self.get_llvm_type_of(p.child), 0),
             .array => |a| {
                 const ele_ty = try self.get_llvm_type_of(a.child);
                 const sz: c_uint = @intCast(a.len);
-                return llvm.LLVMArrayType(ele_ty, sz);
+                return llvm.LLVMArrayType2(ele_ty, sz);
             },
             .struct_ty => |*s| self.struct_types.get(s.name) orelse return error.NoStructTypeAvailable,
             .slice => |*s| {
                 const ele_ty = try self.get_llvm_type_of(s.child);
-                var fields = [_]llvm.LLVMTypeRef{ llvm.LLVMPointerType(ele_ty, 0), llvm.LLVMInt64Type() };
-                return llvm.LLVMStructType(&fields, fields.len, 0);
+                var fields = [_]llvm.LLVMTypeRef{ llvm.LLVMPointerType(ele_ty, 0), llvm.LLVMInt64TypeInContext(self.ctx) };
+                return llvm.LLVMStructTypeInContext(self.ctx, &fields, fields.len, 0);
             },
             else => {
                 //todo: other typse

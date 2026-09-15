@@ -2,4 +2,5 @@
 #include "llvm-c/LLJIT.h"
 #include "llvm-c/TargetMachine.h"
 #include "llvm-c/Target.h"
+#include "llvm-c/Analysis.h"
 #include "llvm-c/Transforms/PassBuilder.h"
