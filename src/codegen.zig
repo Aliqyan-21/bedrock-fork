@@ -601,11 +601,15 @@ pub const Codegen = struct {
             },
             else => false,
         };
+        const isincl = b.op == .range_incl; // the range is inclusize (..=)
         const i_val = llvm.LLVMBuildLoad2(self.builder, llvm_ty, i_alloca, "");
         const cond = if (is_float)
-            llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOLT, i_val, hi, "for_cmp")
+            llvm.LLVMBuildFCmp(self.builder, if (isincl) llvm.LLVMRealOLE else llvm.LLVMRealOLT, i_val, hi, "for_cmp")
         else
-            llvm.LLVMBuildICmp(self.builder, if (is_signed) llvm.LLVMIntSLT else llvm.LLVMIntULT, i_val, hi, "for_cmp");
+            llvm.LLVMBuildICmp(self.builder, if (is_signed)
+                (if (isincl) llvm.LLVMIntSLE else llvm.LLVMIntSLT)
+            else
+                (if (isincl) llvm.LLVMIntULE else llvm.LLVMIntULT), i_val, hi, "for_cmp");
 
         _ = llvm.LLVMBuildCondBr(self.builder, cond, body_bb, merge_bb);
 
