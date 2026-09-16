@@ -3,6 +3,12 @@ func add(x: i32, y: i32) -> i32
     return x + y;
 end
 
+func addf(x: f32, y: f32) -> f32
+    return x + y;
+end
+
 func main() -> i32
-    return add(10, 10);
+    var i = add(10, 10);
+    var f = addf(10.0, 10.0);
+    return i;
 end
