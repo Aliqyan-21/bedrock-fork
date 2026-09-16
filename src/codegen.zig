@@ -120,15 +120,15 @@ pub const Codegen = struct {
         try self.codegen_program(self.compiler.ast.program);
 
         // verify module
-        // var err_msg: [*c]u8 = null;
-        // const v_ret = llvm.LLVMVerifyModule(self.mod, llvm.LLVMPrintMessageAction, &err_msg);
-        // if (v_ret != 0) {
-        //     if (err_msg) |msg| {
-        //         log.err("{s}\n", .{std.mem.span(msg)});
-        //         llvm.LLVMDisposeMessage(msg);
-        //         return Error.CodegenFail;
-        //     }
-        // }
+        var err_msg: [*c]u8 = null;
+        const v_ret = llvm.LLVMVerifyModule(self.mod, llvm.LLVMPrintMessageAction, &err_msg);
+        if (v_ret != 0) {
+            if (err_msg) |msg| {
+                log.err("{s}\n", .{std.mem.span(msg)});
+                llvm.LLVMDisposeMessage(msg);
+                return Error.CodegenFail;
+            }
+        }
 
         // set the pass managers
         if (self.opt) {
