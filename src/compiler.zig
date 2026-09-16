@@ -185,6 +185,10 @@ pub const Compiler = struct {
 
         var p = parser.Parser.init(self.allocator, self.source, self);
         self.ast = try p.parse();
+        if (self.errors.items.len > 0) {
+            self.ast.deinit(self.allocator);
+            return Error.CompilerFail;
+        }
 
         if (self.opt.emit_ast) try self.ast.print();
 
@@ -193,6 +197,11 @@ pub const Compiler = struct {
             self.sema = sema.Sema.init(self);
             try self.sema.analyze();
             s_run = true;
+            if (self.errors.items.len > 0) {
+                self.ast.deinit(self.allocator);
+                self.sema.deinit();
+                return Error.CompilerFail;
+            }
         }
 
         var r: JitRetType = .{ .i32 = 0 };
@@ -226,6 +235,12 @@ pub const Compiler = struct {
                 if (self.opt.link) {
                     try self.link(obj_path);
                 }
+            }
+
+            if (self.errors.items.len > 0) {
+                self.ast.deinit(self.allocator);
+                c.deinit();
+                return Error.CompilerFail;
             }
 
             if (self.opt.run_jit) {
@@ -300,6 +315,7 @@ pub const Compiler = struct {
     }
 
     pub fn deinit(self: *Compiler) void {
+        try self.emitErrors();
         for (self.errors.items) |e| {
             self.allocator.free(e.msg);
         }
