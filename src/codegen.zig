@@ -167,10 +167,8 @@ pub const Codegen = struct {
         defer self.allocator.free(name);
         const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         if (main_func != null) {
-            // std.debug.print("add function {s} to module\n", .{name});
-        }
-
-        // set function arg names
+            // log.debug("add function {s} to module\n", .{name});
+        } // set function arg names
         for (function.params.items, 0..) |p, idx| {
             const arg = llvm.LLVMGetParam(main_func, @intCast(idx));
             llvm.LLVMSetValueName2(arg, @ptrCast(p.name), p.name.len);
@@ -183,15 +181,12 @@ pub const Codegen = struct {
         self.stack_map.clearRetainingCapacity();
         for (function.params.items, 0..) |p, idx| {
             // allocate the space on stack
-            const alloca = try self.codegen_alloca(main_func, p);
+            const alloca = try self.codegen_alloca(p);
             const arg = llvm.LLVMGetParam(main_func, @intCast(idx));
             // store value on stack space
             _ = llvm.LLVMBuildStore(self.builder, arg, alloca);
             try self.stack_map.put(p.name, alloca);
         }
-
-        // reset the builder position
-        // llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
 
         const bok_init_fn = llvm.LLVMGetNamedFunction(self.mod, "bok_init");
         const bok_init_type = llvm.LLVMGlobalGetValueType(bok_init_fn);
@@ -217,7 +212,7 @@ pub const Codegen = struct {
         defer self.allocator.free(name);
         const main_func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         if (main_func != null) {
-            // std.debug.print("add proc {s} to module\n", .{name});
+            // log.debug("add proc {s} to module\n", .{name});
         }
 
         // set function arg names
@@ -233,15 +228,23 @@ pub const Codegen = struct {
         self.stack_map.clearRetainingCapacity();
         for (proc.params.items, 0..) |p, idx| {
             // allocate the space on stack
-            const alloca = try self.codegen_alloca(main_func, p);
+            const alloca = try self.codegen_alloca(p);
             const arg = llvm.LLVMGetParam(main_func, @intCast(idx));
             // store value on stack space
             _ = llvm.LLVMBuildStore(self.builder, arg, alloca);
             try self.stack_map.put(p.name, alloca);
         }
 
-        // reset the builder position
-        // llvm.LLVMPositionBuilderAtEnd(self.builder, self.entry);
+        const bok_init_fn = llvm.LLVMGetNamedFunction(self.mod, "bok_init");
+        const bok_init_type = llvm.LLVMGlobalGetValueType(bok_init_fn);
+        _ = llvm.LLVMBuildCall2(
+            self.builder,
+            bok_init_type,
+            bok_init_fn,
+            null,
+            0,
+            "",
+        );
 
         _ = try self.codegen_statements(proc.body);
 
@@ -268,7 +271,7 @@ pub const Codegen = struct {
         const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         llvm.LLVMSetLinkage(func, llvm.LLVMExternalLinkage);
         if (func != null) {
-            // std.debug.print("add extern {s} to module\n", .{name});
+            // log.debug("add extern {s} to module\n", .{name});
         }
 
         // set function arg names
@@ -290,7 +293,7 @@ pub const Codegen = struct {
         const func: llvm.LLVMValueRef = llvm.LLVMAddFunction(self.mod, name.ptr, func_type);
         llvm.LLVMSetLinkage(func, llvm.LLVMExternalLinkage);
         if (func != null) {
-            // std.debug.print("add extern {s} to module\n", .{name});
+            // log.debug("add extern {s} to module\n", .{name});
         }
 
         // set function arg names
@@ -429,19 +432,19 @@ pub const Codegen = struct {
     pub fn codegen_if(self: *Codegen, i: *ast.IfExpr) !llvm.LLVMValueRef {
         // get the parent function for block insertion
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
-        const then_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "then");
-        const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "merge");
+        const then_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "then_bb");
 
         const elif_bbs = try self.allocator.alloc(llvm.LLVMBasicBlockRef, i.elifs.items.len);
         defer self.allocator.free(elif_bbs);
         const elif_then_bbs = try self.allocator.alloc(llvm.LLVMBasicBlockRef, i.elifs.items.len);
         defer self.allocator.free(elif_then_bbs);
         for (elif_bbs, 0..) |*bb, idx| {
-            bb.* = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "elif_check");
-            elif_then_bbs[idx] = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "elif_then");
+            bb.* = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "");
+            elif_then_bbs[idx] = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "");
         }
 
-        const else_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "else");
+        const else_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "else_bb");
+        const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "merge_bb");
 
         const first_false_bb = if (elif_bbs.len > 0) elif_bbs[0] else else_bb;
         const cond = try self.codegen_expression(i.cond);
@@ -490,10 +493,6 @@ pub const Codegen = struct {
 
         // codegen merge block
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
-        // const phi = llvm.LLVMBuildPhi(self.builder, llvm.LLVMInt32TypeInContext(self.ctx), "");
-        // _ = [_]llvm.LLVMValueRef{ then_val, else_val };
-        // _ = [_]llvm.LLVMBasicBlockRef{ then_bb, else_bb };
-        // _ = llvm.LLVMAddIncoming(phi, @ptrCast(@constCast(&values)), @ptrCast(@constCast(&blocks)), 2);
 
         return null;
     }
@@ -797,15 +796,7 @@ pub const Codegen = struct {
         return p_types;
     }
 
-    pub fn codegen_alloca(self: *Codegen, func: llvm.LLVMValueRef, p: ast.Param) !llvm.LLVMValueRef {
-        // get the entry bb
-        const e_bb = llvm.LLVMGetEntryBasicBlock(func);
-        _ = e_bb;
-        // NOTE: no need for first inst only handles for params now
-        // get the first inst of entry bb and append the allocas here
-        // const i = llvm.LLVMGetFirstInstruction(e_bb);
-        // llvm.LLVMPositionBuilderBefore(self.builder, i);
-        // TODO: only handles int types for now
+    pub fn codegen_alloca(self: *Codegen, p: ast.Param) !llvm.LLVMValueRef {
         const t = try self.get_type(p.type);
         const name = try self.allocator.dupeZ(u8, p.name);
         defer self.allocator.free(name);
@@ -1055,7 +1046,7 @@ pub const Codegen = struct {
         if (self.stack_map.get(i.name)) |v| {
             return llvm.LLVMBuildLoad2(self.builder, llvm.LLVMGetAllocatedType(v), v, "");
         } else {
-            std.debug.print("variable not found\n", .{});
+            log.err("variable not found: {s}\n", .{i.name});
         }
 
         // TODO: error
@@ -1076,7 +1067,7 @@ pub const Codegen = struct {
         defer self.allocator.free(name_call);
         const func_ref = llvm.LLVMGetNamedFunction(self.mod, name_call.ptr);
         if (func_ref == null) {
-            std.debug.print("no function named {s}\n", .{name});
+            log.err("no function named {s}\n", .{name});
         }
 
         const callee_ty = self.expr_type(c.callee);
@@ -1090,7 +1081,7 @@ pub const Codegen = struct {
         // see why called value type failed here
         const func_type = llvm.LLVMGlobalGetValueType(func_ref);
         if (func_type == null) {
-            std.debug.print("no function type for {s}\n", .{name});
+            log.err("no function type for {s}\n", .{name});
         }
 
         const args = try self.codegen_args(c.args, param_types);
@@ -1102,7 +1093,7 @@ pub const Codegen = struct {
 
         // const expected = llvm.LLVMCountParamTypes(func_type);
         // if (expected != n_args) {
-        //     std.debug.print("expected args = {}, actual args = {}\n", .{ expected, n_args });
+        //     log.err("expected args = {}, actual args = {}\n", .{ expected, n_args });
         // }
 
         const call = llvm.LLVMBuildCall2(
@@ -1219,8 +1210,7 @@ pub const Codegen = struct {
             .string => {
                 const name = try self.allocator.dupeZ(u8, l.raw);
                 defer self.allocator.free(name);
-                // TODO: maintain the global string table
-                return llvm.LLVMBuildGlobalString(self.builder, name, ".str0");
+                return llvm.LLVMBuildGlobalString(self.builder, name, "");
             },
         }
     }
