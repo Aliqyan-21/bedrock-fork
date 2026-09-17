@@ -1,0 +1,13 @@
+func foo() -> u8
+    match 1
+    end
+
+    match 1
+        case 1
+            var a = 10;
+            var b = 10;
+        case 2
+            var b = 10;
+            var c = 10;
+            var d = 10 + 10;
+end

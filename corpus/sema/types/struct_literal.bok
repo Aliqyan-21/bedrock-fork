@@ -1,0 +1,40 @@
+type Point = struct
+    x: i32,
+    y: i32,
+    z: i32,
+end
+
+proc main()
+  var p1 = Point where x = 10, y = 12, z = 21 end
+
+  // inferrable
+  var p2: Point = _ where x = 10, y = 12, z = 21 end
+
+  // not inferrable so error
+  var p3 = _ where x = 10, y = 12, z = 21 end
+
+  // this should error that z is uninitialized
+  var p4 = Point where x = 10, y = 12 end
+
+  // wrong type for z error
+  var p5 = Point where x = 10, y = 12, z = "a" end
+
+  // duplicate field init 'z'
+  var p6 = Point where x = 10, y = 12, z = 2, z = 18 end
+
+end
+
+// nested struct initialization check!
+
+type Line = struct
+  from: Point,
+  to: Point,
+end
+
+proc main()
+  var l = Line where
+    // should error y = '0' char instead of i32
+    from = Point where x = 0, y = '0', z = 0 end,
+    to = Point where x = 1, y = 1, z = 1 end
+  end
+end

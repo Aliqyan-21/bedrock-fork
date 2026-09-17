@@ -1,0 +1,10 @@
+proc fig()
+  break;
+  continue;
+  break; // so two breaks outside of loop
+  while (true)
+    // these will not give error as they are in loop
+    break;
+    continue;
+  end
+end

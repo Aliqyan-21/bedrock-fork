@@ -1,0 +1,3 @@
+pub proc greet(name: str)
+    io.println(name)
+end

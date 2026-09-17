@@ -1,0 +1,7 @@
+func foo() -> u8
+    while x
+      var a = 20;
+    end
+
+    const x = 69;
+end

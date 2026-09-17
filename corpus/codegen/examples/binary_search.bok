@@ -1,0 +1,24 @@
+// output: 4
+func main() -> i32
+    var arr: [7]i32 = [1, 3, 5, 7, 9, 11, 13];
+    var target: i32 = 9;
+
+    var low: i32 = 0;
+    var high: i32 = 6;
+    var result: i32 = -1;
+
+    while low <= high
+        var mid: i32 = (low + high) / 2;
+        if arr[mid] == target
+            result = mid;
+            break;
+        end
+        if arr[mid] < target
+            low = mid + 1;
+        else
+            high = mid - 1;
+        end
+    end
+
+    return result;
+end

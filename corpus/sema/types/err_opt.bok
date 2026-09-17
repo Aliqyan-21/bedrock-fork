@@ -1,0 +1,14 @@
+func foo() -> i32
+    var x: ?i32 = 5;
+    return 0;
+end
+
+func boo() -> i32
+    var x: ?i32 = "hello";
+    return 0;
+end
+
+func roo() -> i32
+    var x: i32! = 5;
+    return 0;
+end

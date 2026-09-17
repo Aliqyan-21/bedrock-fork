@@ -1,0 +1,14 @@
+extern func scanf(...) -> i32;
+extern func printf(...) -> i32;
+
+// odd or even!
+func main() -> i32
+  var n = 0;
+  _ = scanf("%d", &n);
+  if (n & 1)
+    _ = printf("number is odd\n");
+  else
+    _ = printf("number is even\n");
+  end
+  return 0;
+end

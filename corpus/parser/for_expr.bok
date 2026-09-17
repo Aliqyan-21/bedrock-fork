@@ -1,0 +1,8 @@
+func foo() -> u8
+    for i in x
+      var a = 20;
+      const c = 69;
+    end
+
+    const x = 10;
+end

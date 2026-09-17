@@ -1,0 +1,19 @@
+extern func printf(...) -> i32;
+
+proc wierd_algorithm(n: i32)
+  _ = printf("%d ", n);
+  while (n != 1)
+    if (n % 2 == 0)
+      n = n / 2;
+    else
+      n = (n * 3) + 1;
+    end
+    _ = printf("%d ", n);
+  end
+end
+
+func main() -> i32
+  wierd_algorithm(3);
+  _ = printf("\n");
+  return 0;
+end

@@ -1,0 +1,19 @@
+// output: 5
+func divby(n: i32) -> i32
+  if (n % 2 == 0)
+    return 2;
+  elif (n % 3 == 0)
+    return 3;
+  elif (n % 5 == 0)
+    return 5;
+  elif (n % 7 == 0)
+    return 7;
+  end
+
+  return 1;
+end
+
+
+func main() -> i32
+  return divby(5);
+end

@@ -47,7 +47,46 @@ pub fn build(b: *std.Build) void {
         .root_module = exe.root_module,
     });
 
+    const memory = b.addLibrary(.{
+        .name = "memory",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/memory/memory.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .dynamic,
+    });
+
+    b.installArtifact(memory);
+
     const run_exe_tests = b.addRunArtifact(exe_tests);
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_exe_tests.step);
+
+    const bedrock_mod = b.addModule("bedrock", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "llvm", .module = translate_llvm.createModule() },
+        },
+    });
+
+    const test_root = b.createModule(.{
+        .root_source_file = b.path("tests/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "bedrock", .module = bedrock_mod },
+        },
+    });
+
+    test_root.linkSystemLibrary("LLVM", .{});
+    const all_tests = b.addTest(.{
+        .root_module = test_root,
+    });
+
+    test_step.dependOn(&b.addRunArtifact(all_tests).step);
 }

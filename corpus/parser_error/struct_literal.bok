@@ -1,0 +1,5 @@
+var p = Person where
+    name = "Alice",
+    age = 20,
+
+var p2 = 42 where name = "Alice" end

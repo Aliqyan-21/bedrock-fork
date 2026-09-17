@@ -1,0 +1,8 @@
+// this situation not supported,
+// have to think about this rule
+func foo() -> i32
+  var zeke = 1;
+  if a < b
+    var zeke = 10;
+  end
+end

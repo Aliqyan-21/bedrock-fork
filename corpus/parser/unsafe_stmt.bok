@@ -1,0 +1,6 @@
+func ml() -> i32
+  unsafe
+    var a = 10;
+    const b = 910_102_102;
+  end
+end

@@ -1,0 +1,14 @@
+// output: 5
+func main() -> i32
+  var a = 0;
+  var i = 0;
+  while i < 10
+    if i == 5
+      a = i;
+      i = i + 1;
+      continue;
+    end
+    i = i + 1;
+  end
+  return a;
+end

@@ -1,0 +1,10 @@
+// output: 110
+func assign(x: i32) -> i32
+    var a: i32 = 10;
+    a = 100;
+    return a + x;
+end
+
+func main() -> i32
+    return assign(10);
+end

@@ -1,0 +1,12 @@
+proc main()
+  var a: i8 = 10;
+  var b: u8 = 10;
+  var c: i16 = 10;
+  var d: u16 = 10;
+  var e: i32 = 10;
+  var f: u32 = 10;
+  var g: i64 = 10;
+  var h: u64 = 10;
+  var i: f32 = 3.14;
+  var j: f64 = 3.14215;
+end

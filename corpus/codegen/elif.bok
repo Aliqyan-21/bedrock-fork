@@ -1,0 +1,20 @@
+extern func printf(...) -> i32;
+
+// i believe 0 is neither even nor odd
+proc is_even(n: i32)
+  if (n == 0)
+    _ = printf("it's zero\n");
+  elif (n % 2 != 0)
+    _ = printf("it's odd\n");
+  else
+    _ = printf("it's even\n");
+  end
+end
+
+
+func main() -> i32
+  is_even(0);
+  is_even(7);
+  is_even(14);
+  return 0;
+end

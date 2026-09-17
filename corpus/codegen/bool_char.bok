@@ -1,0 +1,5 @@
+proc main()
+  var x: bool = true;
+  var y: bool = false;
+  var c: char = '~';
+end

@@ -1,0 +1,12 @@
+// this is comment
+func main() -> i32
+   // this is comment
+   var a = 10;                  // this is comment
+   // this is comment
+   // this is comment
+   a = 10 + 10;                 // this is comment
+   // this is comment
+   // this is comment
+   return 10;
+end
+// this is comment

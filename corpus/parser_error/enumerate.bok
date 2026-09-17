@@ -1,0 +1,20 @@
+proc main()
+  arr = [1,2,3,4,5,6];
+
+  for val in arr, 0..
+  // ...
+  end
+
+  for val idx in arr
+  // ...
+  end
+
+  for val, idx in arr 1..
+  // ...
+  end
+
+  // no error because by default we make range start from 0
+  for val, idx in arr
+  // ...
+  end
+end

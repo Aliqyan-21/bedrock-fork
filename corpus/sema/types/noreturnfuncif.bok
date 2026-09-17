@@ -1,0 +1,27 @@
+// will give warning
+func boo() -> i32
+end
+
+// will not give warning
+func foo() -> i32
+  if (true)
+    return 10;
+  end
+  return 0;
+end
+
+// will give warning
+func roo() -> i32
+  if (true)
+    return 10;
+  end
+end
+
+// will give warning
+func zoo() -> i32
+  if (2 > 4)
+    return 10;
+  elif (10 < 12)
+    return 12;
+  end
+end

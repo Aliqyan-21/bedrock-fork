@@ -1,0 +1,8 @@
+func void_call() -> i32
+    return 0;
+end
+
+func main() -> i32
+  void_call();
+  return 0;
+end

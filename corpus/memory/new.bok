@@ -1,0 +1,9 @@
+type Point = struct
+    x: i32,
+    y: i32,
+end
+
+func main() -> i32
+    var p: *Point = new Point where x = 10, y = 10 end
+    return p.x + p.y;
+end

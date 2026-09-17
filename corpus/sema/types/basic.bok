@@ -1,0 +1,14 @@
+// works
+func foo() -> i32
+    var age: i32 = 24;
+    const name: str = "bob";
+    return 0;
+end
+
+// this should fail
+// as putting string in i32
+func boo() -> i32
+    var age: i32 = "hello";
+    return 0;
+end
+

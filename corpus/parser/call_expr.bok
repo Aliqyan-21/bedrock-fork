@@ -1,0 +1,11 @@
+func foo() -> i32
+    bar();
+    baz(1, 1);
+    bazz(1, a, 1, a);
+    var a = koo();
+    var a = bar(foo(), zig());
+    b = a + bar(1, 1, 1);
+    spider.man();
+    super.man(super.man.boy());
+    x = super.man(super.man.boy());
+end

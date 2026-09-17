@@ -1,0 +1,18 @@
+// output: 6765
+
+func fibonacci(n: i32) -> i32
+  if (n == 1) return 1; end
+  var a = 0;
+  var b = 1;
+  for i in 1..n
+    var temp = a;
+    a = b;
+    b = temp + b;
+  end
+  return b;
+end
+
+func main() -> i32
+  // return 20th fibonacci number
+  return fibonacci(20);
+end

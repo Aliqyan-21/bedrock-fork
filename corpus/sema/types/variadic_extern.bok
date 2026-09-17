@@ -1,0 +1,11 @@
+extern func foo(a: i32, ...) -> i32;
+extern proc roo(...);
+
+proc main()
+  // error as atleast 1 arg is there
+  _ = foo();
+  // no error
+  _ = foo(1);
+  // no error
+  roo();
+end
