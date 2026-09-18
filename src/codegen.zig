@@ -747,6 +747,21 @@ pub const Codegen = struct {
                     return e_ptr;
                 }
             },
+            .field_access => |*f| {
+                const f_ptr = try self.codegen_field_access(f, true);
+                if (a.op == null) {
+                    _ = llvm.LLVMBuildStore(self.builder, e, f_ptr);
+                    return f_ptr;
+                } else {
+                    const elem_ty = self.expr_type(a.target);
+                    const llvm_elem_ty = try self.get_llvm_type_of(elem_ty);
+                    const old = llvm.LLVMBuildLoad2(self.builder, llvm_elem_ty, f_ptr, "");
+                    const is_signed = self.is_signed_type(elem_ty);
+                    const result = try self.codegen_compound_op(a.op.?, old, e, is_signed);
+                    _ = llvm.LLVMBuildStore(self.builder, result, f_ptr);
+                    return f_ptr;
+                }
+            },
             else => {
                 // TODO:
                 return null;
@@ -859,12 +874,12 @@ pub const Codegen = struct {
             .array_literal => |*a| try self.codegen_array(a, e),
             .index => |*i| try self.codegen_index(i),
             .struct_literal => |*s| try self.codegen_struct_literal(s, expected_ty),
-            .field_access => |*f| try self.codegen_field_access(f),
+            .field_access => |*f| try self.codegen_field_access(f, false),
             else => unreachable,
         };
     }
 
-    pub fn codegen_field_access(self: *Codegen, f_access: *ast.FieldAccessExpr) anyerror!llvm.LLVMValueRef {
+    pub fn codegen_field_access(self: *Codegen, f_access: *ast.FieldAccessExpr, assign: bool) anyerror!llvm.LLVMValueRef {
         // NOTE: currently only for structs field access
         const ident = switch (f_access.target.*) {
             .ident => |i| i,
@@ -935,6 +950,8 @@ pub const Codegen = struct {
             indices.len,
             "",
         );
+
+        if (assign) return field_ptr;
 
         const llvm_field_ty = try self.get_llvm_type_of(field_type);
         return llvm.LLVMBuildLoad2(self.builder, llvm_field_ty, field_ptr, "");
