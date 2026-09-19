@@ -1,4 +1,4 @@
-// output: 200
+// output: 300
 type Point = struct
     x: i32,
     y: i32,
@@ -10,5 +10,6 @@ func main() -> i32
   var p: Point = undefined;
   p.x = 100;
   p.y = 100;
+  p = _ where x = 200, y = 100 end;
   return p.x + p.y;
 end
