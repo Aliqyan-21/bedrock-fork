@@ -793,6 +793,10 @@ pub const Codegen = struct {
             },
             else => {
                 const alloca = try self.codegen_alloca_var(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
                 const e = try self.codegen_expression(v.value);
                 // store value on stack space
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);
@@ -809,8 +813,20 @@ pub const Codegen = struct {
                 try self.stack_map.put(v.name, arr);
                 return arr;
             },
+            .struct_literal => {
+                const alloca = try self.codegen_alloca_const(v);
+                const expected_ty = if (v.type_ann) |ty| try self.get_type(ty) else null;
+                const s = try self.codegen_expression_with_type(v.value, expected_ty);
+                _ = llvm.LLVMBuildStore(self.builder, s, alloca);
+                try self.stack_map.put(v.name, alloca);
+                return s;
+            },
             else => {
                 const alloca = try self.codegen_alloca_const(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
                 const e = try self.codegen_expression(v.value);
                 // store value on stack space
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);

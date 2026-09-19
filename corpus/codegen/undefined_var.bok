@@ -1,0 +1,14 @@
+// output: 200
+type Point = struct
+    x: i32,
+    y: i32,
+end
+ 
+func main() -> i32
+  var a: i32 = undefined;
+  a = 5;
+  var p: Point = undefined;
+  p.x = 100;
+  p.y = 100;
+  return p.x + p.y;
+end
