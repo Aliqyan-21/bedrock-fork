@@ -716,10 +716,12 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {
-        const e = try self.codegen_expression(a.value);
         // NOTE: currently only for var assign
         switch (a.target.*) {
             .ident => |*i| {
+                const ty = self.expr_type(a.target);
+                const llvm_ty = try self.get_llvm_type_of(ty);
+                const e = try self.codegen_expression_with_type(a.value, llvm_ty);
                 if (std.mem.eql(u8, i.name, "_")) {
                     return e; // return if assigning in '_' (it is discard mf)
                 }
@@ -739,6 +741,7 @@ pub const Codegen = struct {
                 }
             },
             .index => |*i| {
+                const e = try self.codegen_expression_with_type(a.value, null);
                 const e_ptr = try self.codegen_array_element_ptr(i);
                 if (a.op == null) {
                     _ = llvm.LLVMBuildStore(self.builder, e, e_ptr);
@@ -754,6 +757,7 @@ pub const Codegen = struct {
                 }
             },
             .field_access => |*f| {
+                const e = try self.codegen_expression_with_type(a.value, null);
                 const f_ptr = try self.codegen_field_access(f, true);
                 if (a.op == null) {
                     _ = llvm.LLVMBuildStore(self.builder, e, f_ptr);
@@ -785,6 +789,10 @@ pub const Codegen = struct {
             },
             .struct_literal => {
                 const alloca = try self.codegen_alloca_var(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
                 const expected_ty = if (v.type_ann) |ty| try self.get_type(ty) else null;
                 const s = try self.codegen_expression_with_type(v.value, expected_ty);
                 _ = llvm.LLVMBuildStore(self.builder, s, alloca);
@@ -793,6 +801,10 @@ pub const Codegen = struct {
             },
             else => {
                 const alloca = try self.codegen_alloca_var(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
                 const e = try self.codegen_expression(v.value);
                 // store value on stack space
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);
@@ -809,8 +821,24 @@ pub const Codegen = struct {
                 try self.stack_map.put(v.name, arr);
                 return arr;
             },
+            .struct_literal => {
+                const alloca = try self.codegen_alloca_const(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
+                const expected_ty = if (v.type_ann) |ty| try self.get_type(ty) else null;
+                const s = try self.codegen_expression_with_type(v.value, expected_ty);
+                _ = llvm.LLVMBuildStore(self.builder, s, alloca);
+                try self.stack_map.put(v.name, alloca);
+                return s;
+            },
             else => {
                 const alloca = try self.codegen_alloca_const(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
                 const e = try self.codegen_expression(v.value);
                 // store value on stack space
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);
