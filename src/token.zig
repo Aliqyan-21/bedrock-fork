@@ -44,6 +44,7 @@ pub const TokenType = enum {
     kw_where,
     kw_new,
     kw_ptr,
+    kw_undefined,
 
     // operators (single char)
     l_paren, // (
@@ -142,6 +143,7 @@ pub const keywords = [_]struct { text: []const u8, kind: TokenType }{
     .{ .text = "where", .kind = .kw_where },
     .{ .text = "new", .kind = .kw_new },
     .{ .text = "ptr", .kind = .kw_ptr },
+    .{ .text = "undefined", .kind = .kw_undefined },
 };
 
 pub fn lookup_keyword(text: []const u8) ?TokenType {

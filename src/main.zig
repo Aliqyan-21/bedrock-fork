@@ -27,5 +27,8 @@ pub fn main(init: std.process.Init) !void {
 
     var c = compiler.Compiler.init(allocator, init.io, source, options);
     defer c.deinit();
-    _ = try c.run();
+    _ = c.run() catch |e| {
+        c.deinit();
+        return e;
+    };
 }

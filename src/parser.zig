@@ -1406,6 +1406,10 @@ pub const Parser = struct {
                 lhs = try self.allocator.create(ast.Expr);
                 lhs.* = .{ .nil = .{ .token = tok } };
             },
+            .kw_undefined => {
+                lhs = try self.allocator.create(ast.Expr);
+                lhs.* = .{ .undefined = .{ .token = tok } };
+            },
             .l_paren => {
                 lhs = try self.parse_expression_bp(0);
                 // expect ')'
