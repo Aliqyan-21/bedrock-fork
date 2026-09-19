@@ -238,6 +238,12 @@ pub const Codegen = struct {
         );
 
         _ = try self.codegen_statements(function.body);
+
+        // terminates the block.
+        const cur_bb = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(cur_bb) == null) {
+            _ = llvm.LLVMBuildUnreachable(self.builder);
+        }
     }
 
     pub fn codegen_proc(self: *Codegen, proc: *ast.ProcDef) !void {
