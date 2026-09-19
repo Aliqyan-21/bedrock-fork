@@ -1614,7 +1614,7 @@ fn infix_binding_power(op: token.TokenType) [2]usize {
 
 fn prefix_binding_power(op: token.TokenType) [2]usize {
     return switch (op) {
-        .minus, .bang_eq, .tilde, .amp, .star, .kw_new => .{ 0, 5 },
+        .minus, .bang, .tilde, .amp, .star, .kw_new => .{ 0, 21 },
         else => .{ 0, 0 },
     };
 }
