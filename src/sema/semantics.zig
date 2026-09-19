@@ -271,10 +271,9 @@ pub const Sema = struct {
                     }
 
                     const tty = try self.visit_expression(a.target, null);
-                    const vty = try self.visit_expression(a.value, tty);
-
+                    const vty = try self.visit_expression(a.value, if (tty != .invalid) tty else null);
                     if (tty != .invalid and vty != .invalid and !self.types.assignable(vty, tty)) {
-                        try self.compiler.add_sem_error("type mismatch in assignment: expected {s}, found {s}", .{ self.types.name_of(tty), self.types.name_of(vty) }, .Error, a.token);
+                        try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(tty), self.types.name_of(vty) }, .Error, a.target.token_of());
                     }
                 }
             },
@@ -424,12 +423,11 @@ pub const Sema = struct {
             .binary => |*b| blk: {
                 if (b.op == .range or b.op == .range_incl) {
                     const lty = try self.visit_expression(b.lhs, expected);
-                    const rty = try self.visit_expression(b.rhs, expected);
-                    if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
+                    const rty = try self.visit_expression(b.rhs, expected orelse if (lty != .invalid) lty else null);
+                    const elemty = self.types.unify(lty, rty) orelse {
                         try self.compiler.add_sem_error("range bounds must have the same type: {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
                         break :blk .invalid;
-                    }
-                    const elemty = if (lty != .invalid) lty else rty;
+                    };
                     break :blk if (elemty == .invalid) .invalid else try self.types.intern(.{ .range = .{ .elem = elemty } });
                 }
                 if (b.op == .orelse_op) {
@@ -444,8 +442,8 @@ pub const Sema = struct {
                     else => false,
                 };
 
-                // todo: right now type conversions are not thought yet (implicit/explicit,
-                // and more) so 10 + 3.12 is error for now as type mismatch.
+                // implicit type conversion (numeric widening) is allowed for now
+                // those who need explicit type conversion give error here
                 if (is_logical) {
                     const boolty = try self.types.primitive(.bool);
                     const lty = try self.visit_expression(b.lhs, boolty);
@@ -459,15 +457,22 @@ pub const Sema = struct {
                     break :blk boolty;
                 }
 
-                const lty = try self.visit_expression(b.lhs, expected);
-                const rty = try self.visit_expression(b.rhs, expected);
-
-                if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
-                    try self.compiler.add_sem_error("type mismatch in binary expression {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
-                    break :blk .invalid;
+                var lty: types.TypeId = undefined;
+                var rty: types.TypeId = undefined;
+                if (expected == null and b.lhs.* == .literal and b.rhs.* != .literal) {
+                    rty = try self.visit_expression(b.rhs, null);
+                    lty = try self.visit_expression(b.lhs, if (rty != .invalid) rty else null);
+                } else {
+                    lty = try self.visit_expression(b.lhs, expected);
+                    rty = try self.visit_expression(b.rhs, expected orelse if (lty != .invalid) lty else null);
                 }
 
-                break :blk if (is_comparison) try self.types.primitive(.bool) else if (lty != .invalid) lty else rty;
+                const result_ty = self.types.unify(lty, rty) orelse {
+                    try self.compiler.add_sem_error("type mismatch in binary expression {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
+                    break :blk .invalid;
+                };
+
+                break :blk if (is_comparison) try self.types.primitive(.bool) else result_ty;
             },
             .unary => |*u| blk: {
                 switch (u.op) {
@@ -649,10 +654,19 @@ pub const Sema = struct {
                 var elemty: types.TypeId = hint orelse .invalid;
 
                 for (al.elements.items) |elem| {
-                    const ety = try self.visit_expression(elem, hint);
+                    const want: ?types.TypeId = hint orelse (if (elemty != .invalid) elemty else null);
+                    const ety = try self.visit_expression(elem, want);
                     if (ety == .invalid) continue;
-                    if (elemty == .invalid) {
-                        elemty = ety;
+                    if (hint == null) {
+                        elemty = self.types.unify(elemty, ety) orelse {
+                            try self.compiler.add_sem_error(
+                                "array elements must have the same type: expected {s}, found {s}",
+                                .{ self.types.name_of(elemty), self.types.name_of(ety) },
+                                .Error,
+                                al.token,
+                            );
+                            break :blk .invalid;
+                        };
                         continue;
                     }
                     if (!self.types.assignable(ety, elemty)) {
