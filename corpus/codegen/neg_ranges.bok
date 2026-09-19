@@ -1,0 +1,16 @@
+// output: -3
+
+func main() -> i32
+  var a = 0;
+  var b = 0;
+
+  for i in -4..-1
+    a = i;
+  end
+
+  for i in -4..=-1
+    b = i;
+  end
+
+  return a + b;
+end
