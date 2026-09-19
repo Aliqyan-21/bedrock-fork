@@ -8,8 +8,8 @@ func main() -> i32
   var a: i32 = undefined;
   a = 5;
   var p: Point = undefined;
-  p.x = 100;
-  p.y = 100;
+ // p.x = 100;
+ // p.y = 100;
   p = _ where x = 200, y = 100 end;
   return p.x + p.y;
 end
