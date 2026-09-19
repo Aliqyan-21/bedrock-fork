@@ -699,8 +699,10 @@ pub const Sema = struct {
                 try self.compiler.add_sem_error("cannot infer type of nil without context", .{}, .Error, n.token);
                 break :blk .invalid;
             },
-            .undefined => {
-                return .invalid;
+            .undefined => blk: {
+                if (expected) |e| break :blk e;
+                try self.compiler.add_sem_error("cannot infer type of 'undefined' without context", .{}, .Error, expr.token_of());
+                break :blk .invalid;
             },
             .struct_literal => |*sl| blk: {
                 var stty: types.TypeId = .invalid;
