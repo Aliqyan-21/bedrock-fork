@@ -286,6 +286,9 @@ pub const Compiler = struct {
     }
 
     pub fn emitErrors(self: *Compiler) !void {
+        var stderr_buf: [4096]u8 = undefined;
+        var stderr_writer = std.Io.File.stderr().writer(self.io, &stderr_buf);
+        const stderr = &stderr_writer.interface;
         for (self.errors.items) |e| {
             var l_count: usize = 1;
             var lines = std.mem.splitScalar(u8, self.source, '\n');
@@ -296,36 +299,37 @@ pub const Compiler = struct {
                 } else if (l_count >= e.token.line + 3) {
                     break;
                 } else if (l_count == e.token.line) {
-                    log.debug("{d} | {s}", .{ l_count, l[0 .. e.token.col - 1] });
-                    log.debug("{s}", .{l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]});
-                    log.debug("{s}\n", .{l[e.token.col + e.token.val.len - 1 ..]});
-                    log.debug("    ", .{});
+                    try stderr.print("{d} | {s}", .{ l_count, l[0 .. e.token.col - 1] });
+                    try stderr.print("{s}", .{l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]});
+                    try stderr.print("{s}\n", .{l[e.token.col + e.token.val.len - 1 ..]});
+                    try stderr.print("    ", .{});
                     for (l[0 .. e.token.col - 1]) |_| {
-                        log.debug(" ", .{});
+                        try stderr.print(" ", .{});
                     }
                     for (l[e.token.col - 1 .. e.token.col + e.token.val.len - 1]) |_| {
-                        log.debug("^", .{});
+                        try stderr.print("^", .{});
                     }
                     switch (e.severity) {
                         err.Severity.Error => {
-                            log.debug(" \x1b[31m{s}\x1b[0m\n\n", .{e.msg});
+                            try stderr.print(" \x1b[31m{s}\x1b[0m\n", .{e.msg});
                         },
                         err.Severity.Warn => {
-                            log.debug(" \x1b[33m{s}\x1b[0m\n\n", .{e.msg});
+                            try stderr.print(" \x1b[33m{s}\x1b[0m\n", .{e.msg});
                         },
                         err.Severity.Info => {
-                            log.debug(" \x1b[36m{s}\x1b[0m\n\n", .{e.msg});
+                            try stderr.print(" \x1b[36m{s}\x1b[0m\n", .{e.msg});
                         },
                     }
                 } else {
-                    log.debug("{d} | {s}\n", .{ l_count, l });
+                    try stderr.print("{d} | {s}\n", .{ l_count, l });
                 }
                 l_count += 1;
             }
         }
+        try stderr.flush();
     }
 
-    pub fn deinit(self: *Compiler) void {
+    pub fn deinit(self: *Compiler) !void {
         try self.emitErrors();
         for (self.errors.items) |e| {
             self.allocator.free(e.msg);
