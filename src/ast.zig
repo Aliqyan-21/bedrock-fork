@@ -1143,6 +1143,16 @@ pub const Nil = struct {
     }
 };
 
+pub const Undefined = struct {
+    token: Token,
+
+    pub fn print(self: *Undefined, indent: usize) anyerror!void {
+        _ = self;
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("undefined\n", .{});
+    }
+};
+
 pub const Expr = union(enum) {
     literal: LiteralExpr,
     ident: IdentExpr,
@@ -1156,6 +1166,7 @@ pub const Expr = union(enum) {
     comptime_expr: ComptimeExpr,
     struct_literal: StructLiteral,
     nil: Nil,
+    undefined: Undefined,
 
     pub fn print(self: *Expr, indent: usize) anyerror!void {
         switch (self.*) {
@@ -1171,6 +1182,7 @@ pub const Expr = union(enum) {
             .comptime_expr => |*c| try c.print(indent),
             .struct_literal => |*s| try s.print(indent),
             .nil => |*n| try n.print(indent),
+            .undefined => |*u| try u.print(indent),
         }
     }
 
@@ -1210,6 +1222,7 @@ pub const Expr = union(enum) {
                 allocator.destroy(self);
             },
             .nil => allocator.destroy(self),
+            .undefined => allocator.destroy(self),
             else => {
                 // TODO:
             },
@@ -1240,6 +1253,7 @@ pub const Expr = union(enum) {
             .comptime_expr => self.comptime_expr.token,
             .struct_literal => self.struct_literal.token,
             .nil => self.nil.token,
+            .undefined => self.undefined.token,
         };
     }
 };
