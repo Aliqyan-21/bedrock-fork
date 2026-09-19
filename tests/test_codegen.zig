@@ -108,7 +108,7 @@ test "codegen-test" {
 
             log.info("{s} passsed\n", .{s});
             defer allocator.free(res_dup);
-            defer c.deinit();
+            try c.deinit();
         }
     }
 
