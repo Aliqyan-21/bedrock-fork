@@ -50,6 +50,13 @@ pub const Sema = struct {
         for (stmts) |*stmt| try self.visit_statement(stmt);
     }
 
+    fn check_undefined_array_infer(type_ann: ?*ast.Type, value: *ast.Expr) bool {
+        if (type_ann) |ty| if (ty.base == .array and ty.base.array.size == .inferred and value.* == .undefined) {
+            return true;
+        };
+        return false;
+    }
+
     fn visit_item(self: *Sema, item: *ast.Item) !void {
         switch (item.*) {
             .import_def => {},
@@ -133,7 +140,10 @@ pub const Sema = struct {
             },
             .var_def => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
@@ -146,7 +156,10 @@ pub const Sema = struct {
             },
             .const_def => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
@@ -223,7 +236,10 @@ pub const Sema = struct {
         switch (stmt.*) {
             .var_stmt => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
@@ -234,7 +250,10 @@ pub const Sema = struct {
             },
             .const_stmt => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
@@ -244,7 +263,10 @@ pub const Sema = struct {
             },
             .local_static_var_stmt => |lv| {
                 const dty: types.TypeId = if (lv.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(lv.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(lv.type_ann, lv.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, lv.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(lv.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, lv.token);
                 }
