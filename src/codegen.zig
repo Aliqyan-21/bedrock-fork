@@ -634,10 +634,7 @@ pub const Codegen = struct {
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
 
-        const is_float = switch (self.compiler.sema.types.get(ty).*) {
-            .primitive => |p| p == .f32 or p == .f64,
-            else => false,
-        };
+        const is_float = self.is_float_type(ty);
         const is_signed = switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| switch (p) {
                 .i8, .i16, .i32, .i64, .isize => true,
@@ -696,6 +693,14 @@ pub const Codegen = struct {
             else => false,
         };
     }
+
+    fn is_float_type(self: *Codegen, ty: types.TypeId) bool {
+        return switch (self.compiler.sema.types.get(ty).*) {
+            .primitive => |p| p == .f32 or p == .f64,
+            else => false,
+        };
+    }
+
     // for allocating the binding
     fn enumerate_setup(self: *Codegen, f: *ast.ForExpr) !?llvm.LLVMValueRef {
         const ib = f.index_binding orelse return null;
@@ -1354,10 +1359,7 @@ pub const Codegen = struct {
         const l = try self.codegen_expression(b.lhs);
         const r = try self.codegen_expression(b.rhs);
         const lty = self.expr_type(b.lhs);
-        const is_float = switch (self.compiler.sema.types.get(lty).*) {
-            .primitive => |p| p == .f32 or p == .f64,
-            else => false,
-        };
+        const is_float = self.is_float_type(lty);
         const is_signed = switch (self.compiler.sema.types.get(lty).*) {
             .primitive => |p| switch (p) {
                 .i8, .i16, .i32, .i64, .isize => true,
@@ -1397,10 +1399,7 @@ pub const Codegen = struct {
 
         const e = try self.codegen_expression(u.operand);
         const oty = self.expr_type(u.operand);
-        const is_float = switch (self.compiler.sema.types.get(oty).*) {
-            .primitive => |p| p == .f32 or p == .f64,
-            else => false,
-        };
+        const is_float = self.is_float_type(oty);
 
         return switch (u.op) {
             .neg => if (is_float) llvm.LLVMBuildFNeg(self.builder, e, "neg_un") else llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
