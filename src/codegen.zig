@@ -351,6 +351,7 @@ pub const Codegen = struct {
         switch (t_def.*.variant) {
             .struct_def => |*s| try self.codegen_struct_def(s),
             .enum_def => unreachable,
+            .alias => unreachable,
         }
     }
 

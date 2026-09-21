@@ -1,0 +1,2 @@
+type real = f32;
+type foo = func(i32, str) -> i32;
