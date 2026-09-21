@@ -201,7 +201,10 @@ pub const Compiler = struct {
             return Error.CompilerFail;
         }
 
-        if (self.opt.emit_ast) try self.ast.print();
+        if (self.opt.emit_ast) {
+            try self.ast.print();
+            std.process.exit(1);
+        }
 
         var s_run = false;
         if (self.opt.sema) {

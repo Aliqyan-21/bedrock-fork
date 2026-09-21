@@ -151,11 +151,13 @@ pub const ProcDef = struct {
 pub const TypeVariant = union(enum) {
     struct_def: StructDef,
     enum_def: EnumDef,
+    alias: AliasDef,
 
     pub fn print(self: *TypeVariant, indent: usize) anyerror!void {
         switch (self.*) {
             .struct_def => |*s| try s.print(indent),
             .enum_def => |*e| try e.print(indent),
+            .alias => |*a| try a.print(indent),
         }
     }
 
@@ -163,6 +165,7 @@ pub const TypeVariant = union(enum) {
         switch (self.*) {
             .struct_def => |*s| s.deinit(allocator),
             .enum_def => |*e| e.deinit(allocator),
+            .alias => |*a| a.deinit(allocator),
         }
     }
 };
@@ -256,6 +259,24 @@ pub const ExternParam = struct {
 
     pub fn deinit(self: *ExternParam, allocator: std.mem.Allocator) void {
         self.name.deinit(allocator);
+    }
+};
+
+pub const AliasDef = struct {
+    is_pub: bool = false,
+    name: []const u8 = "",
+    ty: *Type,
+    token: Token,
+
+    pub fn print(self: *AliasDef, indent: usize) anyerror!void {
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("type alias: {s} -> \n", .{self.name});
+        try self.ty.print(indent + 4);
+    }
+
+    pub fn deinit(self: *AliasDef, allocator: std.mem.Allocator) void {
+        self.ty.deinit(allocator);
+        allocator.destroy(self.ty);
     }
 };
 

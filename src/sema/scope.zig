@@ -9,6 +9,7 @@ pub const SymbolKind = enum {
     proc,
     st_field,
     @"struct",
+    type_alias,
 };
 
 pub const FnInfo = union(enum) {

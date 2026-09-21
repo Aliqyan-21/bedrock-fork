@@ -220,9 +220,10 @@ pub const Parser = struct {
         const name = try self.lexer.next();
         _ = try self.expect(.eq, "expected '='");
 
-        tok = try self.lexer.next();
+        tok = try self.lexer.peek_token();
         switch (tok.type) {
             .kw_struct => {
+                _ = try self.lexer.next();
                 const s = try self.parse_struct(name.val);
                 type_def.variant = .{ .struct_def = s };
             },
@@ -230,7 +231,9 @@ pub const Parser = struct {
                 // TODO:
             },
             else => {
-                // error
+                const aliased = try self.parse_type();
+                _ = try self.expect(.semicolon, "expected ';'");
+                type_def.variant = .{ .alias = .{ .name = name.val, .ty = aliased, .token = tok } };
             },
         }
 
