@@ -99,6 +99,17 @@ pub const Sema = struct {
 
                         try self.visit_struct_def(@constCast(s));
                     },
+                    .alias => |*a| {
+                        const aty = try self.types.resolve_type(a.ty, self.scope);
+                        if (aty == .invalid) {
+                            try self.compiler.add_sem_error("cannot resolve aliased type for `{s}`", .{a.name}, .Error, a.token);
+                        }
+                        self.scope.declare(.{ .name = a.name, .kind = .type_alias, .ty = aty }) catch |e| {
+                            if (e == error.DuplicateName) {
+                                try self.compiler.add_sem_error("Duplicate declaration: {s}", .{a.name}, .Error, a.token);
+                            }
+                        };
+                    },
                     else => {},
                 }
             },

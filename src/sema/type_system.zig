@@ -119,7 +119,10 @@ pub const TypeSystem = struct {
             },
             .named => |n| blk: {
                 const sym = scope.resolve(n.name) orelse break :blk .invalid;
-                break :blk if (sym.kind == .@"struct") sym.ty else .invalid;
+                break :blk switch (sym.kind) {
+                    .@"struct", .type_alias => sym.ty,
+                    else => .invalid,
+                };
             },
         };
 
