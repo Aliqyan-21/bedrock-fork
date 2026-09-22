@@ -1348,6 +1348,28 @@ pub const Stmt = union(enum) {
             else => {},
         }
     }
+
+    pub fn token_of(self: *Stmt) ?Token {
+        return switch (self.*) {
+            .var_stmt => self.var_stmt.token,
+            .const_stmt => self.const_stmt.token,
+            .assign_stmt => self.assign_stmt.token,
+            .local_static_var_stmt => self.local_static_var_stmt.token,
+            .defer_stmt => self.defer_stmt.token,
+            .unsafe_stmt => self.unsafe_stmt.token,
+            .control_flow_stmt => |cf| switch (cf) {
+                .if_expr => |i| i.token,
+                .match_expr => |m| m.token,
+                .while_expr => |w| w.token,
+                .for_expr => |f| f.token,
+            },
+            .return_stmt => self.return_stmt.token,
+            .expr_stmt => |e| if (e.value) |v| v.token_of() else null,
+            .break_stmt => self.break_stmt.token,
+            .continue_stmt => self.const_stmt.token,
+            .print_stub => self.print_stub.token,
+        };
+    }
 };
 
 pub const PrintStub = struct {

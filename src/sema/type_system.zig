@@ -178,7 +178,7 @@ pub const TypeSystem = struct {
     pub fn body_returns(self: TypeSystem, stms: []ast.Stmt) bool {
         if (stms.len == 0) return false;
         return switch (stms[stms.len - 1]) {
-            .return_stmt => true,
+            .return_stmt, .break_stmt, .continue_stmt => true,
             .control_flow_stmt => |cf| switch (cf) {
                 .if_expr => |i| blk: {
                     const eb = i.else_body orelse break :blk false;

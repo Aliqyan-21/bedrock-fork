@@ -1,0 +1,21 @@
+// this give sema error
+func foo() -> i32
+  return 67;
+  return 69;
+end
+
+// this should not give sema error
+func bar() -> i32
+  if (true)
+    return 67;
+  end
+  return 69;
+end
+
+// this give sema error
+func boo() -> i32
+  if (true)
+    return 67;
+    return 69;
+  end
+end

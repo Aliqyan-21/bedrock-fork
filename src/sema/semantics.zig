@@ -47,7 +47,15 @@ pub const Sema = struct {
         self.scope = &block_scope;
         defer self.scope = saved;
 
-        for (stmts) |*stmt| try self.visit_statement(stmt);
+        for (stmts, 0..) |*stmt, idx| {
+            if (idx > 0 and self.types.body_returns(stmts[0..idx])) {
+                if (stmt.token_of()) |tok| {
+                    try self.compiler.add_sem_error("unreachable code", .{}, .Error, tok);
+                }
+                break;
+            }
+            try self.visit_statement(stmt);
+        }
     }
 
     fn check_undefined_array_infer(type_ann: ?*ast.Type, value: *ast.Expr) bool {
