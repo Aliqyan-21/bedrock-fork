@@ -1,0 +1,10 @@
+// this give sema error
+func foo() -> i32
+  while (true)
+    var a = 10;
+    if (a == 10)
+      break;
+      a = 20; // this should be semantic errorful
+    end
+  end
+end
