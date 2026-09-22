@@ -616,8 +616,11 @@ pub const Codegen = struct {
         const llvm_ty = try self.get_llvm_type_of(ty);
 
         const b = &f.iterable.binary;
-        const lo = try self.codegen_expression(b.lhs);
-        const hi = try self.codegen_expression(b.rhs);
+        var lo = try self.codegen_expression(b.lhs);
+        var hi = try self.codegen_expression(b.rhs);
+
+        lo = try self.coerce_numeric(lo, self.expr_type(b.lhs), ty);
+        hi = try self.coerce_numeric(hi, self.expr_type(b.rhs), ty);
 
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
         const cond_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_cond");
