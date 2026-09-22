@@ -119,6 +119,7 @@ pub const Sema = struct {
                         if (aty == .invalid) {
                             try self.compiler.add_sem_error("cannot resolve aliased type for `{s}`", .{a.name}, .Error, a.token);
                         }
+                        try self.types.register(a.name, aty);
                         self.scope.declare(.{ .name = a.name, .kind = .type_alias, .ty = aty }) catch |e| {
                             if (e == error.DuplicateName) {
                                 try self.compiler.add_sem_error("Duplicate declaration: {s}", .{a.name}, .Error, a.token);
