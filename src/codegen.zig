@@ -1323,6 +1323,10 @@ pub const Codegen = struct {
 
         switch (l.kind) {
             .integer => {
+                if (self.is_float_type(ty)) {
+                    const f = try std.fmt.parseFloat(f64, l.raw);
+                    return llvm.LLVMConstReal(try self.get_llvm_type_of(ty), f);
+                }
                 const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
                 return llvm.LLVMConstInt(try self.get_llvm_type_of(ty), i, 1);
             },
