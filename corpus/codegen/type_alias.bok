@@ -1,0 +1,7 @@
+type real = f32;
+
+func main() -> real
+  var t: real = 10.334;
+  var d: real = 5.616;
+  return d/t;
+end

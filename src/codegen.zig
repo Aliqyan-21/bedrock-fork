@@ -351,7 +351,7 @@ pub const Codegen = struct {
         switch (t_def.*.variant) {
             .struct_def => |*s| try self.codegen_struct_def(s),
             .enum_def => unreachable,
-            .alias => unreachable,
+            .alias => {},
         }
     }
 
@@ -1515,7 +1515,9 @@ pub const Codegen = struct {
                 if (std.mem.eql(u8, n.name, "ptr")) {
                     return llvm.LLVMPointerTypeInContext(self.ctx, 64);
                 }
-                return self.struct_types.get(n.name) orelse unreachable;
+                if (self.struct_types.get(n.name)) |st| return st;
+                const resolved = self.compiler.sema.types.resolve(n.name) orelse unreachable;
+                return try self.get_llvm_type_of(resolved);
             },
             .slice => |*s| {
                 const ele_ty = try self.get_type(s.elem);
