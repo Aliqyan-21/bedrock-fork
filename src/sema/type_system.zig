@@ -156,6 +156,13 @@ pub const TypeSystem = struct {
     pub fn intern(self: *TypeSystem, ty: Type) !TypeId {
         for (self.types.items, 0..) |e, i| {
             if (is_type_eql(e, ty)) {
+                var discarded = ty;
+                switch (discarded) {
+                    .function => |*f| f.params.deinit(self.allocator),
+                    .procedure => |*p| p.params.deinit(self.allocator),
+                    .struct_ty => |*s| s.fields.deinit(self.allocator),
+                    else => {},
+                }
                 return @enumFromInt(i + 1);
             }
         }
