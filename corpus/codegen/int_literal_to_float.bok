@@ -1,0 +1,12 @@
+// output: 719.8
+
+// test for issue #244
+
+func main() -> f64
+  var x: f64 = 2.0;
+
+  var p1: f64 = 120 + x * 0.2;
+  var p2: f64 = 600 - x * 0.3;
+
+  return p1 + p2;
+end
