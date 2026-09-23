@@ -293,7 +293,10 @@ pub const Codegen = struct {
         _ = try self.codegen_statements(proc.body);
 
         // end proc with void return
-        _ = llvm.LLVMBuildRetVoid(self.builder);
+        const cur_bb = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(cur_bb) == null) {
+            _ = llvm.LLVMBuildRetVoid(self.builder);
+        }
     }
 
     pub fn codegen_extern(self: *Codegen, e_def: *ast.ExternDef) !void {
