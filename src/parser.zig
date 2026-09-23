@@ -760,9 +760,9 @@ pub const Parser = struct {
     fn parse_int_literal(self: *Parser, tok: token.Token) !ast.LiteralExpr {
         const val = std.fmt.parseInt(u64, tok.val, 10) catch {
             try self.compiler.addError("invalid integer literal", err.Severity.Error, tok);
-            return .{ .kind = .integer, .value = 0, .raw = tok.val, .token = tok };
+            return .{ .kind = .integer, .ivalue = 0, .raw = tok.val, .token = tok };
         };
-        return .{ .kind = .integer, .value = val, .raw = tok.val, .token = tok };
+        return .{ .kind = .integer, .ivalue = val, .raw = tok.val, .token = tok };
     }
 
     fn parse_float_literal(self: *Parser, tok: token.Token) !ast.LiteralExpr {

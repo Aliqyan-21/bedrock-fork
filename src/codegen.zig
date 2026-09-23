@@ -1333,7 +1333,7 @@ pub const Codegen = struct {
                     const f = try std.fmt.parseFloat(f64, l.raw);
                     return llvm.LLVMConstReal(try self.get_llvm_type_of(ty), f);
                 }
-                return llvm.LLVMConstInt(try self.get_llvm_type_of(ty), l.value, 1);
+                return llvm.LLVMConstInt(try self.get_llvm_type_of(ty), l.ivalue, 1);
             },
             .float => {
                 return llvm.LLVMConstReal(try self.get_llvm_type_of(ty), l.fvalue);
