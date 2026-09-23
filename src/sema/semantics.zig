@@ -520,7 +520,22 @@ pub const Sema = struct {
                 switch (u.op) {
                     .neg => {
                         const ty = try self.visit_expression(u.operand, expected);
-                        if (ty != .invalid and !self.types.literal_fits(.integer, ty)) {
+                        if (ty == .invalid) break :blk .invalid;
+
+                        const is_unsigned = switch (self.types.get(ty).*) {
+                            .primitive => |p| switch (p) {
+                                .u8, .u16, .u32, .u64, .usize => true,
+                                else => false,
+                            },
+                            else => false,
+                        };
+
+                        if (is_unsigned) {
+                            try self.compiler.add_sem_error("cannot negate value of unsiged type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                            break :blk .invalid;
+                        }
+
+                        if (!self.types.literal_fits(.integer, ty)) {
                             try self.compiler.add_sem_error("cannot negate non-numeric type {s}", .{self.types.name_of(ty)}, .Error, u.token);
                         }
                         break :blk ty;
@@ -666,7 +681,29 @@ pub const Sema = struct {
                 if (tty == .invalid) break :blk .invalid;
 
                 break :blk switch (self.types.get(tty).*) {
-                    .array => |a| a.child,
+                    .array => |a| blk2: {
+                        // note: bound check is only for constants (which are known during comptime)
+                        const idx = i.args.items[0];
+                        const is_neg = idx.* == .unary and idx.unary.op == .neg;
+                        const lit: ?*ast.LiteralExpr = if (idx.* == .literal)
+                            &idx.literal
+                        else if (is_neg and idx.unary.operand.* == .literal)
+                            &idx.unary.operand.literal
+                        else
+                            null;
+
+                        if (lit) |l| {
+                            if (l.kind == .integer) {
+                                const n = std.fmt.parseInt(u64, l.raw, 10) catch std.math.maxInt(u64);
+                                if (is_neg) {
+                                    try self.compiler.add_sem_error("index -{d} out of bounds of array of length {d}", .{ n, a.len }, .Error, idx.token_of());
+                                } else if (n >= a.len) {
+                                    try self.compiler.add_sem_error("index {d} out of bounds of array of length {d}", .{ n, a.len }, .Error, idx.token_of());
+                                }
+                            }
+                        }
+                        break :blk2 a.child;
+                    },
                     .slice => |s| s.child,
                     else => res: {
                         try self.compiler.add_sem_error("cannot index type {s}", .{self.types.name_of(tty)}, .Error, i.token);
