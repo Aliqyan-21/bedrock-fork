@@ -519,7 +519,22 @@ pub const Sema = struct {
                 switch (u.op) {
                     .neg => {
                         const ty = try self.visit_expression(u.operand, expected);
-                        if (ty != .invalid and !self.types.literal_fits(.integer, ty)) {
+                        if (ty == .invalid) break :blk .invalid;
+
+                        const is_unsigned = switch (self.types.get(ty).*) {
+                            .primitive => |p| switch (p) {
+                                .u8, .u16, .u32, .u64, .usize => true,
+                                else => false,
+                            },
+                            else => false,
+                        };
+
+                        if (is_unsigned) {
+                            try self.compiler.add_sem_error("cannot negate value of unsiged type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                            break :blk .invalid;
+                        }
+
+                        if (!self.types.literal_fits(.integer, ty)) {
                             try self.compiler.add_sem_error("cannot negate non-numeric type {s}", .{self.types.name_of(ty)}, .Error, u.token);
                         }
                         break :blk ty;
