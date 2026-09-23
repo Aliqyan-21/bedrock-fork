@@ -1,0 +1,6 @@
+func main() -> i32
+  var a = 100_00_12;
+  var b = 42;
+  var c = 0;
+  return a + b + c;
+end
