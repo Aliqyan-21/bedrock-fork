@@ -765,6 +765,14 @@ pub const Parser = struct {
         return .{ .kind = .integer, .value = val, .raw = tok.val, .token = tok };
     }
 
+    fn parse_float_literal(self: *Parser, tok: token.Token) !ast.LiteralExpr {
+        const val = std.fmt.parseFloat(f64, tok.val) catch {
+            try self.compiler.addError("invalid float literal", err.Severity.Error, tok);
+            return .{ .kind = .float, .fvalue = 0.0, .raw = tok.val, .token = tok };
+        };
+        return .{ .kind = .float, .fvalue = val, .raw = tok.val, .token = tok };
+    }
+
     fn parse_ident(self: *Parser) !ast.IdentExpr {
         const tok = try self.lexer.next();
         return .{ .name = tok.val, .token = tok };
@@ -1383,11 +1391,7 @@ pub const Parser = struct {
             },
             .float => {
                 lhs = try self.allocator.create(ast.Expr);
-                lhs.* = .{ .literal = .{
-                    .kind = ast.LiteralKind.float,
-                    .raw = tok.val,
-                    .token = tok,
-                } };
+                lhs.* = .{ .literal = try self.parse_float_literal(tok) };
             },
             .ident => {
                 lhs = try self.allocator.create(ast.Expr);
