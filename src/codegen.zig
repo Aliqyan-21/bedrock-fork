@@ -238,6 +238,12 @@ pub const Codegen = struct {
         );
 
         _ = try self.codegen_statements(function.body);
+
+        // terminates the block.
+        const cur_bb = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(cur_bb) == null) {
+            _ = llvm.LLVMBuildUnreachable(self.builder);
+        }
     }
 
     pub fn codegen_proc(self: *Codegen, proc: *ast.ProcDef) !void {
@@ -287,7 +293,10 @@ pub const Codegen = struct {
         _ = try self.codegen_statements(proc.body);
 
         // end proc with void return
-        _ = llvm.LLVMBuildRetVoid(self.builder);
+        const cur_bb = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(cur_bb) == null) {
+            _ = llvm.LLVMBuildRetVoid(self.builder);
+        }
     }
 
     pub fn codegen_extern(self: *Codegen, e_def: *ast.ExternDef) !void {
@@ -345,6 +354,7 @@ pub const Codegen = struct {
         switch (t_def.*.variant) {
             .struct_def => |*s| try self.codegen_struct_def(s),
             .enum_def => unreachable,
+            .alias => {},
         }
     }
 
@@ -609,8 +619,11 @@ pub const Codegen = struct {
         const llvm_ty = try self.get_llvm_type_of(ty);
 
         const b = &f.iterable.binary;
-        const lo = try self.codegen_expression(b.lhs);
-        const hi = try self.codegen_expression(b.rhs);
+        var lo = try self.codegen_expression(b.lhs);
+        var hi = try self.codegen_expression(b.rhs);
+
+        lo = try self.coerce_numeric(lo, self.expr_type(b.lhs), ty);
+        hi = try self.coerce_numeric(hi, self.expr_type(b.rhs), ty);
 
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
         const cond_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_cond");
@@ -627,10 +640,7 @@ pub const Codegen = struct {
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
 
-        const is_float = switch (self.compiler.sema.types.get(ty).*) {
-            .primitive => |p| p == .f32 or p == .f64,
-            else => false,
-        };
+        const is_float = self.is_float_type(ty);
         const is_signed = switch (self.compiler.sema.types.get(ty).*) {
             .primitive => |p| switch (p) {
                 .i8, .i16, .i32, .i64, .isize => true,
@@ -689,6 +699,32 @@ pub const Codegen = struct {
             else => false,
         };
     }
+
+    fn is_float_type(self: *Codegen, ty: types.TypeId) bool {
+        return switch (self.compiler.sema.types.get(ty).*) {
+            .primitive => |p| p == .f32 or p == .f64,
+            else => false,
+        };
+    }
+
+    fn coerce_numeric(self: *Codegen, val: llvm.LLVMValueRef, from: types.TypeId, to: types.TypeId) !llvm.LLVMValueRef {
+        if (from == .invalid or to == .invalid or from == to) return val;
+        const llvm_ty = try self.get_llvm_type_of(to);
+        if (llvm.LLVMTypeOf(val) == llvm_ty) return val; // for like isize and i64 or usize and u64
+
+        const from_is_float = self.is_float_type(from);
+        const to_is_float = self.is_float_type(to);
+
+        if (from_is_float and to_is_float) return llvm.LLVMBuildFPExt(self.builder, val, llvm_ty, "fpext");
+        if (!from_is_float and to_is_float) {
+            return if (self.is_signed_type(from)) llvm.LLVMBuildSIToFP(self.builder, val, llvm_ty, "sitofp") else llvm.LLVMBuildUIToFP(self.builder, val, llvm_ty, "uitofp");
+        }
+        if (!from_is_float and !to_is_float) {
+            return if (self.is_signed_type(from)) llvm.LLVMBuildSExt(self.builder, val, llvm_ty, "sext") else llvm.LLVMBuildZExt(self.builder, val, llvm_ty, "zext");
+        }
+        return val;
+    }
+
     // for allocating the binding
     fn enumerate_setup(self: *Codegen, f: *ast.ForExpr) !?llvm.LLVMValueRef {
         const ib = f.index_binding orelse return null;
@@ -710,16 +746,25 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_assign(self: *Codegen, a: *ast.AssignStmt) !llvm.LLVMValueRef {
-        const e = try self.codegen_expression(a.value);
         // NOTE: currently only for var assign
         switch (a.target.*) {
             .ident => |*i| {
+                const ty = self.expr_type(a.target);
+                const llvm_ty = try self.get_llvm_type_of(ty);
+                var e = try self.codegen_expression_with_type(a.value, llvm_ty);
                 if (std.mem.eql(u8, i.name, "_")) {
                     return e; // return if assigning in '_' (it is discard mf)
                 }
                 // lookup for var on stack
-                const ptr = self.stack_map.get(i.name) orelse self.global_map.get(i.name) orelse return error.VariableNotFound;
+                var ptr = self.stack_map.get(i.name) orelse self.global_map.get(i.name) orelse return error.VariableNotFound;
                 if (a.op == null) {
+                    // check for undefined array updation
+                    if (self.compiler.sema.types.get(ty).* == .array) {
+                        try self.stack_map.put(i.name, e);
+                        ptr = self.stack_map.get(i.name) orelse self.global_map.get(i.name) orelse return error.VariableNotFound;
+                        return ptr;
+                    }
+                    e = try self.coerce_numeric(e, self.expr_type(a.value), ty);
                     _ = llvm.LLVMBuildStore(self.builder, e, ptr);
                     return ptr;
                 } else {
@@ -727,24 +772,44 @@ pub const Codegen = struct {
                     const llvm_target_ty = try self.get_llvm_type_of(target_ty);
                     const old = llvm.LLVMBuildLoad2(self.builder, llvm_target_ty, ptr, "");
                     const is_signed = self.is_signed_type(target_ty);
+                    e = try self.coerce_numeric(e, self.expr_type(a.value), ty);
                     const result = try self.codegen_compound_op(a.op.?, old, e, is_signed);
                     _ = llvm.LLVMBuildStore(self.builder, result, ptr);
                     return ptr;
                 }
             },
             .index => |*i| {
+                var e = try self.codegen_expression_with_type(a.value, null);
                 const e_ptr = try self.codegen_array_element_ptr(i);
+                const elem_ty = self.expr_type(a.target);
+                e = try self.coerce_numeric(e, self.expr_type(a.value), elem_ty);
                 if (a.op == null) {
                     _ = llvm.LLVMBuildStore(self.builder, e, e_ptr);
                     return e_ptr;
                 } else {
-                    const elem_ty = self.expr_type(a.target);
                     const llvm_elem_ty = try self.get_llvm_type_of(elem_ty);
                     const old = llvm.LLVMBuildLoad2(self.builder, llvm_elem_ty, e_ptr, "");
                     const is_signed = self.is_signed_type(elem_ty);
                     const result = try self.codegen_compound_op(a.op.?, old, e, is_signed);
                     _ = llvm.LLVMBuildStore(self.builder, result, e_ptr);
                     return e_ptr;
+                }
+            },
+            .field_access => |*f| {
+                var e = try self.codegen_expression_with_type(a.value, null);
+                const f_ptr = try self.codegen_field_access(f, true);
+                const elem_ty = self.expr_type(a.target);
+                e = try self.coerce_numeric(e, self.expr_type(a.value), elem_ty);
+                if (a.op == null) {
+                    _ = llvm.LLVMBuildStore(self.builder, e, f_ptr);
+                    return f_ptr;
+                } else {
+                    const llvm_elem_ty = try self.get_llvm_type_of(elem_ty);
+                    const old = llvm.LLVMBuildLoad2(self.builder, llvm_elem_ty, f_ptr, "");
+                    const is_signed = self.is_signed_type(elem_ty);
+                    const result = try self.codegen_compound_op(a.op.?, old, e, is_signed);
+                    _ = llvm.LLVMBuildStore(self.builder, result, f_ptr);
+                    return f_ptr;
                 }
             },
             else => {
@@ -764,6 +829,10 @@ pub const Codegen = struct {
             },
             .struct_literal => {
                 const alloca = try self.codegen_alloca_var(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
                 const expected_ty = if (v.type_ann) |ty| try self.get_type(ty) else null;
                 const s = try self.codegen_expression_with_type(v.value, expected_ty);
                 _ = llvm.LLVMBuildStore(self.builder, s, alloca);
@@ -772,7 +841,17 @@ pub const Codegen = struct {
             },
             else => {
                 const alloca = try self.codegen_alloca_var(v);
-                const e = try self.codegen_expression(v.value);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
+                var e = try self.codegen_expression(v.value);
+                if (v.type_ann) |ann| {
+                    if (ann.base == .primitive) {
+                        const target_ty = try self.compiler.sema.types.from_ast_primitive(ann.base.primitive);
+                        e = try self.coerce_numeric(e, self.expr_type(v.value), target_ty);
+                    }
+                }
                 // store value on stack space
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);
                 try self.stack_map.put(v.name, alloca);
@@ -788,9 +867,31 @@ pub const Codegen = struct {
                 try self.stack_map.put(v.name, arr);
                 return arr;
             },
+            .struct_literal => {
+                const alloca = try self.codegen_alloca_const(v);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
+                const expected_ty = if (v.type_ann) |ty| try self.get_type(ty) else null;
+                const s = try self.codegen_expression_with_type(v.value, expected_ty);
+                _ = llvm.LLVMBuildStore(self.builder, s, alloca);
+                try self.stack_map.put(v.name, alloca);
+                return s;
+            },
             else => {
                 const alloca = try self.codegen_alloca_const(v);
-                const e = try self.codegen_expression(v.value);
+                if (v.value.* == .undefined) {
+                    try self.stack_map.put(v.name, alloca);
+                    return alloca;
+                }
+                var e = try self.codegen_expression(v.value);
+                if (v.type_ann) |ann| {
+                    if (ann.base == .primitive) {
+                        const target_ty = try self.compiler.sema.types.from_ast_primitive(ann.base.primitive);
+                        e = try self.coerce_numeric(e, self.expr_type(v.value), target_ty);
+                    }
+                }
                 // store value on stack space
                 _ = llvm.LLVMBuildStore(self.builder, e, alloca);
                 try self.stack_map.put(v.name, alloca);
@@ -859,12 +960,12 @@ pub const Codegen = struct {
             .array_literal => |*a| try self.codegen_array(a, e),
             .index => |*i| try self.codegen_index(i),
             .struct_literal => |*s| try self.codegen_struct_literal(s, expected_ty),
-            .field_access => |*f| try self.codegen_field_access(f),
+            .field_access => |*f| try self.codegen_field_access(f, false),
             else => unreachable,
         };
     }
 
-    pub fn codegen_field_access(self: *Codegen, f_access: *ast.FieldAccessExpr) anyerror!llvm.LLVMValueRef {
+    pub fn codegen_field_access(self: *Codegen, f_access: *ast.FieldAccessExpr, assign: bool) anyerror!llvm.LLVMValueRef {
         // NOTE: currently only for structs field access
         const ident = switch (f_access.target.*) {
             .ident => |i| i,
@@ -935,6 +1036,8 @@ pub const Codegen = struct {
             indices.len,
             "",
         );
+
+        if (assign) return field_ptr;
 
         const llvm_field_ty = try self.get_llvm_type_of(field_type);
         return llvm.LLVMBuildLoad2(self.builder, llvm_field_ty, field_ptr, "");
@@ -1211,7 +1314,8 @@ pub const Codegen = struct {
             if (param_types.len > 0 and self.is_array_slice_conversion(arg_ty, param_types[idx])) {
                 a[idx] = try self.codegen_array_as_slice(arg.value, arg_ty);
             } else {
-                a[idx] = try self.codegen_expression(arg.value);
+                const v = try self.codegen_expression(arg.value);
+                a[idx] = if (idx < param_types.len) try self.coerce_numeric(v, arg_ty, param_types[idx]) else v;
             }
         }
 
@@ -1225,6 +1329,10 @@ pub const Codegen = struct {
 
         switch (l.kind) {
             .integer => {
+                if (self.is_float_type(ty)) {
+                    const f = try std.fmt.parseFloat(f64, l.raw);
+                    return llvm.LLVMConstReal(try self.get_llvm_type_of(ty), f);
+                }
                 const i = try std.fmt.parseInt(c_ulonglong, l.raw, 10);
                 return llvm.LLVMConstInt(try self.get_llvm_type_of(ty), i, 1);
             },
@@ -1293,20 +1401,15 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_binary(self: *Codegen, b: *ast.BinaryExpr) anyerror!llvm.LLVMValueRef {
-        const l = try self.codegen_expression(b.lhs);
-        const r = try self.codegen_expression(b.rhs);
+        var l = try self.codegen_expression(b.lhs);
+        var r = try self.codegen_expression(b.rhs);
         const lty = self.expr_type(b.lhs);
-        const is_float = switch (self.compiler.sema.types.get(lty).*) {
-            .primitive => |p| p == .f32 or p == .f64,
-            else => false,
-        };
-        const is_signed = switch (self.compiler.sema.types.get(lty).*) {
-            .primitive => |p| switch (p) {
-                .i8, .i16, .i32, .i64, .isize => true,
-                else => false,
-            },
-            else => false,
-        };
+        const rty = self.expr_type(b.rhs);
+        const opty = self.compiler.sema.types.unify(lty, rty) orelse lty;
+        l = try self.coerce_numeric(l, lty, opty);
+        r = try self.coerce_numeric(r, rty, opty);
+        const is_float = self.is_float_type(opty);
+        const is_signed = self.is_signed_type(opty);
         // TODO: handle overflow and underflow
         return switch (b.op) {
             .add => if (is_float) llvm.LLVMBuildFAdd(self.builder, l, r, "add_bin") else llvm.LLVMBuildAdd(self.builder, l, r, "add_bin"),
@@ -1339,10 +1442,7 @@ pub const Codegen = struct {
 
         const e = try self.codegen_expression(u.operand);
         const oty = self.expr_type(u.operand);
-        const is_float = switch (self.compiler.sema.types.get(oty).*) {
-            .primitive => |p| p == .f32 or p == .f64,
-            else => false,
-        };
+        const is_float = self.is_float_type(oty);
 
         return switch (u.op) {
             .neg => if (is_float) llvm.LLVMBuildFNeg(self.builder, e, "neg_un") else llvm.LLVMBuildNeg(self.builder, e, "neg_un"),
@@ -1418,7 +1518,9 @@ pub const Codegen = struct {
                 if (std.mem.eql(u8, n.name, "ptr")) {
                     return llvm.LLVMPointerTypeInContext(self.ctx, 64);
                 }
-                return self.struct_types.get(n.name) orelse unreachable;
+                if (self.struct_types.get(n.name)) |st| return st;
+                const resolved = self.compiler.sema.types.resolve(n.name) orelse unreachable;
+                return try self.get_llvm_type_of(resolved);
             },
             .slice => |*s| {
                 const ele_ty = try self.get_type(s.elem);

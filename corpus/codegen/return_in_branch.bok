@@ -1,0 +1,12 @@
+// output: 10
+
+// test for issue #219
+
+func main() -> i32
+  if (true) 
+    return 10;
+   else
+    return 2;
+   end
+   // no need for return here.
+end

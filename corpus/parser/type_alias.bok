@@ -1,0 +1,10 @@
+type real = f32;
+type foo = func(i32, str) -> i32;
+type bar = i2; // this should error as i2 not known
+
+type real = f32; // duplicate real error
+
+proc main()
+  var a: real = 10.334; // real works as type!
+  var b: real = "str"; // this is error because real is f32 and putting string
+end

@@ -1,0 +1,59 @@
+// output: 33554432
+
+func pow(a: i64, b: i64) -> i64
+  var res: i64 = 1;
+  for i in 0..b
+    res *= a;
+  end
+  return res;
+end
+
+func max(a: i32, b: i32) -> i32
+  if (a > b) return a;
+  else return b; end
+end
+
+// Notes
+// - any algorithm for multiplying two numbers of n-digits, it takes 2n computation steps
+// - any algorithm for adding two numbers of n-digits, it takes n computation steps
+// - Elementary school algorithm have complexity of - O(n^2)
+//
+// x = a*10^n/2 + b
+// if a num = ab, n = number of digits
+
+func karatsuba(x: i64, y: i64) -> i64
+  if (x < 10 || y < 10) return x*y; end
+  var tmp: i64 = x;
+  var n: i32 = 0; var n_x: i32 = 0; var n_y: i32 = 0;
+
+  while (tmp != 0)
+    n_x += 1;
+    tmp /= 10;
+  end
+  tmp = y;
+  while (tmp != 0)
+    n_y += 1;
+    tmp /= 10;
+  end
+
+  n = max(n_x, n_y);
+  var half: i32 = n / 2;
+
+  var a: i64 = x / pow(10, half);
+  var b: i64 = x % pow(10, half);
+  var c: i64 = y / pow(10, half);
+  var d: i64 = y % pow(10, half);
+
+  var ac: i64 = karatsuba(a, c);
+  var bd: i64 = karatsuba(b, d);
+  var ad_plus_bc: i64 = karatsuba(a + b, c + d) - ac - bd;
+
+  return ac * pow(10, 2 * half) + (ad_plus_bc * pow(10, half)) + bd;
+end
+
+func main() -> i64
+  var a: i64 = 4096;
+  var b: i64 = 8192;
+
+  return karatsuba(a, b);
+end

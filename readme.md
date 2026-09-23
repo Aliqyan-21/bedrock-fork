@@ -24,3 +24,5 @@ bok --help
 ```
 
 > the binary is found in `zig-out/bin`
+
+###### Do visit the [website](https://bedrock-lang.com/) for documentation.

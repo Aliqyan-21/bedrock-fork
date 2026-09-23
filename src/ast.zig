@@ -151,11 +151,13 @@ pub const ProcDef = struct {
 pub const TypeVariant = union(enum) {
     struct_def: StructDef,
     enum_def: EnumDef,
+    alias: AliasDef,
 
     pub fn print(self: *TypeVariant, indent: usize) anyerror!void {
         switch (self.*) {
             .struct_def => |*s| try s.print(indent),
             .enum_def => |*e| try e.print(indent),
+            .alias => |*a| try a.print(indent),
         }
     }
 
@@ -163,6 +165,7 @@ pub const TypeVariant = union(enum) {
         switch (self.*) {
             .struct_def => |*s| s.deinit(allocator),
             .enum_def => |*e| e.deinit(allocator),
+            .alias => |*a| a.deinit(allocator),
         }
     }
 };
@@ -256,6 +259,24 @@ pub const ExternParam = struct {
 
     pub fn deinit(self: *ExternParam, allocator: std.mem.Allocator) void {
         self.name.deinit(allocator);
+    }
+};
+
+pub const AliasDef = struct {
+    is_pub: bool = false,
+    name: []const u8 = "",
+    ty: *Type,
+    token: Token,
+
+    pub fn print(self: *AliasDef, indent: usize) anyerror!void {
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("type alias: {s} -> \n", .{self.name});
+        try self.ty.print(indent + 4);
+    }
+
+    pub fn deinit(self: *AliasDef, allocator: std.mem.Allocator) void {
+        self.ty.deinit(allocator);
+        allocator.destroy(self.ty);
     }
 };
 
@@ -1143,6 +1164,16 @@ pub const Nil = struct {
     }
 };
 
+pub const Undefined = struct {
+    token: Token,
+
+    pub fn print(self: *Undefined, indent: usize) anyerror!void {
+        _ = self;
+        for (0..indent) |_| std.debug.print(" ", .{});
+        std.debug.print("undefined\n", .{});
+    }
+};
+
 pub const Expr = union(enum) {
     literal: LiteralExpr,
     ident: IdentExpr,
@@ -1156,6 +1187,7 @@ pub const Expr = union(enum) {
     comptime_expr: ComptimeExpr,
     struct_literal: StructLiteral,
     nil: Nil,
+    undefined: Undefined,
 
     pub fn print(self: *Expr, indent: usize) anyerror!void {
         switch (self.*) {
@@ -1171,6 +1203,7 @@ pub const Expr = union(enum) {
             .comptime_expr => |*c| try c.print(indent),
             .struct_literal => |*s| try s.print(indent),
             .nil => |*n| try n.print(indent),
+            .undefined => |*u| try u.print(indent),
         }
     }
 
@@ -1210,6 +1243,7 @@ pub const Expr = union(enum) {
                 allocator.destroy(self);
             },
             .nil => allocator.destroy(self),
+            .undefined => allocator.destroy(self),
             else => {
                 // TODO:
             },
@@ -1240,6 +1274,7 @@ pub const Expr = union(enum) {
             .comptime_expr => self.comptime_expr.token,
             .struct_literal => self.struct_literal.token,
             .nil => self.nil.token,
+            .undefined => self.undefined.token,
         };
     }
 };
@@ -1312,6 +1347,28 @@ pub const Stmt = union(enum) {
             .control_flow_stmt => |*c_f| c_f.deinit(allocator),
             else => {},
         }
+    }
+
+    pub fn token_of(self: *Stmt) ?Token {
+        return switch (self.*) {
+            .var_stmt => self.var_stmt.token,
+            .const_stmt => self.const_stmt.token,
+            .assign_stmt => self.assign_stmt.token,
+            .local_static_var_stmt => self.local_static_var_stmt.token,
+            .defer_stmt => self.defer_stmt.token,
+            .unsafe_stmt => self.unsafe_stmt.token,
+            .control_flow_stmt => |cf| switch (cf) {
+                .if_expr => |i| i.token,
+                .match_expr => |m| m.token,
+                .while_expr => |w| w.token,
+                .for_expr => |f| f.token,
+            },
+            .return_stmt => self.return_stmt.token,
+            .expr_stmt => |e| if (e.value) |v| v.token_of() else null,
+            .break_stmt => self.break_stmt.token,
+            .continue_stmt => self.const_stmt.token,
+            .print_stub => self.print_stub.token,
+        };
     }
 };
 

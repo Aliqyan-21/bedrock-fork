@@ -47,7 +47,22 @@ pub const Sema = struct {
         self.scope = &block_scope;
         defer self.scope = saved;
 
-        for (stmts) |*stmt| try self.visit_statement(stmt);
+        for (stmts, 0..) |*stmt, idx| {
+            if (idx > 0 and self.types.body_returns(stmts[0..idx])) {
+                if (stmt.token_of()) |tok| {
+                    try self.compiler.add_sem_error("unreachable code", .{}, .Error, tok);
+                }
+                break;
+            }
+            try self.visit_statement(stmt);
+        }
+    }
+
+    fn check_undefined_array_infer(type_ann: ?*ast.Type, value: *ast.Expr) bool {
+        if (type_ann) |ty| if (ty.base == .array and ty.base.array.size == .inferred and value.* == .undefined) {
+            return true;
+        };
+        return false;
     }
 
     fn visit_item(self: *Sema, item: *ast.Item) !void {
@@ -99,6 +114,18 @@ pub const Sema = struct {
 
                         try self.visit_struct_def(@constCast(s));
                     },
+                    .alias => |*a| {
+                        const aty = try self.types.resolve_type(a.ty, self.scope);
+                        if (aty == .invalid) {
+                            try self.compiler.add_sem_error("cannot resolve aliased type for `{s}`", .{a.name}, .Error, a.token);
+                        }
+                        try self.types.register(a.name, aty);
+                        self.scope.declare(.{ .name = a.name, .kind = .type_alias, .ty = aty }) catch |e| {
+                            if (e == error.DuplicateName) {
+                                try self.compiler.add_sem_error("Duplicate declaration: {s}", .{a.name}, .Error, a.token);
+                            }
+                        };
+                    },
                     else => {},
                 }
             },
@@ -133,7 +160,10 @@ pub const Sema = struct {
             },
             .var_def => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
@@ -146,7 +176,10 @@ pub const Sema = struct {
             },
             .const_def => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
@@ -223,7 +256,10 @@ pub const Sema = struct {
         switch (stmt.*) {
             .var_stmt => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(v.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(v.value, if (dty != .invalid) dty else null);
 
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, v.token);
@@ -234,7 +270,10 @@ pub const Sema = struct {
             },
             .const_stmt => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(c.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(c.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, c.token);
                 }
@@ -244,7 +283,10 @@ pub const Sema = struct {
             },
             .local_static_var_stmt => |lv| {
                 const dty: types.TypeId = if (lv.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
-                const aty = try self.visit_expression(lv.value, if (dty != .invalid) dty else null);
+                const aty = if (check_undefined_array_infer(lv.type_ann, lv.value)) blk: {
+                    try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, lv.token);
+                    break :blk .invalid;
+                } else try self.visit_expression(lv.value, if (dty != .invalid) dty else null);
                 if (dty != .invalid and aty != .invalid and !self.types.assignable(aty, dty)) {
                     try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(dty), self.types.name_of(aty) }, .Error, lv.token);
                 }
@@ -271,10 +313,9 @@ pub const Sema = struct {
                     }
 
                     const tty = try self.visit_expression(a.target, null);
-                    const vty = try self.visit_expression(a.value, tty);
-
+                    const vty = try self.visit_expression(a.value, if (tty != .invalid) tty else null);
                     if (tty != .invalid and vty != .invalid and !self.types.assignable(vty, tty)) {
-                        try self.compiler.add_sem_error("type mismatch in assignment: expected {s}, found {s}", .{ self.types.name_of(tty), self.types.name_of(vty) }, .Error, a.token);
+                        try self.compiler.add_sem_error("type mismatch: expected {s}, found {s}", .{ self.types.name_of(tty), self.types.name_of(vty) }, .Error, a.target.token_of());
                     }
                 }
             },
@@ -424,12 +465,11 @@ pub const Sema = struct {
             .binary => |*b| blk: {
                 if (b.op == .range or b.op == .range_incl) {
                     const lty = try self.visit_expression(b.lhs, expected);
-                    const rty = try self.visit_expression(b.rhs, expected);
-                    if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
+                    const rty = try self.visit_expression(b.rhs, expected orelse if (lty != .invalid) lty else null);
+                    const elemty = self.types.unify(lty, rty) orelse {
                         try self.compiler.add_sem_error("range bounds must have the same type: {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
                         break :blk .invalid;
-                    }
-                    const elemty = if (lty != .invalid) lty else rty;
+                    };
                     break :blk if (elemty == .invalid) .invalid else try self.types.intern(.{ .range = .{ .elem = elemty } });
                 }
                 if (b.op == .orelse_op) {
@@ -444,8 +484,8 @@ pub const Sema = struct {
                     else => false,
                 };
 
-                // todo: right now type conversions are not thought yet (implicit/explicit,
-                // and more) so 10 + 3.12 is error for now as type mismatch.
+                // implicit type conversion (numeric widening) is allowed for now
+                // those who need explicit type conversion give error here
                 if (is_logical) {
                     const boolty = try self.types.primitive(.bool);
                     const lty = try self.visit_expression(b.lhs, boolty);
@@ -459,21 +499,43 @@ pub const Sema = struct {
                     break :blk boolty;
                 }
 
-                const lty = try self.visit_expression(b.lhs, expected);
-                const rty = try self.visit_expression(b.rhs, expected);
-
-                if (lty != .invalid and rty != .invalid and lty != rty and !self.types.assignable(rty, lty) and !self.types.assignable(lty, rty)) {
-                    try self.compiler.add_sem_error("type mismatch in binary expression {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
-                    break :blk .invalid;
+                var lty: types.TypeId = undefined;
+                var rty: types.TypeId = undefined;
+                if (expected == null and b.lhs.* == .literal and b.rhs.* != .literal) {
+                    rty = try self.visit_expression(b.rhs, null);
+                    lty = try self.visit_expression(b.lhs, if (rty != .invalid) rty else null);
+                } else {
+                    lty = try self.visit_expression(b.lhs, expected);
+                    rty = try self.visit_expression(b.rhs, expected orelse if (lty != .invalid) lty else null);
                 }
 
-                break :blk if (is_comparison) try self.types.primitive(.bool) else if (lty != .invalid) lty else rty;
+                const result_ty = self.types.unify(lty, rty) orelse {
+                    try self.compiler.add_sem_error("type mismatch in binary expression {s} and {s}", .{ self.types.name_of(lty), self.types.name_of(rty) }, .Error, b.token);
+                    break :blk .invalid;
+                };
+
+                break :blk if (is_comparison) try self.types.primitive(.bool) else result_ty;
             },
             .unary => |*u| blk: {
                 switch (u.op) {
                     .neg => {
                         const ty = try self.visit_expression(u.operand, expected);
-                        if (ty != .invalid and !self.types.literal_fits(.integer, ty)) {
+                        if (ty == .invalid) break :blk .invalid;
+
+                        const is_unsigned = switch (self.types.get(ty).*) {
+                            .primitive => |p| switch (p) {
+                                .u8, .u16, .u32, .u64, .usize => true,
+                                else => false,
+                            },
+                            else => false,
+                        };
+
+                        if (is_unsigned) {
+                            try self.compiler.add_sem_error("cannot negate value of unsiged type {s}", .{self.types.name_of(ty)}, .Error, u.token);
+                            break :blk .invalid;
+                        }
+
+                        if (!self.types.literal_fits(.integer, ty)) {
                             try self.compiler.add_sem_error("cannot negate non-numeric type {s}", .{self.types.name_of(ty)}, .Error, u.token);
                         }
                         break :blk ty;
@@ -619,7 +681,29 @@ pub const Sema = struct {
                 if (tty == .invalid) break :blk .invalid;
 
                 break :blk switch (self.types.get(tty).*) {
-                    .array => |a| a.child,
+                    .array => |a| blk2: {
+                        // note: bound check is only for constants (which are known during comptime)
+                        const idx = i.args.items[0];
+                        const is_neg = idx.* == .unary and idx.unary.op == .neg;
+                        const lit: ?*ast.LiteralExpr = if (idx.* == .literal)
+                            &idx.literal
+                        else if (is_neg and idx.unary.operand.* == .literal)
+                            &idx.unary.operand.literal
+                        else
+                            null;
+
+                        if (lit) |l| {
+                            if (l.kind == .integer) {
+                                const n = std.fmt.parseInt(u64, l.raw, 10) catch std.math.maxInt(u64);
+                                if (is_neg) {
+                                    try self.compiler.add_sem_error("index -{d} out of bounds of array of length {d}", .{ n, a.len }, .Error, idx.token_of());
+                                } else if (n >= a.len) {
+                                    try self.compiler.add_sem_error("index {d} out of bounds of array of length {d}", .{ n, a.len }, .Error, idx.token_of());
+                                }
+                            }
+                        }
+                        break :blk2 a.child;
+                    },
                     .slice => |s| s.child,
                     else => res: {
                         try self.compiler.add_sem_error("cannot index type {s}", .{self.types.name_of(tty)}, .Error, i.token);
@@ -649,10 +733,19 @@ pub const Sema = struct {
                 var elemty: types.TypeId = hint orelse .invalid;
 
                 for (al.elements.items) |elem| {
-                    const ety = try self.visit_expression(elem, hint);
+                    const want: ?types.TypeId = hint orelse (if (elemty != .invalid) elemty else null);
+                    const ety = try self.visit_expression(elem, want);
                     if (ety == .invalid) continue;
-                    if (elemty == .invalid) {
-                        elemty = ety;
+                    if (hint == null) {
+                        elemty = self.types.unify(elemty, ety) orelse {
+                            try self.compiler.add_sem_error(
+                                "array elements must have the same type: expected {s}, found {s}",
+                                .{ self.types.name_of(elemty), self.types.name_of(ety) },
+                                .Error,
+                                al.token,
+                            );
+                            break :blk .invalid;
+                        };
                         continue;
                     }
                     if (!self.types.assignable(ety, elemty)) {
@@ -683,6 +776,11 @@ pub const Sema = struct {
                 if (fits) break :blk expected.?;
 
                 try self.compiler.add_sem_error("cannot infer type of nil without context", .{}, .Error, n.token);
+                break :blk .invalid;
+            },
+            .undefined => blk: {
+                if (expected) |e| break :blk e;
+                try self.compiler.add_sem_error("cannot infer type of 'undefined' without context", .{}, .Error, expr.token_of());
                 break :blk .invalid;
             },
             .struct_literal => |*sl| blk: {

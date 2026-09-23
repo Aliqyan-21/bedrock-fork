@@ -1,0 +1,4 @@
+proc main()
+  var foo: i32 = undefined; // this works
+  var bar = undefined; // this error
+end

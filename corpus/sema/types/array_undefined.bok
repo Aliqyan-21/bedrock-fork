@@ -1,0 +1,4 @@
+proc main()
+  var a: [9]i32 = undefined; // this is valid
+  var b: [_]i32 = undefined; // result in error
+end

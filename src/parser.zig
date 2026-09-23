@@ -220,9 +220,10 @@ pub const Parser = struct {
         const name = try self.lexer.next();
         _ = try self.expect(.eq, "expected '='");
 
-        tok = try self.lexer.next();
+        tok = try self.lexer.peek_token();
         switch (tok.type) {
             .kw_struct => {
+                _ = try self.lexer.next();
                 const s = try self.parse_struct(name.val);
                 type_def.variant = .{ .struct_def = s };
             },
@@ -230,7 +231,9 @@ pub const Parser = struct {
                 // TODO:
             },
             else => {
-                // error
+                const aliased = try self.parse_type();
+                _ = try self.expect(.semicolon, "expected ';'");
+                type_def.variant = .{ .alias = .{ .name = name.val, .ty = aliased, .token = tok } };
             },
         }
 
@@ -514,8 +517,13 @@ pub const Parser = struct {
             if (tok.type == .kw_end or tok.type == .kw_elif or tok.type == .kw_else or tok.type == .eof or tok.type == .kw_case) break;
             try stmts.append(self.allocator, try self.parse_statement());
         }
-        if ((try self.lexer.peek_token()).type == .kw_end) {
-            _ = try self.expect(.kw_end, "expected 'end'");
+        const tok = try self.lexer.peek_token();
+        switch (tok.type) {
+            .kw_end => _ = try self.lexer.next(),
+            .kw_elif, .kw_else, .kw_case => {},
+            else => {
+                try self.compiler.add_sem_error("expected 'end' to close block", .{}, err.Severity.Error, tok);
+            },
         }
         return stmts;
     }
@@ -826,7 +834,13 @@ pub const Parser = struct {
         } else if (tok.type == token.TokenType.kw_case) {
             match.arms = try self.parse_match_arms();
         } else {
-            // TODO:
+            try self.compiler.addError("expected 'case' or 'end' after match subject", err.Severity.Error, tok);
+            try self.sync(&.{ .kw_end, .kw_case, .kw_else });
+            if ((try self.lexer.peek_token()).type == .kw_case) {
+                match.arms = try self.parse_match_arms();
+            } else if ((try self.lexer.peek_token()).type == .kw_end) {
+                _ = try self.lexer.next();
+            }
         }
 
         tok = try self.lexer.peek_token();
@@ -846,9 +860,13 @@ pub const Parser = struct {
             // check if the tok is 'case' for 'else'
             tok = try self.lexer.peek_token();
         }
-        // 'end' keyword
-        if (tok.type == token.TokenType.kw_end)
-            _ = try self.lexer.next();
+        switch (tok.type) {
+            .kw_end => _ = try self.lexer.next(),
+            .kw_else => {},
+            else => {
+                try self.compiler.addError("expected 'end' or 'case' in match arms", err.Severity.Error, tok);
+            },
+        }
 
         return arms;
     }
@@ -1391,6 +1409,10 @@ pub const Parser = struct {
                 lhs = try self.allocator.create(ast.Expr);
                 lhs.* = .{ .nil = .{ .token = tok } };
             },
+            .kw_undefined => {
+                lhs = try self.allocator.create(ast.Expr);
+                lhs.* = .{ .undefined = .{ .token = tok } };
+            },
             .l_paren => {
                 lhs = try self.parse_expression_bp(0);
                 // expect ')'
@@ -1595,7 +1617,7 @@ fn infix_binding_power(op: token.TokenType) [2]usize {
 
 fn prefix_binding_power(op: token.TokenType) [2]usize {
     return switch (op) {
-        .minus, .bang_eq, .tilde, .amp, .star, .kw_new => .{ 0, 5 },
+        .minus, .bang, .tilde, .amp, .star, .kw_new => .{ 0, 21 },
         else => .{ 0, 0 },
     };
 }
