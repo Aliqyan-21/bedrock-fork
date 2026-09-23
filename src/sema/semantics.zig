@@ -673,14 +673,7 @@ pub const Sema = struct {
             },
             .index => |*i| blk: {
                 const tty = try self.visit_expression(i.target, null);
-
-                const usizety = try self.types.primitive(.usize);
-                for (i.args.items) |arg| {
-                    const ity = try self.visit_expression(arg, usizety);
-                    if (ity != .invalid and !self.types.assignable(ity, usizety)) {
-                        try self.compiler.add_sem_error("index must be usize, found {s}", .{self.types.name_of(ity)}, .Error, arg.token_of());
-                    }
-                }
+                for (i.args.items) |arg| _ = try self.visit_expression(arg, null);
 
                 if (i.args.items.len != 1) break :blk .invalid; //todo: generics
 
