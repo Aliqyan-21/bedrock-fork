@@ -124,15 +124,15 @@ pub const Codegen = struct {
         try self.codegen_program(self.compiler.ast.program);
 
         // verify module
-        var err_msg: [*c]u8 = null;
-        const v_ret = llvm.LLVMVerifyModule(self.mod, llvm.LLVMPrintMessageAction, &err_msg);
-        if (v_ret != 0) {
-            if (err_msg) |msg| {
-                log.err("{s}\n", .{std.mem.span(msg)});
-                llvm.LLVMDisposeMessage(msg);
-                return Error.CodegenFail;
-            }
-        }
+        // var err_msg: [*c]u8 = null;
+        // const v_ret = llvm.LLVMVerifyModule(self.mod, llvm.LLVMPrintMessageAction, &err_msg);
+        // if (v_ret != 0) {
+        //     if (err_msg) |msg| {
+        //         log.err("{s}\n", .{std.mem.span(msg)});
+        //         llvm.LLVMDisposeMessage(msg);
+        //         return Error.CodegenFail;
+        //     }
+        // }
 
         // set the pass managers
         if (self.opt) {
@@ -1268,20 +1268,9 @@ pub const Codegen = struct {
         };
 
         // see why called value type failed here
-        var func_type = llvm.LLVMGlobalGetValueType(func_ref);
+        const func_type = llvm.LLVMGlobalGetValueType(func_ref);
         if (func_type == null) {
             log.err("no function type for {s}\n", .{name});
-        }
-
-        const is_vardiac = llvm.LLVMIsFunctionVarArg(func_type);
-        const linkage = llvm.LLVMGetLinkage(func_ref);
-        // only for osx extern fucntions
-        if (is_vardiac == 1 and linkage == llvm.LLVMExternalLinkage and builtin.os.tag == .macos) {
-            // on osx
-            const ptr = llvm.LLVMPointerTypeInContext(self.ctx, 0);
-            const ret_type = llvm.LLVMGetReturnType(func_type);
-            var params = [_]llvm.LLVMTypeRef{ptr};
-            func_type = llvm.LLVMFunctionType(ret_type, &params, 1, 1);
         }
 
         const args = try self.codegen_args(c.args, param_types);
