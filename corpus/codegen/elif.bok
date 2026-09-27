@@ -1,3 +1,4 @@
+// output: 0
 extern func printf(...) -> i32;
 
 // i believe 0 is neither even nor odd

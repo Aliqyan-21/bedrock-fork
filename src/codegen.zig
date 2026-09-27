@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const llvm = @import("llvm");
 const compiler = @import("compiler.zig");
 const ast = @import("ast.zig");
@@ -459,7 +460,18 @@ pub const Codegen = struct {
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
 
-        const cond = try self.codegen_expression(w.cond);
+        var cond = try self.codegen_expression(w.cond);
+        const cond_ty = llvm.LLVMTypeOf(cond);
+        const ty_w = llvm.LLVMGetIntTypeWidth(cond_ty);
+        if (ty_w != 1) {
+            cond = llvm.LLVMBuildICmp(
+                self.builder,
+                llvm.LLVMIntNE,
+                cond,
+                llvm.LLVMConstInt(llvm.LLVMInt32TypeInContext(self.ctx), 0, 0),
+                "",
+            );
+        }
         _ = llvm.LLVMBuildCondBr(self.builder, cond, while_bb, merge_bb);
 
         // reset the insert pos
@@ -495,7 +507,20 @@ pub const Codegen = struct {
         const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "");
 
         const first_false_bb = if (elif_bbs.len > 0) elif_bbs[0] else else_bb;
-        const cond = try self.codegen_expression(i.cond);
+        var cond = try self.codegen_expression(i.cond);
+        const cond_ty = llvm.LLVMTypeOf(cond);
+        const ty_w = llvm.LLVMGetIntTypeWidth(cond_ty);
+        // if the cond type is not i1 then we need to masked the cond to i1 type
+        if (ty_w != 1) {
+            cond = llvm.LLVMBuildICmp(
+                self.builder,
+                llvm.LLVMIntNE,
+                cond,
+                llvm.LLVMConstInt(llvm.LLVMInt32TypeInContext(self.ctx), 0, 0),
+                "",
+            );
+        }
+
         _ = llvm.LLVMBuildCondBr(self.builder, cond, then_bb, first_false_bb);
 
         // set new insert point for then_bb codegen
@@ -507,7 +532,18 @@ pub const Codegen = struct {
 
         for (i.elifs.items, 0..) |*elif, idx| {
             llvm.LLVMPositionBuilderAtEnd(self.builder, elif_bbs[idx]);
-            const elif_cond = try self.codegen_expression(elif.cond);
+            var elif_cond = try self.codegen_expression(elif.cond);
+            const elif_cond_ty = llvm.LLVMTypeOf(elif_cond);
+            const elif_ty_w = llvm.LLVMGetIntTypeWidth(elif_cond_ty);
+            if (elif_ty_w != 1) {
+                elif_cond = llvm.LLVMBuildICmp(
+                    self.builder,
+                    llvm.LLVMIntNE,
+                    elif_cond,
+                    llvm.LLVMConstInt(llvm.LLVMInt32TypeInContext(self.ctx), 0, 0),
+                    "",
+                );
+            }
             const nxt = if (idx + 1 < elif_bbs.len) elif_bbs[idx + 1] else else_bb;
             _ = llvm.LLVMBuildCondBr(self.builder, elif_cond, elif_then_bbs[idx], nxt);
 
@@ -569,7 +605,18 @@ pub const Codegen = struct {
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
 
         const index = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64TypeInContext(self.ctx), index_alloca, "index");
-        const cond = llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULT, index, l, "for_cmp");
+        var cond = llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULT, index, l, "for_cmp");
+        const cond_ty = llvm.LLVMTypeOf(cond);
+        const ty_w = llvm.LLVMGetIntTypeWidth(cond_ty);
+        if (ty_w != 1) {
+            cond = llvm.LLVMBuildICmp(
+                self.builder,
+                llvm.LLVMIntNE,
+                cond,
+                llvm.LLVMConstInt(llvm.LLVMInt32TypeInContext(self.ctx), 0, 0),
+                "",
+            );
+        }
         _ = llvm.LLVMBuildCondBr(self.builder, cond, body_bb, merge_bb);
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, body_bb);
@@ -650,14 +697,24 @@ pub const Codegen = struct {
         };
         const isincl = b.op == .range_incl; // the range is inclusize (..=)
         const i_val = llvm.LLVMBuildLoad2(self.builder, llvm_ty, i_alloca, "");
-        const cond = if (is_float)
+        var cond = if (is_float)
             llvm.LLVMBuildFCmp(self.builder, if (isincl) llvm.LLVMRealOLE else llvm.LLVMRealOLT, i_val, hi, "for_cmp")
         else
             llvm.LLVMBuildICmp(self.builder, if (is_signed)
                 (if (isincl) llvm.LLVMIntSLE else llvm.LLVMIntSLT)
             else
                 (if (isincl) llvm.LLVMIntULE else llvm.LLVMIntULT), i_val, hi, "for_cmp");
-
+        const cond_ty = llvm.LLVMTypeOf(cond);
+        const ty_w = llvm.LLVMGetIntTypeWidth(cond_ty);
+        if (ty_w != 1) {
+            cond = llvm.LLVMBuildICmp(
+                self.builder,
+                llvm.LLVMIntNE,
+                cond,
+                llvm.LLVMConstInt(llvm.LLVMInt32TypeInContext(self.ctx), 0, 0),
+                "",
+            );
+        }
         _ = llvm.LLVMBuildCondBr(self.builder, cond, body_bb, merge_bb);
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, body_bb);
@@ -1197,6 +1254,7 @@ pub const Codegen = struct {
         const name_call = try self.allocator.dupeZ(u8, name);
         defer self.allocator.free(name_call);
         const func_ref = llvm.LLVMGetNamedFunction(self.mod, name_call.ptr);
+
         if (func_ref == null) {
             log.err("no function named {s}\n", .{name});
         }
@@ -1210,22 +1268,25 @@ pub const Codegen = struct {
         };
 
         // see why called value type failed here
-        const func_type = llvm.LLVMGlobalGetValueType(func_ref);
+        var func_type = llvm.LLVMGlobalGetValueType(func_ref);
         if (func_type == null) {
             log.err("no function type for {s}\n", .{name});
+        }
+
+        const is_vardiac = llvm.LLVMIsFunctionVarArg(func_type);
+        const linkage = llvm.LLVMGetLinkage(func_ref);
+        // only for osx extern fucntions
+        if (is_vardiac == 1 and linkage == llvm.LLVMExternalLinkage and builtin.os.tag == .macos) {
+            // on osx
+            const ptr = llvm.LLVMPointerTypeInContext(self.ctx, 0);
+            const ret_type = llvm.LLVMGetReturnType(func_type);
+            var params = [_]llvm.LLVMTypeRef{ptr};
+            func_type = llvm.LLVMFunctionType(ret_type, &params, 1, 1);
         }
 
         const args = try self.codegen_args(c.args, param_types);
         defer self.allocator.free(args);
         const n_args = c.args.items.len;
-
-        // note: commenting this out, as these checks should be
-        // handled in sema, not in codegen, right?
-
-        // const expected = llvm.LLVMCountParamTypes(func_type);
-        // if (expected != n_args) {
-        //     log.err("expected args = {}, actual args = {}\n", .{ expected, n_args });
-        // }
 
         const call = llvm.LLVMBuildCall2(
             self.builder,
@@ -1234,7 +1295,6 @@ pub const Codegen = struct {
             args.ptr,
             @intCast(n_args),
             @ptrCast(""),
-            // name_call,
         );
 
         return call;
