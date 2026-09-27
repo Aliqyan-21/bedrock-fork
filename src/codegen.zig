@@ -1269,6 +1269,7 @@ pub const Codegen = struct {
 
         const array_ptr = switch (operand.*) {
             .ident => |ident| self.stack_map.get(ident.name).?,
+            .array_literal => try self.codegen_expression(operand),
             else => unreachable,
         };
 
