@@ -1324,7 +1324,16 @@ pub const Codegen = struct {
                 a[idx] = try self.codegen_array_as_slice(arg.value, arg_ty);
             } else {
                 const v = try self.codegen_expression(arg.value);
-                a[idx] = if (idx < param_types.len) try self.coerce_numeric(v, arg_ty, param_types[idx]) else v;
+                // for passing array literal by value
+                if (arg.value.* == .array_literal) {
+                    const type_id = self.expr_type(arg.value);
+                    const llvm_type = try self.get_llvm_type_of(type_id);
+                    const load_arr_lit = llvm.LLVMBuildLoad2(self.builder, llvm_type, v, "");
+
+                    a[idx] = if (idx < param_types.len) try self.coerce_numeric(load_arr_lit, arg_ty, param_types[idx]) else load_arr_lit;
+                } else {
+                    a[idx] = if (idx < param_types.len) try self.coerce_numeric(v, arg_ty, param_types[idx]) else v;
+                }
             }
         }
 
