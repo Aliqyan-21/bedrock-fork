@@ -1,9 +1,16 @@
-// output: 10
+// output: 20
 // https://github.com/bedrock-lang/bedrock/issues/272
 func main() -> i32
   var s = 0;
+
+  var arr = [1,2,3,4,5,6];
+
   for i in 0..10
     if (i == 5) s += 10; continue; end
+  end
+
+  for i in arr
+    if (i == 5) s+= 10; continue; end
   end
 
   return s;
