@@ -480,7 +480,10 @@ pub const Codegen = struct {
         _ = try self.codegen_statements(w.body);
         _ = self.break_targets.pop();
         _ = self.continue_targets.pop();
-        _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+
+        if (llvm.LLVMGetBasicBlockTerminator(llvm.LLVMGetInsertBlock(self.builder)) == null) {
+            _ = llvm.LLVMBuildBr(self.builder, cond_bb);
+        }
 
         // reset the insert pos
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
