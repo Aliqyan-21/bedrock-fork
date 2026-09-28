@@ -690,13 +690,8 @@ pub const Codegen = struct {
         llvm.LLVMPositionBuilderAtEnd(self.builder, cond_bb);
 
         const is_float = self.is_float_type(ty);
-        const is_signed = switch (self.compiler.sema.types.get(ty).*) {
-            .primitive => |p| switch (p) {
-                .i8, .i16, .i32, .i64, .isize => true,
-                else => false,
-            },
-            else => false,
-        };
+        const is_signed = self.is_signed_type(ty);
+
         const isincl = b.op == .range_incl; // the range is inclusize (..=)
         const i_val = llvm.LLVMBuildLoad2(self.builder, llvm_ty, i_alloca, "");
         var cond = if (is_float)
@@ -1497,17 +1492,17 @@ pub const Codegen = struct {
             .mod => if (is_float) llvm.LLVMBuildFRem(self.builder, l, r, "mod_bin") else if (is_signed) llvm.LLVMBuildSRem(self.builder, l, r, "mod_bin") else llvm.LLVMBuildURem(self.builder, l, r, "mod_bin"),
             .eq => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOEQ, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntEQ, l, r, "cmp_bin"),
             .ne => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealONE, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntNE, l, r, "cmp_bin"),
-            .lt => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOLT, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULT, l, r, "cmp_bin"),
-            .gt => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOGT, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntUGT, l, r, "cmp_bin"),
-            .le => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOLE, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULE, l, r, "cmp_bin"),
-            .ge => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOGE, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntUGE, l, r, "cmp_bin"),
+            .lt => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOLT, l, r, "cmp_bin") else if (is_signed) llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntSLT, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULT, l, r, "cmp_bin"),
+            .gt => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOGT, l, r, "cmp_bin") else if (is_signed) llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntSGT, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntUGT, l, r, "cmp_bin"),
+            .le => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOLE, l, r, "cmp_bin") else if (is_signed) llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntSLE, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntULE, l, r, "cmp_bin"),
+            .ge => if (is_float) llvm.LLVMBuildFCmp(self.builder, llvm.LLVMRealOGE, l, r, "cmp_bin") else if (is_signed) llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntSGE, l, r, "cmp_bin") else llvm.LLVMBuildICmp(self.builder, llvm.LLVMIntUGE, l, r, "cmp_bin"),
             .bit_or => llvm.LLVMBuildOr(self.builder, l, r, "log_bin"),
             .bit_xor => llvm.LLVMBuildXor(self.builder, l, r, "log_bin"),
             .bit_and => llvm.LLVMBuildAnd(self.builder, l, r, "log_bin"),
             .logical_or => llvm.LLVMBuildOr(self.builder, l, r, "or_bin"),
             .logical_and => llvm.LLVMBuildAnd(self.builder, l, r, "and_bin"),
             .shl => llvm.LLVMBuildShl(self.builder, l, r, "shift_bin"),
-            .shr => llvm.LLVMBuildLShr(self.builder, l, r, "shift_bin"),
+            .shr => if (is_signed) llvm.LLVMBuildAShr(self.builder, l, r, "shift_bin") else llvm.LLVMBuildLShr(self.builder, l, r, "shift_bin"),
             else => {
                 // TODO:
                 unreachable;
