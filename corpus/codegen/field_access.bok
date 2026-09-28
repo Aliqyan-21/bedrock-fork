@@ -1,0 +1,15 @@
+// output: 70
+type Point = struct
+    x: i32,
+    y: i32,
+end
+
+func main() -> i32
+    var points: [3]Point = undefined;
+    points[0] = Point where x = 10, y = 10 end;
+    points[1] = Point where x = 10, y = 10 end;
+    points[2] = Point where x = 10, y = 10 end;
+    points[2].x = 20;
+
+    return points[0].x + points[0].y + points[1].x + points[1].y + points[2].x + points[2].y;
+end

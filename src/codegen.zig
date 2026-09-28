@@ -1020,7 +1020,7 @@ pub const Codegen = struct {
             .call => |*c| self.codegen_call(c),
             .ident => |*i| self.codegen_ident(i),
             .array_literal => |*a| try self.codegen_array(a, e),
-            .index => |*i| try self.codegen_index(i),
+            .index => |*i| try self.codegen_index(i, false),
             .struct_literal => |*s| try self.codegen_struct_literal(s, expected_ty),
             .field_access => |*f| try self.codegen_field_access(f, false),
             else => unreachable,
@@ -1028,12 +1028,6 @@ pub const Codegen = struct {
     }
 
     pub fn codegen_field_access(self: *Codegen, f_access: *ast.FieldAccessExpr, assign: bool) anyerror!llvm.LLVMValueRef {
-        // NOTE: currently only for structs field access
-        const ident = switch (f_access.target.*) {
-            .ident => |i| i,
-            else => return error.InvalidFieldAccess,
-        };
-
         const target_ty = self.expr_type(f_access.target);
         if (target_ty == .invalid)
             return error.InvalidType;
@@ -1044,13 +1038,28 @@ pub const Codegen = struct {
         var struct_ptr: llvm.LLVMValueRef = undefined;
         switch (target_type.*) {
             .struct_ty => {
+                var struct_slot: llvm.LLVMValueRef = null;
+                switch (f_access.target.*) {
+                    .ident => |i| struct_slot = self.stack_map.get(i.name) orelse return error.VariableNotFound,
+                    .index => |*i| {
+                        const index_st = try self.codegen_index(i, true);
+                        struct_slot = index_st;
+                    },
+                    else => return error.InvalidFieldAccess,
+                }
+
                 struct_ty_id = target_ty;
-                const struct_slot = self.stack_map.get(ident.name) orelse return error.VariableNotFound;
                 const llvm_struct_ty = try self.get_llvm_type_of(struct_ty_id);
                 struct_ptr = struct_slot;
                 _ = llvm_struct_ty;
             },
             .pointer => |p| {
+                // NOTE: currently only for structs field access
+                const ident = switch (f_access.target.*) {
+                    .ident => |i| i,
+                    else => return error.InvalidFieldAccess,
+                };
+
                 struct_ty_id = p.child;
                 const struct_slot = self.stack_map.get(ident.name) orelse return error.VariableNotFound;
                 const ptr_ty = try self.get_llvm_type_of(target_ty);
@@ -1160,7 +1169,7 @@ pub const Codegen = struct {
         return llvm.LLVMBuildLoad2(self.builder, elem_ty, element_ptr, "");
     }
 
-    pub fn codegen_array_index(self: *Codegen, i: *ast.IndexExpr, array_ty: types.TypeId) anyerror!llvm.LLVMValueRef {
+    pub fn codegen_array_index(self: *Codegen, i: *ast.IndexExpr, array_ty: types.TypeId, field_mem_access: bool) anyerror!llvm.LLVMValueRef {
         const arr = switch (i.target.*) {
             .ident => |ident| self.stack_map.get(ident.name) orelse return error.UnknownVariable,
 
@@ -1183,13 +1192,15 @@ pub const Codegen = struct {
             0,
         );
 
+        if (field_mem_access) return element_ptr;
+
         const element_ty = llvm.LLVMGetElementType(llvm_array_ty);
         const ld = llvm.LLVMBuildLoad2(self.builder, element_ty, element_ptr, "");
 
         return ld;
     }
 
-    pub fn codegen_index(self: *Codegen, i: *ast.IndexExpr) anyerror!llvm.LLVMValueRef {
+    pub fn codegen_index(self: *Codegen, i: *ast.IndexExpr, field_mem_access: bool) anyerror!llvm.LLVMValueRef {
         // Currently only support one-dimensional arrays.
         if (i.args.items.len != 1) {
             return error.InvalidIndex;
@@ -1199,7 +1210,7 @@ pub const Codegen = struct {
         const target_ty = self.expr_type(i.target);
         const target_type = self.compiler.sema.types.get(target_ty);
         switch (target_type.*) {
-            .array => return self.codegen_array_index(i, target_ty),
+            .array => return self.codegen_array_index(i, target_ty, field_mem_access),
             .slice => return self.codegen_slice_index(i, target_ty, false),
             else => return error.InvalidIndex,
         }
