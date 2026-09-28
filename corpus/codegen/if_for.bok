@@ -1,0 +1,13 @@
+// output: 50
+func main() -> i32
+  var flag = true;
+  var sum = 0;
+  if flag
+    var i = 5;
+    for i in 0..5
+      sum += 10;
+    end
+  end
+
+  return sum;
+end
