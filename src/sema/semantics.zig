@@ -694,7 +694,7 @@ pub const Sema = struct {
 
                         if (lit) |l| {
                             if (l.kind == .integer) {
-                                const n = std.fmt.parseInt(u64, l.raw, 10) catch std.math.maxInt(u64);
+                                const n = l.ivalue;
                                 if (is_neg) {
                                     try self.compiler.add_sem_error("index -{d} out of bounds of array of length {d}", .{ n, a.len }, .Error, idx.token_of());
                                 } else if (n >= a.len) {

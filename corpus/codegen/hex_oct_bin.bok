@@ -1,0 +1,10 @@
+// output: 42
+
+// issue #278
+
+func main() -> i32
+  var a: i32 = 0x1F; // hex
+  var b: i32 = 0o10; // octal
+  var c: i32 = 0b11; // binary
+  return a + b + c;
+end
