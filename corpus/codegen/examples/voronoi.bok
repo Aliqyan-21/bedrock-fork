@@ -1,0 +1,123 @@
+extern func rand() -> i32;
+extern proc srand(seed: u32);
+extern func time(t: *i64) -> u32;
+extern func fopen(path: str, mode: str) -> ptr;
+extern proc fclose(f: ptr);
+extern proc fputc(c: u32, f: ptr);
+extern proc fprintf(f: ptr, fmt: str, ...);
+
+const WIDTH: i32 = 800;
+const HEIGHT: i32 = 600;
+const SEEDS_COUNT: i32 = 10;
+const PALETTE_SIZE: i32 = 10;
+const SEED_MARKER_RADIUS: i32 = 5;
+
+const BACKGROUND_COLOR: u32 = 0xFF121212;
+const SEED_MARKER_COLOR: u32 = 0xFF121212;
+
+// catpuccing mocha inspired colors
+const FLAMINGO: u32 = 0xFFFCCDD2;
+const MAUVE: u32 = 0xFFCFA67B;
+const RED: u32 = 0xFFFA8B83;
+const MAROON: u32 = 0xFFEAA0CB;
+const PEACH: u32 = 0xFFF8B37A;
+const YELLOW: u32 = 0xFFFAE2F9;
+const GREEN: u32 = 0xFFAAE316;
+const TEAL: u32 = 0xFF9DE254;
+const SKY: u32 = 0xFF8EDCB9;
+const APRICOT: u32 = 0xFF0B64FE;
+
+func sqrt_dist(x1: i32, y1: i32, x2: i32, y2: i32) -> i32
+    var dx = x1 - x2;
+    var dy = y1 - y2;
+    return dx * dx + dy * dy;
+end
+
+proc fill_image(image: []u32, color: u32)
+    for i in 0..WIDTH * HEIGHT
+        image[i] = color;
+    end
+end
+
+proc fill_circle(image: []u32, cx: i32, cy: i32, radius: i32, color: u32)
+    var x0 = cx - radius;
+    var y0 = cy - radius;
+    var x1 = cx + radius;
+    var y1 = cy + radius;
+
+    for i in x0..=x1
+        if (i >= 0 && i < WIDTH)
+            for j in y0..=y1
+                if (j >= 0 && j < HEIGHT)
+                    if (sqrt_dist(cx, cy, i, j) <= radius * radius)
+                        image[j * WIDTH + i] = color;
+                    end
+                end
+            end
+        end
+    end
+end
+
+proc generate_random_seeds(seeds_x: []i32, seeds_y: []i32)
+    for i in 0..SEEDS_COUNT
+        seeds_x[i] = rand() % WIDTH;
+        seeds_y[i] = rand() % HEIGHT;
+    end
+end
+
+proc render_seed_markers(image: []u32, seeds_x: []i32, seeds_y: []i32)
+    for i in 0..SEEDS_COUNT
+        fill_circle(image, seeds_x[i], seeds_y[i], SEED_MARKER_RADIUS, SEED_MARKER_COLOR);
+    end
+end
+
+func nearest_seed(seeds_x: []i32, seeds_y: []i32, x: i32, y: i32) -> i32
+    var best = 0;
+    for i in 1..SEEDS_COUNT
+        if (sqrt_dist(seeds_x[i], seeds_y[i], x, y) < sqrt_dist(seeds_x[best], seeds_y[best], x, y))
+            best = i;
+        end
+    end
+    return best;
+end
+
+proc render_voronoi(image: []u32, seeds_x: []i32, seeds_y: []i32, pallete: []u32)
+    for y in 0..HEIGHT
+        for x in 0..WIDTH
+            image[y * WIDTH + x] = pallete[nearest_seed(seeds_x, seeds_y, x, y) % PALETTE_SIZE];
+        end
+    end
+end
+
+proc save_image_ppm(image: []u32, path: str)
+    var f = fopen(path, "wb");
+
+    fprintf(f, "P6 %d %d 255", WIDTH, HEIGHT);
+    fputc(10, f);
+
+    for i in 0..WIDTH * HEIGHT
+        fputc(image[i] & 0xFF, f);
+        fputc((image[i] >> 8) & 0xFF, f);
+        fputc((image[i] >> 16) & 0xFF, f);
+    end
+
+    fclose(f);
+end
+
+func main() -> i32
+    var t: i64 = 0;
+    srand(time(&t));
+
+    var image: [480000]u32 = undefined;
+    var seeds_x: [10]i32 = undefined;
+    var seeds_y: [10]i32 = undefined;
+    var pallete: [10]u32 = [FLAMINGO, MAUVE, RED, MAROON, PEACH, YELLOW, GREEN, TEAL, SKY, APRICOT];
+
+    fill_image(image, BACKGROUND_COLOR);
+    generate_random_seeds(seeds_x, seeds_y);
+    render_voronoi(image, seeds_x, seeds_y, pallete);
+    render_seed_markers(image, seeds_x, seeds_y);
+    save_image_ppm(image, "output.ppm");
+
+    return 0;
+end
