@@ -19,6 +19,7 @@ pub const JitRetType = union(enum) {
     i64: i64,
     f32: f32,
     f64: f64,
+    bool: bool,
     void: void,
 };
 
@@ -158,6 +159,12 @@ pub const Compiler = struct {
         switch (llvm.LLVMGetTypeKind(return_type)) {
             llvm.LLVMIntegerTypeKind => {
                 switch (llvm.LLVMGetIntTypeWidth(return_type)) {
+                    1 => {
+                        const Main = @as(*const fn () callconv(.c) bool, @ptrFromInt(addr));
+                        const res = Main();
+                        log.debug("jit result: {}\n", .{res});
+                        return .{ .bool = res };
+                    },
                     8 => {
                         const Main = @as(*const fn () callconv(.c) i8, @ptrFromInt(addr));
                         const res = Main();

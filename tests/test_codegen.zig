@@ -99,6 +99,7 @@ test "codegen-test" {
                 .i64 => try std.fmt.allocPrint(allocator, "{}", .{res.i64}),
                 .f32 => try std.fmt.allocPrint(allocator, "{}", .{res.f32}),
                 .f64 => try std.fmt.allocPrint(allocator, "{}", .{res.f64}),
+                .bool => try std.fmt.allocPrint(allocator, "{}", .{res.bool}),
                 .void => "",
             };
 
