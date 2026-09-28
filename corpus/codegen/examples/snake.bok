@@ -1,0 +1,187 @@
+extern proc InitWindow(w: i32, h: i32, title: str);
+extern func WindowShouldClose() -> bool;
+extern proc BeginDrawing();
+extern proc EndDrawing();
+extern proc CloseWindow();
+extern proc ClearBackground(c: i64);
+extern proc DrawRectangle(x1: i32, y1: i32, x2: i32, y2: i32, c: i64);
+extern func IsKeyDown(key: i32) -> bool;
+extern func rand() -> i32;
+extern proc SetTargetFPS(fps: i32);
+extern proc DrawText(text: str, x: i32, y: i32, font: i32, c: i64);
+
+type Point = struct
+    x: i32, y: i32,
+end
+
+func main() -> i32
+  var white: i64 = 245 | (245 << 8) | (245 << 16) | (255 << 24);
+  var black: i64 = 10 | (10 << 8) | (10 << 16) | (255 << 24);
+  var red: i64 = 230 | (30 << 8) | (30 << 16) | (255 << 24);
+
+  var snake: [100]Point = undefined;
+
+  var len: i32 = 3;
+  snake[0] = Point where x = 10, y = 10 end;
+  snake[1] = Point where x = 9, y = 10 end;
+  snake[2] = Point where x = 8, y = 10 end;
+
+  var food: Point = undefined;
+  food.x = rand() % 40;
+  food.y = rand() % 30;
+
+  var game_over: bool = false;
+
+  var dx: i32 = 1;
+  var dy: i32 = 0;
+
+  var oldx: i32 = 1;
+  var oldy: i32 = 0;
+
+  InitWindow(800, 600, "Snake");
+  SetTargetFPS(10);
+
+  while !WindowShouldClose()
+    if !game_over
+      oldx = dx;
+      oldy = dy;
+
+      // Change direction
+      if IsKeyDown(262)
+        if oldx != -1
+          dx = 1;
+          dy = 0;
+        end
+      end
+
+      if IsKeyDown(263)
+        if oldx != 1
+          dx = -1;
+          dy = 0;
+        end
+      end
+
+      if IsKeyDown(264)
+        if oldy != -1
+          dx = 0;
+          dy = 1;
+        end
+      end
+
+      if IsKeyDown(265)
+        if oldy != 1
+          dx = 0;
+          dy = -1;
+        end
+      end
+
+      // Move snake
+      var i: i32 = len - 1;
+      while i > 0
+        snake[i] = snake[i - 1];
+        i -= 1;
+      end
+
+      // Move head
+      snake[0].x += dx;
+      snake[0].y += dy;
+
+      // Self collision
+      i = 1;
+      while i < len
+        if snake[0].x == snake[i].x
+          if snake[0].y == snake[i].y
+            game_over = true;
+          end
+        end
+        i += 1;
+      end
+
+      // Wall collision
+      if snake[0].x < 0
+        game_over = true;
+      end
+
+      if snake[0].x >= 40
+        game_over = true;
+      end
+
+      if snake[0].y < 0
+        game_over = true;
+      end
+
+      if snake[0].y >= 30
+        game_over = true;
+      end
+
+      // Food collision
+      if snake[0].x == food.x
+        if snake[0].y == food.y
+          len += 1;
+          food.x = rand() % 40;
+          food.y = rand() % 30;
+        end
+      end
+
+    end
+
+    BeginDrawing();
+    ClearBackground(white);
+
+    if !game_over
+      // Draw food
+      DrawRectangle(
+        food.x * 20,
+        food.y * 20,
+        20,
+        20,
+        red
+      );
+
+      // Draw snake
+      for i in 0..len
+        DrawRectangle(
+          snake[i].x * 20,
+          snake[i].y * 20,
+          20,
+          20,
+          black
+        );
+      end
+
+    else
+      // Restart on R
+      if IsKeyDown(82)
+        len = 3;
+        snake[0] = Point where x = 10, y = 10 end;
+        snake[1] = Point where x = 9, y = 10 end;
+        snake[2] = Point where x = 8, y = 10 end;
+        food.x = rand() % 40;
+        food.y = rand() % 30;
+        dx = 1;
+        dy = 0;
+        game_over = false;
+      end
+
+      // Keep the snake visible when game is over
+      for i in 0..len
+        DrawRectangle(
+          snake[i].x * 20,
+          snake[i].y * 20,
+          20,
+          20,
+          black
+        );
+      end
+
+      DrawText("GAME OVER", 300, 240, 40, red);
+      DrawText("Press R to restart", 285, 300, 20, black);
+    end
+
+    EndDrawing();
+  end
+
+  CloseWindow();
+
+  return 0;
+end
