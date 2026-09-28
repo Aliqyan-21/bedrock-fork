@@ -379,10 +379,9 @@ pub const Codegen = struct {
         _ = llvm.LLVMStructCreateNamed(self.ctx, name);
     }
 
-    pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !llvm.LLVMValueRef {
-        var last_value: llvm.LLVMValueRef = undefined;
+    pub fn codegen_statements(self: *Codegen, stmts: std.ArrayList(ast.Stmt)) !llvm.LLVMBasicBlockRef {
         for (stmts.items) |*stmt| {
-            last_value = switch (stmt.*) {
+            _ = switch (stmt.*) {
                 .return_stmt => |*r| try self.codegen_return(r),
                 .expr_stmt => |*e| try self.codegen_expression_statement(e),
                 .var_stmt => |*v| try self.codegen_var(v),
@@ -398,7 +397,7 @@ pub const Codegen = struct {
             };
         }
 
-        return last_value;
+        return llvm.LLVMGetInsertBlock(self.builder);
     }
 
     fn codegen_continue_stmt(self: *Codegen) !llvm.LLVMValueRef {
@@ -478,7 +477,7 @@ pub const Codegen = struct {
         llvm.LLVMPositionBuilderAtEnd(self.builder, while_bb);
         try self.break_targets.append(self.allocator, merge_bb);
         try self.continue_targets.append(self.allocator, cond_bb);
-        const while_val = try self.codegen_statements(w.body);
+        _ = try self.codegen_statements(w.body);
         _ = self.break_targets.pop();
         _ = self.continue_targets.pop();
         _ = llvm.LLVMBuildBr(self.builder, cond_bb);
@@ -486,7 +485,7 @@ pub const Codegen = struct {
         // reset the insert pos
         llvm.LLVMPositionBuilderAtEnd(self.builder, merge_bb);
 
-        return while_val;
+        return null;
     }
 
     pub fn codegen_if(self: *Codegen, i: *ast.IfExpr) !llvm.LLVMValueRef {
@@ -526,7 +525,8 @@ pub const Codegen = struct {
         // set new insert point for then_bb codegen
         llvm.LLVMPositionBuilderAtEnd(self.builder, then_bb);
         _ = try self.codegen_statements(i.then_body);
-        if (llvm.LLVMGetBasicBlockTerminator(then_bb) == null) {
+        var curr_block = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(curr_block) == null) {
             _ = llvm.LLVMBuildBr(self.builder, merge_bb);
         }
 
@@ -549,7 +549,8 @@ pub const Codegen = struct {
 
             llvm.LLVMPositionBuilderAtEnd(self.builder, elif_then_bbs[idx]);
             _ = try self.codegen_statements(elif.body);
-            if (llvm.LLVMGetBasicBlockTerminator(elif_then_bbs[idx]) == null) {
+            curr_block = llvm.LLVMGetInsertBlock(self.builder);
+            if (llvm.LLVMGetBasicBlockTerminator(curr_block) == null) {
                 _ = llvm.LLVMBuildBr(self.builder, merge_bb);
             }
         }
@@ -560,7 +561,8 @@ pub const Codegen = struct {
             _ = try self.codegen_statements(body.*);
         }
 
-        if (llvm.LLVMGetBasicBlockTerminator(else_bb) == null) {
+        curr_block = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(curr_block) == null) {
             _ = llvm.LLVMBuildBr(self.builder, merge_bb);
         }
 
