@@ -1,0 +1,5 @@
+extern proc printf(fmt: str, ...);
+
+proc main()
+    printf("%d\n", 42);
+end
