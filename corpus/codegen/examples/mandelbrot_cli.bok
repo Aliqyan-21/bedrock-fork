@@ -1,0 +1,69 @@
+extern func printf(fmt: str) -> i32;
+
+func main() -> i32
+    var width: i32 = 80;
+    var height: i32 = 40;
+
+    var y: i32 = 0;
+
+    while y < height
+        var x: i32 = 0;
+
+        while x < width
+            // Map screen coordinates to the complex plane.
+            var xf: f64 = x;
+            var yf: f64 = y;
+            var wf: f64 = width;
+            var hf: f64 = height;
+            var cx: f64 = xf / wf * 3.5 - 2.5;
+            var cy: f64 = yf / hf * 2.0 - 1.0;
+
+            var zx: f64 = 0.0;
+            var zy: f64 = 0.0;
+
+            var iter: i32 = 0;
+            var max_iter: i32 = 40;
+
+            while iter < max_iter
+                // z = z² + c
+                // (zx + zy*i)^2
+                // = zx² - zy² + 2*zx*zy*i
+                var zx2: f64 = zx * zx;
+                var zy2: f64 = zy * zy;
+
+                if zx2 + zy2 > 4.0
+                    break;
+                end
+
+                var new_zx: f64 = zx2 - zy2 + cx;
+                var new_zy: f64 = 2.0 * zx * zy + cy;
+
+                zx = new_zx;
+                zy = new_zy;
+
+                iter += 1;
+            end
+
+            if iter == max_iter
+                _ = printf("*");
+            else
+                if iter > 30
+                    _ = printf("+");
+                else
+                    if iter > 20
+                        _ = printf(".");
+                    else
+                        _ = printf(" ");
+                    end
+                end
+            end
+
+            x += 1;
+        end
+
+        _ = printf("\n");
+        y += 1;
+    end
+
+    return 0;
+end
