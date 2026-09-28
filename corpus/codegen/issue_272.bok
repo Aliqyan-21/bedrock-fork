@@ -1,0 +1,10 @@
+// output: 10
+// https://github.com/bedrock-lang/bedrock/issues/272
+func main() -> i32
+  var s = 0;
+  for i in 0..10
+    if (i == 5) s += 10; continue; end
+  end
+
+  return s;
+end
