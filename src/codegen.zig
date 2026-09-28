@@ -1604,7 +1604,7 @@ pub const Codegen = struct {
             },
             .named => |*n| {
                 if (std.mem.eql(u8, n.name, "ptr")) {
-                    return llvm.LLVMPointerTypeInContext(self.ctx, 64);
+                    return llvm.LLVMPointerTypeInContext(self.ctx, 0);
                 }
                 if (self.struct_types.get(n.name)) |st| return st;
                 const resolved = self.compiler.sema.types.resolve(n.name) orelse unreachable;
@@ -1632,8 +1632,8 @@ pub const Codegen = struct {
             .f64 => return llvm.LLVMDoubleTypeInContext(self.ctx),
             .bool => return llvm.LLVMInt1TypeInContext(self.ctx),
             .char => return llvm.LLVMInt8TypeInContext(self.ctx),
-            .str => return llvm.LLVMPointerType(llvm.LLVMInt8TypeInContext(self.ctx), 64),
-            .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 64),
+            .str => return llvm.LLVMPointerType(llvm.LLVMInt8TypeInContext(self.ctx), 0),
+            .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 0),
         }
     }
 
@@ -1650,8 +1650,8 @@ pub const Codegen = struct {
                 .f64 => return llvm.LLVMDoubleTypeInContext(self.ctx),
                 .bool => return llvm.LLVMInt1TypeInContext(self.ctx),
                 .char => return llvm.LLVMInt8TypeInContext(self.ctx),
-                .str => return llvm.LLVMPointerType(llvm.LLVMInt8TypeInContext(self.ctx), 64),
-                .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 64),
+                .str => return llvm.LLVMPointerType(llvm.LLVMInt8TypeInContext(self.ctx), 0),
+                .ptr => return llvm.LLVMPointerTypeInContext(self.ctx, 0),
             },
             .pointer => |p| llvm.LLVMPointerType(try self.get_llvm_type_of(p.child), 0),
             .array => |a| {
