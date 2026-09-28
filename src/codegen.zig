@@ -587,6 +587,7 @@ pub const Codegen = struct {
         const cond_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_cond");
         const body_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_body");
         const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_merge");
+        const inc_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "inc_bb");
 
         // index variable.
         const index_alloca = llvm.LLVMBuildAlloca(self.builder, llvm.LLVMInt64TypeInContext(self.ctx), "for_index");
@@ -642,12 +643,17 @@ pub const Codegen = struct {
         _ = llvm.LLVMBuildStore(self.builder, ele, i_alloca);
 
         try self.break_targets.append(self.allocator, merge_bb);
-        try self.continue_targets.append(self.allocator, cond_bb);
+        try self.continue_targets.append(self.allocator, inc_bb);
         _ = try self.codegen_statements(f.body);
+        const curr_block = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(curr_block) == null) {
+            _ = llvm.LLVMBuildBr(self.builder, inc_bb);
+        }
         _ = self.break_targets.pop();
         _ = self.continue_targets.pop();
 
         // i = i + 1
+        llvm.LLVMPositionBuilderAtEnd(self.builder, inc_bb);
         const curr = llvm.LLVMBuildLoad2(self.builder, llvm.LLVMInt64TypeInContext(self.ctx), index_alloca, "index");
         const next = llvm.LLVMBuildAdd(
             self.builder,
@@ -677,6 +683,7 @@ pub const Codegen = struct {
         const func = llvm.LLVMGetBasicBlockParent(self.entry);
         const cond_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_cond");
         const body_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_body");
+        const inc_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "inc_bb");
         const merge_bb = llvm.LLVMAppendBasicBlockInContext(self.ctx, func, "for_merge");
 
         const name = try self.allocator.dupeZ(u8, f.binding);
@@ -716,12 +723,17 @@ pub const Codegen = struct {
 
         llvm.LLVMPositionBuilderAtEnd(self.builder, body_bb);
         try self.break_targets.append(self.allocator, merge_bb);
-        try self.continue_targets.append(self.allocator, cond_bb);
+        try self.continue_targets.append(self.allocator, inc_bb);
         _ = try self.codegen_statements(f.body);
+        const curr_block = llvm.LLVMGetInsertBlock(self.builder);
+        if (llvm.LLVMGetBasicBlockTerminator(curr_block) == null) {
+            _ = llvm.LLVMBuildBr(self.builder, inc_bb);
+        }
         _ = self.break_targets.pop();
         _ = self.continue_targets.pop();
 
         // do the i = i + 1
+        llvm.LLVMPositionBuilderAtEnd(self.builder, inc_bb);
         const cur = llvm.LLVMBuildLoad2(self.builder, llvm_ty, i_alloca, "");
         const one = if (is_float) llvm.LLVMConstReal(llvm_ty, 1.0) else llvm.LLVMConstInt(llvm_ty, 1, 0);
         const next = if (is_float) llvm.LLVMBuildFAdd(self.builder, cur, one, "for_inc") else llvm.LLVMBuildAdd(self.builder, cur, one, "for_inc");
