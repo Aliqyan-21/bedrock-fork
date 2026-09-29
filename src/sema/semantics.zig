@@ -240,7 +240,8 @@ pub const Sema = struct {
 
         for (func.params.items) |*param| {
             const param_ty = try self.types.resolve_type(param.type, self.scope);
-            func_scope.declare(.{ .name = param.name, .kind = .param, .ty = param_ty }) catch |e| {
+            const kind: scope.SymbolKind = if (param.is_const) .constant else .variable;
+            func_scope.declare(.{ .name = param.name, .kind = kind, .ty = param_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
             };
         }
@@ -263,7 +264,8 @@ pub const Sema = struct {
 
         for (proc.params.items) |*param| {
             const param_ty = try self.types.resolve_type(param.type, self.scope);
-            proc_scope.declare(.{ .name = param.name, .kind = .param, .ty = param_ty }) catch |e| {
+            const kind: scope.SymbolKind = if (param.is_const) .constant else .variable;
+            proc_scope.declare(.{ .name = param.name, .kind = kind, .ty = param_ty }) catch |e| {
                 if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate parameter: {s}\n", .{param.name}, .Error, param.token);
             };
         }
@@ -324,8 +326,6 @@ pub const Sema = struct {
                             if (self.scope.resolve(i.name)) |sym| {
                                 if (sym.kind == .constant) {
                                     try self.compiler.add_sem_error("cannot assign to constant '{s}'", .{i.name}, .Error, a.token);
-                                } else if (sym.kind == .param) {
-                                    try self.compiler.add_sem_error("cannot assign to function parameter '{s}'", .{i.name}, .Error, a.token);
                                 }
                             }
                         },
