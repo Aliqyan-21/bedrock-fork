@@ -1053,7 +1053,7 @@ pub const Parser = struct {
                 },
                 else => {
                     try self.compiler.addError("expected ',' or ')'", err.Severity.Error, sep);
-                    try self.sync(&.{ .comma, .r_paren, .kw_end });
+                    try self.sync(&.{ .comma, .r_paren, .kw_end, .kw_case, .kw_else });
                     break;
                 },
             }

@@ -1035,13 +1035,9 @@ pub const VariantPattern = struct {
     }
 
     pub fn deinit(self: *VariantPattern, allocator: std.mem.Allocator) void {
-        for (self.params.items) |*p| {
-            switch (p.*) {
-                .integer => |*i| allocator.destroy(i),
-                .boolean => |*b| allocator.destroy(b),
-                .ident => |*id| allocator.destroy(id),
-                .variant => |*v| v.deinit(allocator),
-            }
+        for (self.params.items) |p| {
+            p.deinit(allocator);
+            allocator.destroy(p);
         }
         self.params.deinit(allocator);
     }
@@ -1087,6 +1083,7 @@ pub const MatchArm = struct {
     }
 
     pub fn deinit(self: *MatchArm, allocator: std.mem.Allocator) void {
+        self.pattern.deinit(allocator);
         for (self.body.items) |*s| s.deinit(allocator);
         self.body.deinit(allocator);
     }
