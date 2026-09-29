@@ -1,0 +1,16 @@
+func foo(x: const i32) -> i32
+  return x; // no error
+end
+
+func foo_(x: const i32) -> i32
+  x = x / 10 + 68; // error
+  return x;
+end
+
+proc boo(x: i32)
+  x = 10; // no error
+end
+
+proc boo_(x: const i32)
+  x = 10; // error
+end
