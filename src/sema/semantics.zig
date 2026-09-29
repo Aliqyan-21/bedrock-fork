@@ -112,6 +112,9 @@ pub const Sema = struct {
                         var field_tys = std.ArrayList(types.StFieldTy).empty;
                         for (s.fields.items) |*s_f| {
                             const fty = try self.types.resolve_type(s_f.type, self.scope);
+                            if (fty == .invalid) {
+                                try self.compiler.add_sem_error("unknown type for field '{s}'", .{s_f.name}, .Error, s_f.token);
+                            }
                             try field_tys.append(self.compiler.allocator, .{ .name = s_f.name, .ty = fty });
                         }
 
@@ -201,7 +204,13 @@ pub const Sema = struct {
                 }
             },
             .var_def => |*v| {
-                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (v.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    if (t == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{v.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
                     break :blk .invalid;
@@ -217,7 +226,13 @@ pub const Sema = struct {
                 };
             },
             .const_def => |*c| {
-                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (c.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    if (t == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for constant '{s}'", .{c.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
                     break :blk .invalid;
@@ -297,7 +312,13 @@ pub const Sema = struct {
         // std.debug.print("visiting statement\n", .{});
         switch (stmt.*) {
             .var_stmt => |*v| {
-                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (v.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    if (t == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{v.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
                     break :blk .invalid;
@@ -311,7 +332,13 @@ pub const Sema = struct {
                 };
             },
             .const_stmt => |*c| {
-                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (c.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    if (t == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{c.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
                     break :blk .invalid;
@@ -324,7 +351,13 @@ pub const Sema = struct {
                 };
             },
             .local_static_var_stmt => |lv| {
-                const dty: types.TypeId = if (lv.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (lv.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    if (t == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{lv.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(lv.type_ann, lv.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, lv.token);
                     break :blk .invalid;
