@@ -1,0 +1,18 @@
+type Nothing = enum
+end
+
+type Color = enum
+    green,
+    red,
+    blue,
+end
+
+type Option = enum
+    Some(i32),
+    None,
+end
+
+type Result = enum
+    Ok(i32, str),
+    Error(str),
+end
