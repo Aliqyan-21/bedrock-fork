@@ -217,11 +217,22 @@ pub const StructDef = struct {
 // enum_variant    = IDENT
 pub const EnumVariant = struct {
     name: []const u8 = "",
+    types: std.ArrayList(*Type) = .empty,
     token: Token,
 
     pub fn print(self: *EnumVariant, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
         std.debug.print("enum variant: {s}\n", .{self.name});
+        if (self.types.items.len > 0) {
+            for (self.types.items) |ty| {
+                try ty.print(indent + 4);
+            }
+        }
+    }
+
+    pub fn deinit(self: *EnumVariant, allocator: std.mem.Allocator) void {
+        for (self.types.items) |*t| t.*.deinit(allocator);
+        self.types.deinit(allocator);
     }
 };
 
@@ -235,13 +246,15 @@ pub const EnumDef = struct {
 
     pub fn print(self: *EnumDef, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
-        std.debug.print("enum: {s}\n", .{self.name});
+        std.debug.print("enum_def: {s}\n", .{self.name});
         for (self.type_params.items) |*tp| try tp.print(indent + 4);
         for (self.variants.items) |*v| try v.print(indent + 4);
     }
 
     pub fn deinit(self: *EnumDef, allocator: std.mem.Allocator) void {
         self.type_params.deinit(allocator);
+        for (self.variants.items) |*v| v.deinit(allocator);
+        self.variants.deinit(allocator);
     }
 };
 

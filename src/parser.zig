@@ -228,7 +228,9 @@ pub const Parser = struct {
                 type_def.variant = .{ .struct_def = s };
             },
             .kw_enum => {
-                // TODO:
+                _ = try self.lexer.next();
+                const e = try self.parse_enum(name.val);
+                type_def.variant = .{ .enum_def = e };
             },
             else => {
                 const aliased = try self.parse_type();
@@ -238,6 +240,63 @@ pub const Parser = struct {
         }
 
         return type_def;
+    }
+
+    pub fn parse_enum(self: *Parser, name: []const u8) !ast.EnumDef {
+        var tok = try self.lexer.peek_token();
+        var e = ast.EnumDef{
+            .is_pub = false,
+            .name = name,
+            .type_params = .empty,
+            .variants = .empty,
+            .token = tok,
+        };
+
+        try self.parse_enum_variants(&e);
+
+        tok = try self.lexer.peek_token();
+        // expect end
+        _ = try self.expect(.kw_end, "expected 'end'") orelse token.Token{ .type = .ident, .val = "<error>", .line = tok.line, .col = tok.col };
+
+        return e;
+    }
+
+    pub fn parse_enum_variants(self: *Parser, e: *ast.EnumDef) !void {
+        var tok = try self.lexer.peek_token();
+        // parse struct fields
+        while (true) {
+            switch (tok.type) {
+                .kw_end => break,
+                .ident => {
+                    const f = try self.parse_enum_variant();
+                    try e.variants.append(self.allocator, f);
+                    const nxt = try self.lexer.peek_token();
+                    if (nxt.type == .comma) {
+                        _ = try self.lexer.next();
+                    } else if (nxt.type != .kw_end) {
+                        try self.compiler.addError("expected ',' or 'end'", err.Severity.Error, nxt);
+                        break;
+                    }
+                    tok = try self.lexer.peek_token();
+                },
+                else => {
+                    try self.compiler.addError("expected enum variant", err.Severity.Error, tok);
+                    try self.sync(&.{ .kw_import, .kw_func, .kw_const, .kw_var, .kw_type, .kw_extern, .kw_pub, .kw_proc });
+                    break;
+                },
+            }
+        }
+    }
+
+    pub fn parse_enum_variant(self: *Parser) !ast.EnumVariant {
+        const tok = try self.lexer.next();
+        var variant = ast.EnumVariant{ .name = tok.val, .token = tok };
+        const next = try self.lexer.peek_token();
+        if (next.type == .l_paren) {
+            _ = try self.lexer.next();
+            variant.types = try self.parse_type_list();
+        }
+        return variant;
     }
 
     pub fn parse_struct(self: *Parser, name: []const u8) !ast.StructDef {
