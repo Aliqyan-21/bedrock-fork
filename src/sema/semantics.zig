@@ -71,9 +71,16 @@ pub const Sema = struct {
             .function => |*f| {
                 var param_tys = std.ArrayList(types.TypeId).empty;
                 for (f.params.items) |*param| {
-                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
+                    const pty = try self.types.resolve_type(param.type, self.scope);
+                    if (pty == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for parameter '{s}'", .{param.name}, .Error, param.token);
+                    }
+                    try param_tys.append(self.compiler.allocator, pty);
                 }
                 const rty = try self.types.resolve_type(f.result, self.scope);
+                if (rty == .invalid) {
+                    try self.compiler.add_sem_error("unknown return type for function '{s}'", .{f.name}, .Error, f.result.token);
+                }
                 const fnty = try self.types.intern(.{ .function = .{ .params = param_tys, .result = rty } });
                 self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                     if (e == error.DuplicateName) {
@@ -85,7 +92,11 @@ pub const Sema = struct {
             .proc => |*p| {
                 var param_tys = std.ArrayList(types.TypeId).empty;
                 for (p.params.items) |*param| {
-                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
+                    const pty = try self.types.resolve_type(param.type, self.scope);
+                    if (pty == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for parameter '{s}'", .{param.name}, .Error, param.token);
+                    }
+                    try param_tys.append(self.compiler.allocator, pty);
                 }
                 const prty = try self.types.intern(.{ .procedure = .{ .params = param_tys } });
                 self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {

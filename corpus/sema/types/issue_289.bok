@@ -1,0 +1,7 @@
+func foo(x: vasu) -> vasu
+  return x;
+end
+
+func main() -> vasu
+  return foo(10);
+end
