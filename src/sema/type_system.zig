@@ -57,7 +57,10 @@ pub const TypeSystem = struct {
                 .function => |*f| f.params.deinit(self.allocator),
                 .procedure => |*p| p.params.deinit(self.allocator),
                 .struct_ty => |*s| s.fields.deinit(self.allocator),
-                .enum_ty => |*e| e.variants.deinit(self.allocator),
+                .enum_ty => |*e| {
+                    for (e.variants.items) |*v| v.types.deinit(self.allocator);
+                    e.variants.deinit(self.allocator);
+                },
                 else => {},
             }
         }

@@ -114,6 +114,27 @@ pub const Sema = struct {
 
                         try self.visit_struct_def(@constCast(s));
                     },
+                    .enum_def => |*en| {
+                        var vartys = std.ArrayList(types.EnumVaraintTy).empty;
+                        for (en.variants.items) |*v| {
+                            var tys = std.ArrayList(types.TypeId).empty;
+                            for (v.types.items) |p| {
+                                try tys.append(self.compiler.allocator, try self.types.resolve_type(p, self.scope));
+                            }
+                            try vartys.append(self.compiler.allocator, .{ .name = v.name, .types = tys });
+                        }
+
+                        const ety = try self.types.intern(.{ .enum_ty = .{ .name = en.name, .variants = vartys } });
+                        try self.types.register(en.name, ety);
+                        self.scope.declare(.{ .name = en.name, .kind = .@"enum", .ty = ety }) catch |e| {
+                            if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}", .{en.name}, .Error, en.token);
+                        };
+                        for (en.variants.items) |*v| {
+                            self.scope.declare(.{ .name = v.name, .kind = .enum_variant, .ty = ety }) catch |e| {
+                                if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}", .{v.name}, .Error, v.token);
+                            };
+                        }
+                    },
                     .alias => |*a| {
                         const aty = try self.types.resolve_type(a.ty, self.scope);
                         if (aty == .invalid) {
@@ -126,7 +147,6 @@ pub const Sema = struct {
                             }
                         };
                     },
-                    else => {},
                 }
             },
             .extern_def => |e_def| {
