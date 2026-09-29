@@ -214,7 +214,7 @@ pub const StructDef = struct {
 };
 
 // enum_variants   = enum_variant { "," enum_variant } [ "," ]
-// enum_variant    = IDENT
+// enum_variant    = IDENT [ "(" type_list ")" ]
 pub const EnumVariant = struct {
     name: []const u8 = "",
     types: std.ArrayList(*Type) = .empty,
@@ -231,7 +231,10 @@ pub const EnumVariant = struct {
     }
 
     pub fn deinit(self: *EnumVariant, allocator: std.mem.Allocator) void {
-        for (self.types.items) |*t| t.*.deinit(allocator);
+        for (self.types.items) |t| {
+            t.deinit(allocator);
+            allocator.destroy(t);
+        }
         self.types.deinit(allocator);
     }
 };

@@ -19,6 +19,7 @@ pub const Primitive = enum {
 };
 
 pub const StFieldTy = struct { name: []const u8, ty: TypeId }; // struct field ka type
+pub const EnumVaraintTy = struct { name: []const u8, types: std.ArrayList(TypeId) }; // enum variant ka type
 
 pub const Type = union(enum) {
     primitive: Primitive,
@@ -31,6 +32,7 @@ pub const Type = union(enum) {
     procedure: struct { params: std.ArrayList(TypeId), is_variadic: bool = false },
     range: struct { elem: TypeId },
     struct_ty: struct { name: []const u8, fields: std.ArrayList(StFieldTy) },
+    enum_ty: struct { name: []const u8, variants: std.ArrayList(EnumVaraintTy) },
 };
 
 pub const TypeSystem = struct {
@@ -55,6 +57,10 @@ pub const TypeSystem = struct {
                 .function => |*f| f.params.deinit(self.allocator),
                 .procedure => |*p| p.params.deinit(self.allocator),
                 .struct_ty => |*s| s.fields.deinit(self.allocator),
+                .enum_ty => |*e| {
+                    for (e.variants.items) |*v| v.types.deinit(self.allocator);
+                    e.variants.deinit(self.allocator);
+                },
                 else => {},
             }
         }
@@ -120,7 +126,7 @@ pub const TypeSystem = struct {
             .named => |n| blk: {
                 const sym = scope.resolve(n.name) orelse break :blk .invalid;
                 break :blk switch (sym.kind) {
-                    .@"struct", .type_alias => sym.ty,
+                    .@"struct", .@"enum", .type_alias => sym.ty,
                     else => .invalid,
                 };
             },
@@ -147,6 +153,7 @@ pub const TypeSystem = struct {
                 std.mem.eql(TypeId, a.procedure.params.items, b.procedure.params.items),
             .range => a.range.elem == b.range.elem,
             .struct_ty => std.mem.eql(u8, a.struct_ty.name, b.struct_ty.name),
+            .enum_ty => std.mem.eql(u8, a.enum_ty.name, b.enum_ty.name),
         };
     }
 
@@ -296,6 +303,7 @@ pub const TypeSystem = struct {
             .array => |a| std.fmt.allocPrint(self.arena.allocator(), "[{d}]{s}", .{ a.len, self.name_of(a.child) }) catch "<oom>",
             .slice => |s| std.fmt.allocPrint(self.arena.allocator(), "[]{s}", .{self.name_of(s.child)}) catch "<oom>",
             .struct_ty => |*s| s.name,
+            .enum_ty => |*e| e.name,
             else => "not implemented",
         };
     }

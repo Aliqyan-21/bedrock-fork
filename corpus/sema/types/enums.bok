@@ -1,0 +1,16 @@
+type Nothing = enum
+end
+
+type Nothing = enum // duplicate error
+end
+
+type Color = enum
+  Red,
+  Blue,
+  Brown,
+  Red, // duplicate error
+end
+
+type Foo = enum
+  Blue, // no duplicate error as differen enum thus different scope
+end
