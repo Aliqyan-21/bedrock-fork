@@ -117,9 +117,14 @@ pub const Sema = struct {
                     .enum_def => |*en| {
                         var vartys = std.ArrayList(types.EnumVaraintTy).empty;
                         for (en.variants.items) |*v| {
+                            for (vartys.items) |vt| {
+                                if (std.mem.eql(u8, vt.name, v.name)) {
+                                    try self.compiler.add_sem_error("Duplicate variant name: {s}\n", .{v.name}, .Error, v.token);
+                                }
+                            }
                             var tys = std.ArrayList(types.TypeId).empty;
-                            for (v.types.items) |p| {
-                                try tys.append(self.compiler.allocator, try self.types.resolve_type(p, self.scope));
+                            for (v.types.items) |t| {
+                                try tys.append(self.compiler.allocator, try self.types.resolve_type(t, self.scope));
                             }
                             try vartys.append(self.compiler.allocator, .{ .name = v.name, .types = tys });
                         }
@@ -129,11 +134,6 @@ pub const Sema = struct {
                         self.scope.declare(.{ .name = en.name, .kind = .@"enum", .ty = ety }) catch |e| {
                             if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}", .{en.name}, .Error, en.token);
                         };
-                        for (en.variants.items) |*v| {
-                            self.scope.declare(.{ .name = v.name, .kind = .enum_variant, .ty = ety }) catch |e| {
-                                if (e == error.DuplicateName) try self.compiler.add_sem_error("Duplicate declaration: {s}", .{v.name}, .Error, v.token);
-                            };
-                        }
                     },
                     .alias => |*a| {
                         const aty = try self.types.resolve_type(a.ty, self.scope);

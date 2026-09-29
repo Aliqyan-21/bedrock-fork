@@ -10,3 +10,7 @@ type Color = enum
   Brown,
   Red, // duplicate error
 end
+
+type Foo = enum
+  Blue, // no duplicate error as differen enum thus different scope
+end
