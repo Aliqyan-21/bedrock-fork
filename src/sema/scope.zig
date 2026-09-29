@@ -10,6 +10,8 @@ pub const SymbolKind = enum {
     st_field,
     @"struct",
     type_alias,
+    @"enum",
+    enum_variant,
 };
 
 pub const FnInfo = union(enum) {
