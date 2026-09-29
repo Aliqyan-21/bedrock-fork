@@ -42,4 +42,13 @@ func foo() -> u8
             var a = 10;
             var b = 10;
     end
+
+    match e
+        case Some(i)
+            var a = 10;
+        case Some(x, y)
+            var a = 10;
+        case None
+            var a = 10;
+    end
 end

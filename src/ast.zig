@@ -1020,11 +1020,35 @@ pub const IfExpr = struct {
     }
 };
 
+pub const VariantPattern = struct {
+    name: []const u8,
+    params: std.ArrayList(*Pattern),
+    token: Token,
+
+    pub fn print(self: *VariantPattern, indent: usize) anyerror!void {
+        std.debug.print("pattern variant: {s}\n", .{self.name});
+        if (self.params.items.len > 0) {
+            for (0..indent) |_| std.debug.print(" ", .{});
+            std.debug.print("pattern params:\n", .{});
+            for (self.params.items) |p| try p.print(indent + 4);
+        }
+    }
+
+    pub fn deinit(self: *VariantPattern, allocator: std.mem.Allocator) void {
+        for (self.params.items) |p| {
+            p.deinit(allocator);
+            allocator.destroy(p);
+        }
+        self.params.deinit(allocator);
+    }
+};
+
 // pattern = INTEGER | BOOL | IDENT
 pub const Pattern = union(enum) {
     integer: []const u8,
     boolean: bool,
     ident: []const u8,
+    variant: VariantPattern,
 
     pub fn print(self: *Pattern, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
@@ -1032,6 +1056,14 @@ pub const Pattern = union(enum) {
             .integer => |*i| std.debug.print("pattern integer: {s}\n", .{i.*}),
             .boolean => |*b| std.debug.print("pattern boolean: {}\n", .{b.*}),
             .ident => |*id| std.debug.print("pattern ident: {s}\n", .{id.*}),
+            .variant => |*v| try v.print(indent + 4),
+        }
+    }
+
+    pub fn deinit(self: *Pattern, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .variant => |*v| v.deinit(allocator),
+            else => {},
         }
     }
 };
@@ -1054,6 +1086,7 @@ pub const MatchArm = struct {
     }
 
     pub fn deinit(self: *MatchArm, allocator: std.mem.Allocator) void {
+        self.pattern.deinit(allocator);
         for (self.body.items) |*s| s.deinit(allocator);
         self.body.deinit(allocator);
     }

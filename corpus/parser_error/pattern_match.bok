@@ -1,0 +1,11 @@
+func main() -> i32
+    match e
+    case Some(i // -> removed the closing bracket
+        var a = 10;
+    case Some(x, y)
+        var a = 10;
+    case None
+        var a = 10;
+    end
+  return 0;
+end

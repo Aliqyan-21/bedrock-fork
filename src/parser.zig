@@ -927,20 +927,31 @@ pub const Parser = struct {
     }
 
     fn parse_match_arms(self: *Parser) !std.ArrayList(ast.MatchArm) {
-        var tok = try self.lexer.peek_token();
         var arms: std.ArrayList(ast.MatchArm) = .empty;
-        while (tok.type != token.TokenType.kw_end and tok.type != token.TokenType.eof and tok.type != token.TokenType.kw_else and tok.type != token.TokenType.kw_match) {
-            // parse match pattern
-            try arms.append(self.allocator, try self.parse_match_arm());
-            // check if the tok is 'case' for 'else'
-            tok = try self.lexer.peek_token();
-        }
-        switch (tok.type) {
-            .kw_end => _ = try self.lexer.next(),
-            .kw_else => {},
-            else => {
-                try self.compiler.addError("expected 'end' or 'case' in match arms", err.Severity.Error, tok);
-            },
+        while (true) {
+            const tok = try self.lexer.peek_token();
+            switch (tok.type) {
+                .kw_case => {
+                    const arm = try self.parse_match_arm();
+                    try arms.append(self.allocator, arm);
+                    const nxt = try self.lexer.peek_token();
+                    if (nxt.type != .kw_case) break;
+                },
+                .kw_else => break,
+                .kw_end => {
+                    _ = try self.lexer.next();
+                    break;
+                },
+                else => {
+                    try self.compiler.addError(
+                        "expected 'case', 'else', or 'end'",
+                        err.Severity.Error,
+                        tok,
+                    );
+
+                    try self.sync(&.{ .kw_case, .kw_else, .kw_end });
+                },
+            }
         }
 
         return arms;
@@ -959,9 +970,10 @@ pub const Parser = struct {
         tok = try self.lexer.next();
         switch (tok.type) {
             .integer, .char, .kw_true, .kw_false => match_arm.pattern = try self.parse_literal_pattern(tok),
-            .ident => match_arm.pattern = try self.parse_variant_pattern(),
+            .ident => match_arm.pattern = try self.parse_variant_pattern(tok),
             else => {
-                // TODO: error handling
+                try self.compiler.addError("expected pattern", err.Severity.Error, tok);
+                try self.sync(&.{ .comma, .r_paren, .kw_end });
             },
         }
 
@@ -986,10 +998,66 @@ pub const Parser = struct {
         };
     }
 
-    fn parse_variant_pattern(self: *Parser) !ast.Pattern {
-        _ = self;
-        // TODO:
-        return error.TODO;
+    fn parse_variant_pattern(self: *Parser, tok: token.Token) anyerror!ast.Pattern {
+        var pattern = ast.VariantPattern{
+            .name = tok.val,
+            .params = .empty,
+            .token = tok,
+        };
+
+        const next = try self.lexer.peek_token();
+        if (next.type != .l_paren) {
+            return .{ .variant = pattern };
+        }
+
+        // consume '('
+        _ = try self.lexer.next();
+        const first = try self.lexer.peek_token();
+        if (first.type == .r_paren) {
+            // consume ')'
+            _ = try self.lexer.next();
+            return .{ .variant = pattern };
+        }
+
+        while (true) {
+            const param = try self.allocator.create(ast.Pattern);
+            param.* = try self.parse_pattern();
+            try pattern.params.append(self.allocator, param);
+
+            const sep = try self.lexer.next();
+            switch (sep.type) {
+                .r_paren => break,
+                .comma => {
+                    const nxt = try self.lexer.peek_token();
+                    if (nxt.type == .r_paren) {
+                        _ = try self.lexer.next();
+                        break;
+                    }
+                    continue;
+                },
+                else => {
+                    try self.compiler.addError("expected ',' or ')'", err.Severity.Error, sep);
+                    try self.sync(&.{ .comma, .r_paren, .kw_end, .kw_case, .kw_else });
+                    break;
+                },
+            }
+        }
+
+        return .{ .variant = pattern };
+    }
+
+    fn parse_pattern(self: *Parser) !ast.Pattern {
+        const tok = try self.lexer.next();
+
+        switch (tok.type) {
+            .integer, .char, .kw_true, .kw_false => return try self.parse_literal_pattern(tok),
+            .ident => return try self.parse_variant_pattern(tok),
+            else => {
+                try self.compiler.addError("expected pattern", err.Severity.Error, tok);
+                try self.sync(&.{ .comma, .r_paren, .kw_end });
+                return error.InvalidPattern;
+            },
+        }
     }
 
     fn parse_while_expr(self: *Parser) anyerror!ast.ControlFlowStmt {
