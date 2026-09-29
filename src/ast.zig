@@ -1061,7 +1061,10 @@ pub const Pattern = union(enum) {
     }
 
     pub fn deinit(self: *Pattern, allocator: std.mem.Allocator) void {
-        self.variant.deinit(allocator);
+        switch (self.*) {
+            .variant => |*v| v.deinit(allocator),
+            else => {},
+        }
     }
 };
 
