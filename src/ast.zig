@@ -1020,11 +1020,39 @@ pub const IfExpr = struct {
     }
 };
 
+pub const VariantPattern = struct {
+    name: []const u8,
+    params: std.ArrayList(*Pattern),
+    token: Token,
+
+    pub fn print(self: *VariantPattern, indent: usize) anyerror!void {
+        std.debug.print("pattern variant: {s}\n", .{self.name});
+        if (self.params.items.len > 0) {
+            for (0..indent) |_| std.debug.print(" ", .{});
+            std.debug.print("pattern params:\n", .{});
+            for (self.params.items) |p| try p.print(indent + 4);
+        }
+    }
+
+    pub fn deinit(self: *VariantPattern, allocator: std.mem.Allocator) void {
+        for (self.params.items) |*p| {
+            switch (p.*) {
+                .integer => |*i| allocator.destroy(i),
+                .boolean => |*b| allocator.destroy(b),
+                .ident => |*id| allocator.destroy(id),
+                .variant => |*v| v.deinit(allocator),
+            }
+        }
+        self.params.deinit(allocator);
+    }
+};
+
 // pattern = INTEGER | BOOL | IDENT
 pub const Pattern = union(enum) {
     integer: []const u8,
     boolean: bool,
     ident: []const u8,
+    variant: VariantPattern,
 
     pub fn print(self: *Pattern, indent: usize) anyerror!void {
         for (0..indent) |_| std.debug.print(" ", .{});
@@ -1032,7 +1060,12 @@ pub const Pattern = union(enum) {
             .integer => |*i| std.debug.print("pattern integer: {s}\n", .{i.*}),
             .boolean => |*b| std.debug.print("pattern boolean: {}\n", .{b.*}),
             .ident => |*id| std.debug.print("pattern ident: {s}\n", .{id.*}),
+            .variant => |*v| try v.print(indent + 4),
         }
+    }
+
+    pub fn deinit(self: *Pattern, allocator: std.mem.Allocator) void {
+        self.variant.deinit(allocator);
     }
 };
 
