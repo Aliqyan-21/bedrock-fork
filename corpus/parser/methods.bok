@@ -10,8 +10,8 @@ type P = struct
     x = x + 2;
   end
 
-  pub func bar(self: *P, x: i32) -> i32
-    return x;
+  pub func bar(self: *P) -> i32
+    return self.x;
   end
 
   pub proc tar(x: i32)
