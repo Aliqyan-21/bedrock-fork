@@ -206,7 +206,8 @@ pub const Sema = struct {
             .var_def => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| blk: {
                     const t = try self.types.resolve_type(ty, self.scope);
-                    if (t == .invalid) {
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
                         try self.compiler.add_sem_error("unknown type for variable '{s}'", .{v.name}, .Error, ty.token);
                     }
                     break :blk t;
@@ -228,7 +229,8 @@ pub const Sema = struct {
             .const_def => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| blk: {
                     const t = try self.types.resolve_type(ty, self.scope);
-                    if (t == .invalid) {
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
                         try self.compiler.add_sem_error("unknown type for constant '{s}'", .{c.name}, .Error, ty.token);
                     }
                     break :blk t;
@@ -314,7 +316,8 @@ pub const Sema = struct {
             .var_stmt => |*v| {
                 const dty: types.TypeId = if (v.type_ann) |ty| blk: {
                     const t = try self.types.resolve_type(ty, self.scope);
-                    if (t == .invalid) {
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
                         try self.compiler.add_sem_error("unknown type for variable '{s}'", .{v.name}, .Error, ty.token);
                     }
                     break :blk t;
@@ -334,8 +337,9 @@ pub const Sema = struct {
             .const_stmt => |*c| {
                 const dty: types.TypeId = if (c.type_ann) |ty| blk: {
                     const t = try self.types.resolve_type(ty, self.scope);
-                    if (t == .invalid) {
-                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{c.name}, .Error, ty.token);
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
+                        try self.compiler.add_sem_error("unknown type for constant '{s}'", .{c.name}, .Error, ty.token);
                     }
                     break :blk t;
                 } else .invalid;
@@ -353,7 +357,8 @@ pub const Sema = struct {
             .local_static_var_stmt => |lv| {
                 const dty: types.TypeId = if (lv.type_ann) |ty| blk: {
                     const t = try self.types.resolve_type(ty, self.scope);
-                    if (t == .invalid) {
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
                         try self.compiler.add_sem_error("unknown type for variable '{s}'", .{lv.name}, .Error, ty.token);
                     }
                     break :blk t;
