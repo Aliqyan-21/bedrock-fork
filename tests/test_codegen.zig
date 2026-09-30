@@ -88,9 +88,9 @@ test "codegen-test" {
         const expected = parse_expected_output(source);
         if (expected != null) {
             var c = compiler.Compiler.init(allocator, io, source, options);
-            const res: compiler.JitRetType = c.run() catch {
-                log.info("{s} failed\n", .{s});
-                return;
+            const res = c.run() catch |err| {
+                std.debug.print("\n[ERROR] Failed to run JIT on file: {s} with error: {}\n", .{ f, err });
+                return err;
             };
             const res_dup = switch (res) {
                 .i8 => try std.fmt.allocPrint(allocator, "{}", .{res.i8}),
