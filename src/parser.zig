@@ -348,6 +348,11 @@ pub const Parser = struct {
                     try s.methods.append(self.allocator, .{ .func = f });
                     tok = try self.lexer.peek_token();
                 },
+                .kw_proc => {
+                    const f = try self.parse_proc_def(false, false);
+                    try s.methods.append(self.allocator, .{ .proc = f });
+                    tok = try self.lexer.peek_token();
+                },
                 .kw_pub => {
                     _ = try self.lexer.next();
                     const nxt = try self.lexer.peek_token();
@@ -364,6 +369,16 @@ pub const Parser = struct {
                                 .token = nxt,
                             });
                             if (!try self.check_struct_member_seperator()) break;
+                            tok = try self.lexer.peek_token();
+                        },
+                        .kw_func => {
+                            const f = try self.parse_func_def(true, false);
+                            try s.methods.append(self.allocator, .{ .func = f });
+                            tok = try self.lexer.peek_token();
+                        },
+                        .kw_proc => {
+                            const p = try self.parse_proc_def(true, false);
+                            try s.methods.append(self.allocator, .{ .proc = p });
                             tok = try self.lexer.peek_token();
                         },
                         else => {

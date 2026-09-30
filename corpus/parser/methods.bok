@@ -5,4 +5,16 @@ type P = struct
   func foo(x: i32) -> i32
     return x;
   end
+
+  proc boo(x: i32)
+    x = x + 2;
+  end
+
+  pub func bar(self: *P, x: i32) -> i32
+    return x;
+  end
+
+  pub proc tar(x: i32)
+    x = x + 2;
+  end
 end
