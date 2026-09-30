@@ -359,7 +359,6 @@ pub const Parser = struct {
                     switch (nxt.type) {
                         .ident => {
                             const name_tok = try self.lexer.next();
-                            std.debug.print("tell this: {s}\n", .{@tagName(name_tok.type)});
                             _ = try self.expect(.colon, "expected ':'");
                             const ty = try self.parse_type();
                             try s.fields.append(self.allocator, .{
