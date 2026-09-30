@@ -1,0 +1,4 @@
+type P = struct
+  pub x: i32,
+  y: i32
+end
