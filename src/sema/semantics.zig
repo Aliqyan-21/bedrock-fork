@@ -71,9 +71,16 @@ pub const Sema = struct {
             .function => |*f| {
                 var param_tys = std.ArrayList(types.TypeId).empty;
                 for (f.params.items) |*param| {
-                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
+                    const pty = try self.types.resolve_type(param.type, self.scope);
+                    if (pty == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for parameter '{s}'", .{param.name}, .Error, param.token);
+                    }
+                    try param_tys.append(self.compiler.allocator, pty);
                 }
                 const rty = try self.types.resolve_type(f.result, self.scope);
+                if (rty == .invalid) {
+                    try self.compiler.add_sem_error("unknown return type for function '{s}'", .{f.name}, .Error, f.result.token);
+                }
                 const fnty = try self.types.intern(.{ .function = .{ .params = param_tys, .result = rty } });
                 self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                     if (e == error.DuplicateName) {
@@ -85,7 +92,11 @@ pub const Sema = struct {
             .proc => |*p| {
                 var param_tys = std.ArrayList(types.TypeId).empty;
                 for (p.params.items) |*param| {
-                    try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
+                    const pty = try self.types.resolve_type(param.type, self.scope);
+                    if (pty == .invalid) {
+                        try self.compiler.add_sem_error("unknown type for parameter '{s}'", .{param.name}, .Error, param.token);
+                    }
+                    try param_tys.append(self.compiler.allocator, pty);
                 }
                 const prty = try self.types.intern(.{ .procedure = .{ .params = param_tys } });
                 self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {
@@ -101,6 +112,9 @@ pub const Sema = struct {
                         var field_tys = std.ArrayList(types.StFieldTy).empty;
                         for (s.fields.items) |*s_f| {
                             const fty = try self.types.resolve_type(s_f.type, self.scope);
+                            if (fty == .invalid) {
+                                try self.compiler.add_sem_error("unknown type for field '{s}'", .{s_f.name}, .Error, s_f.token);
+                            }
                             try field_tys.append(self.compiler.allocator, .{ .name = s_f.name, .ty = fty });
                         }
 
@@ -154,9 +168,16 @@ pub const Sema = struct {
                     .func => |f| {
                         var param_tys = std.ArrayList(types.TypeId).empty;
                         for (f.params.items) |*param| {
-                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
+                            const pty = try self.types.resolve_type(param.type, self.scope);
+                            if (pty == .invalid) {
+                                try self.compiler.add_sem_error("unknown type for parameter '{s}'", .{param.name}, .Error, param.token);
+                            }
+                            try param_tys.append(self.compiler.allocator, pty);
                         }
                         const rty = try self.types.resolve_type(f.result, self.scope);
+                        if (rty == .invalid) {
+                            try self.compiler.add_sem_error("unknown return type for extern func '{s}'", .{f.name}, .Error, e_def.token);
+                        }
                         const fnty = try self.types.intern(.{ .function = .{ .params = param_tys, .result = rty, .is_variadic = f.is_variadic } });
                         self.scope.declare(.{ .name = f.name, .kind = .func, .ty = fnty }) catch |e| {
                             if (e == error.DuplicateName) {
@@ -167,7 +188,11 @@ pub const Sema = struct {
                     .proc => |p| {
                         var param_tys = std.ArrayList(types.TypeId).empty;
                         for (p.params.items) |*param| {
-                            try param_tys.append(self.compiler.allocator, try self.types.resolve_type(param.type, self.scope));
+                            const pty = try self.types.resolve_type(param.type, self.scope);
+                            if (pty == .invalid) {
+                                try self.compiler.add_sem_error("unknown type for parameter '{s}'", .{param.name}, .Error, param.token);
+                            }
+                            try param_tys.append(self.compiler.allocator, pty);
                         }
                         const prty = try self.types.intern(.{ .procedure = .{ .params = param_tys, .is_variadic = p.is_variadic } });
                         self.scope.declare(.{ .name = p.name, .kind = .func, .ty = prty }) catch |e| {
@@ -179,7 +204,14 @@ pub const Sema = struct {
                 }
             },
             .var_def => |*v| {
-                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (v.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
+                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{v.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
                     break :blk .invalid;
@@ -195,7 +227,14 @@ pub const Sema = struct {
                 };
             },
             .const_def => |*c| {
-                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (c.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
+                        try self.compiler.add_sem_error("unknown type for constant '{s}'", .{c.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
                     break :blk .invalid;
@@ -277,7 +316,14 @@ pub const Sema = struct {
         // std.debug.print("visiting statement\n", .{});
         switch (stmt.*) {
             .var_stmt => |*v| {
-                const dty: types.TypeId = if (v.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (v.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
+                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{v.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(v.type_ann, v.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, v.token);
                     break :blk .invalid;
@@ -291,7 +337,14 @@ pub const Sema = struct {
                 };
             },
             .const_stmt => |*c| {
-                const dty: types.TypeId = if (c.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (c.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
+                        try self.compiler.add_sem_error("unknown type for constant '{s}'", .{c.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(c.type_ann, c.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, c.token);
                     break :blk .invalid;
@@ -304,7 +357,14 @@ pub const Sema = struct {
                 };
             },
             .local_static_var_stmt => |lv| {
-                const dty: types.TypeId = if (lv.type_ann) |ty| try self.types.resolve_type(ty, self.scope) else .invalid;
+                const dty: types.TypeId = if (lv.type_ann) |ty| blk: {
+                    const t = try self.types.resolve_type(ty, self.scope);
+                    const inferred = ty.base == .array and ty.base.array.size == .inferred;
+                    if (t == .invalid and !inferred) {
+                        try self.compiler.add_sem_error("unknown type for variable '{s}'", .{lv.name}, .Error, ty.token);
+                    }
+                    break :blk t;
+                } else .invalid;
                 const aty = if (check_undefined_array_infer(lv.type_ann, lv.value)) blk: {
                     try self.compiler.add_sem_error("cannot infer array length: 'undefined' has no length to infer from", .{}, .Error, lv.token);
                     break :blk .invalid;
