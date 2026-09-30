@@ -339,10 +339,15 @@ pub const Parser = struct {
 
     pub fn parse_struct_members(self: *Parser, s: *ast.StructDef) !void {
         var tok = try self.lexer.peek_token();
-        // parse struct fields
+        // parse struct fields and members
         while (true) {
             switch (tok.type) {
                 .kw_end => break,
+                .kw_func => {
+                    const f = try self.parse_func_def(false, false);
+                    try s.methods.append(self.allocator, .{ .func = f });
+                    tok = try self.lexer.peek_token();
+                },
                 .kw_pub => {
                     _ = try self.lexer.next();
                     const nxt = try self.lexer.peek_token();

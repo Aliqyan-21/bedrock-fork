@@ -1,4 +1,8 @@
 type P = struct
   pub x: i32,
-  y: i32
+  y: i32,
+
+  func foo(x: i32) -> i32
+    return x;
+  end
 end
